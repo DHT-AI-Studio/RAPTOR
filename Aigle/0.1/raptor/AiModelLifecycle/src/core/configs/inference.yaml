@@ -1,0 +1,122 @@
+# src/core/configs/inference.yaml
+
+# 顯存管理器配置
+memory_manager:
+  oom_retry_attempts: 1         # OOM 後的重試次數
+  guardian_interval_seconds: 60 # 守護線程檢查間隔 (秒)
+  idle_timeout_seconds: 300     # 模型閒置超時時間 (秒)
+  safe_margin_mb: 500           # 加載前預留的安全空間 (MB)
+  utilization_threshold: 85     # 顯存使用率 > 85% 時，守護線程會主動釋放閒置模型
+
+# 任務到模型的映射與選擇策略
+task_to_models:
+  text-generation-hf: # 文字生成任務，使用 Hugging Face 模型
+    strategy: "priority" # 選擇策略：優先級
+    discovery: # 模型探索配置
+      source: "mlflow" # 指定從 MLflow 探索模型
+      filter: "tags.inference_task = 'text-generation-hf'" # MLflow 的搜索過濾語法
+
+  vlm: # 視覺語言模型任務
+    strategy: "dynamic" # 選擇策略：動態選擇
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'vlm'"
+
+  text-generation-ollama:
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'text-generation-ollama'"
+  
+  asr-hf: # 自動語音識別任務，使用 Hugging Face 模型
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'asr-hf'"
+  
+  vad-hf: # 語音活動檢測任務，使用 Hugging Face 模型
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'vad-hf'"
+  
+  ocr-hf: # 光學字符識別任務，使用 Hugging Face 模型
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'ocr-hf'"
+
+  asr: # 自動語音識別任務 (通用)
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'asr'"
+
+  text_generation: # 通用文本生成任務
+    strategy: "dynamic"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'text_generation'"
+
+  # 多模態任務配置
+  scene_detection: # 場景檢測任務
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'scene_detection'"
+
+  audio_classification: # 音頻分類任務
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'audio_classification'"
+
+  document_analysis: # 文檔分析任務
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'document_analysis'"
+
+  image_captioning: # 圖像標題生成任務
+    strategy: "dynamic"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'image_captioning'"
+
+  video_summary: # 視頻摘要任務
+    strategy: "dynamic"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'video_summary'"
+
+  audio_transcription: # 音頻轉錄任務
+    strategy: "priority"
+    discovery:
+      source: "mlflow"
+      filter: "tags.inference_task = 'audio_transcription'"
+
+# 各引擎的特定配置
+engines:
+  ollama:
+    base_url: "http://localhost:11434"
+    timeout: 300
+    auto_pull: true                 # 自動拉取模型
+    stream: false                   # 流式輸出
+  transformers:
+    device: "auto"                  # 設備選擇
+    torch_dtype: "auto"             # 數據類型
+    trust_remote_code: true        # 信任遠程代碼
+    max_memory: null                # 最大記憶體限制
+  vllm:
+    gpu_memory_utilization: 0.9 # VLLM 可用的最大 GPU 顯存比例
+    tensor_parallel_size: 1     # VLLM 的張量並行數
+  
+  custom:
+    # 用於自定義模型的特定配置
+
+# 固定推理配置
+fixed_inference:
+  default_engine_type: "huggingface"  # 預設引擎類型
+  strict_validation: true            # 嚴格驗證模型名稱和引擎類型
+  cache_fixed_pipelines: true        # 緩存固定 Pipeline 實例
+  production_mode: false  

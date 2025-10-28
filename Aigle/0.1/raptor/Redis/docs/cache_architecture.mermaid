@@ -1,0 +1,99 @@
+---
+config:
+  layout: elk
+---
+flowchart TB
+ subgraph subGraph0["Cache Manager Layer"]
+        CM["CacheManager"]
+        DECORATOR["Function Decorators"]
+        WRAPPER["Wrapper Functions"]
+  end
+ subgraph subGraph1["Cache Implementation Layer"]
+        BC["BaseCache"]
+        SRC["SemanticRedisCache"]
+        MODEL["SentenceTransformer Model"]
+        VECTOR["Vector Index"]
+  end
+ subgraph subGraph2["Redis Cluster (Production)"]
+        RC1["Redis Node 1<br>Port 7000"]
+        RC2["Redis Node 2<br>Port 7001"]
+        RC3["Redis Node 3<br>Port 7002"]
+        RC4["Redis Node 4<br>Port 7003"]
+        RC5["Redis Node 5<br>Port 7004"]
+        RC6["Redis Node 6<br>Port 7005"]
+  end
+ subgraph subGraph3["Master-Slave (Development)"]
+        RM["Redis Master<br>Port 6379"]
+        RS["Redis Slave<br>Port 6380"]
+  end
+ subgraph subGraph4["Redis Infrastructure"]
+        subGraph2
+        subGraph3
+  end
+ subgraph subGraph5["Cache Flow Process"]
+        CHECK{"Cache Check"}
+        REQUEST["Function Call"]
+        HIT["Return Cached Value"]
+        MISS["Execute Function"]
+        STORE["Store in Cache"]
+        RETURN["Return Result"]
+        VECTOR_CHECK{"Vector Similarity"}
+        SEMANTIC_REQUEST["Semantic Query"]
+        SEMANTIC_HIT["Return Similar Result"]
+        SEMANTIC_MISS["Execute & Store"]
+  end
+ subgraph subGraph6["Background Processes"]
+        CLEANUP["Cleanup Task<br>Expired Keys"]
+        TTL_UPDATE["TTL Update<br>Dynamic Extension"]
+        LOCK_MANAGEMENT["Lock Management<br>Concurrency Control"]
+  end
+    CM -- "@cm.cache() decorator" --> DECORATOR
+    DECORATOR -- sync/async --> WRAPPER
+    WRAPPER -- Standard Cache --> BC
+    WRAPPER -- Semantic Cache --> SRC
+    SRC -- uses --> BC
+    SRC -- "BAAI/bge-m3" --> MODEL
+    SRC -- RediSearch --> VECTOR
+    RM -- replication --> RS
+    BC -- Connection Pool --> RC1 & RC2 & RC3 & RC4 & RC5 & RC6 & RM & RS
+    REQUEST --> CHECK
+    CHECK -- Hit --> HIT
+    CHECK -- Miss --> MISS
+    MISS --> STORE
+    STORE --> RETURN
+    SEMANTIC_REQUEST --> VECTOR_CHECK
+    VECTOR_CHECK -- Similar Found --> SEMANTIC_HIT
+    VECTOR_CHECK -- No Similar --> SEMANTIC_MISS
+     CM:::cacheLayer
+     DECORATOR:::cacheLayer
+     WRAPPER:::cacheLayer
+     BC:::cacheLayer
+     SRC:::cacheLayer
+     MODEL:::cacheLayer
+     VECTOR:::cacheLayer
+     RC1:::redisLayer
+     RC2:::redisLayer
+     RC3:::redisLayer
+     RC4:::redisLayer
+     RC5:::redisLayer
+     RC6:::redisLayer
+     RM:::redisLayer
+     RS:::redisLayer
+     CHECK:::process
+     REQUEST:::process
+     HIT:::process
+     MISS:::process
+     STORE:::process
+     RETURN:::process
+     VECTOR_CHECK:::process
+     SEMANTIC_REQUEST:::process
+     SEMANTIC_HIT:::process
+     SEMANTIC_MISS:::process
+     CLEANUP:::process
+     TTL_UPDATE:::process
+     LOCK_MANAGEMENT:::process
+    classDef clientApp fill:#e1f5fe
+    classDef cacheLayer fill:#f3e5f5
+    classDef redisLayer fill:#ffebee
+    classDef externalService fill:#e8f5e8
+    classDef process fill:#fff3e0

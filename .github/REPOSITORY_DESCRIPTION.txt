@@ -1,0 +1,29 @@
+RAPTOR - AI-Powered Content Insight Engine
+
+GitHub Repository Short Description (350 chars):
+===================================================
+AI-powered Content Insight Engine transforming passive media into intelligent knowledge. 85% reduction in manual tagging, 10x faster discovery through semantic search. Multi-modal analysis (video/audio/image/text), LLM-powered insights. Open source, production-ready, Kubernetes-native. Apache 2.0 | DHT Taiwan
+
+Website:
+========
+https://dhtsolution.com/
+
+Topics (select 10-15):
+======================
+ai
+artificial-intelligence
+machine-learning
+content-management
+digital-asset-management
+semantic-search
+vector-database
+llm
+large-language-models
+computer-vision
+nlp
+multimedia-processing
+video-analysis
+metadata-generation
+python
+kubernetes
+open-source

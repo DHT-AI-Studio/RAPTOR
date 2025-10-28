@@ -1,0 +1,121 @@
+volumes:
+  pgdata:
+  model_cache:
+
+networks:
+  mlflow-network:
+    driver: bridge
+
+services:
+  # PostgreSQL 資料庫 - MLflow 後端存儲
+  postgres:
+    image: postgres:15
+    container_name: mlflow-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - mlflow-network
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION}
+    # image: bitnami/mlflow:latest
+    container_name: mlflow-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Backend store URI built from vars
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+
+      # S3 settings for lakeFS
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+
+      # Server host/port
+      MLFLOW_HOST: ${MLFLOW_HOST}
+      MLFLOW_PORT: ${MLFLOW_PORT}
+
+    command: >
+      /bin/bash -c "
+        echo 'Installing additional dependencies...' &&
+        pip install --no-cache-dir psycopg2-binary boto3 &&
+        echo 'Starting MLflow server...' &&
+        mlflow server \
+          --backend-store-uri ${MLFLOW_BACKEND_STORE_URI} \
+          --default-artifact-root ${MLFLOW_DEFAULT_ARTIFACT_ROOT} \
+          --host ${MLFLOW_HOST} \
+          --port ${MLFLOW_PORT}
+      "
+    ports:
+      - "${MLFLOW_PORT}:${MLFLOW_PORT}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:${MLFLOW_PORT}/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+    networks:
+      - mlflow-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-model-lifecycle-api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    
+    ports:
+      - "${FASTAPI_PORT}:${FASTAPI_PORT}"
+    volumes:
+      # 開發模式：掛載 src 目錄實現熱加載
+      - ./src:/app/src:ro
+      - ./tmp:/app/tmp
+      - ./data:/app/data
+      # - model_cache:/app/cache
+      # - ./logs:/app/logs
+    
+    env_file:
+      - .env
+    environment:
+      # 確保這些環境變量在容器內可用
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+      HF_TOKEN: ${HF_TOKEN}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}    
+    # environment:      
+      # MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      # OLLAMA_API_BASE: ${OLLAMA_API_BASE} 
+    command: uvicorn src.main:app --host 0.0.0.0 --port ${FASTAPI_PORT} --reload
+    networks:
+      - mlflow-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1 # 使用 1 個 GPU
+              capabilities: [gpu]
+              # device_ids: ['2'] # 指定特定 GPU (可選)

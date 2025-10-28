@@ -1,0 +1,159 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for RAPTOR
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! We value community input in shaping RAPTOR's future.
+        
+        Before submitting:
+        - Search existing issues to see if someone already suggested this
+        - Check our roadmap to see if it's already planned
+        
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: A brief, clear description of the feature you'd like to see
+      placeholder: Describe the feature in 1-2 sentences...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: |
+        I'm frustrated when...
+        It would be helpful if...
+        Currently, I cannot...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: Describe how you envision this feature working...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Have you considered any alternative solutions or features?
+      placeholder: |
+        Alternative 1: ...
+        Alternative 2: ...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your use case and how this feature would benefit you and others
+      placeholder: |
+        I'm working on...
+        This feature would allow me to...
+        Other users might benefit because...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: example
+    attributes:
+      label: Code Example (Optional)
+      description: If applicable, provide a code example showing how you'd like to use this feature
+      placeholder: |
+        ```python
+        # Example of how this feature might be used
+        from raptor import NewFeature
+        
+        feature = NewFeature()
+        feature.do_something()
+        ```
+      render: python
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Nice to have
+        - Would improve my workflow
+        - Critical for my use case
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Breaking Change
+      description: Would this feature require breaking changes to the API?
+      options:
+        - "No"
+        - "Yes"
+        - "Not sure"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Ideas
+      description: Do you have ideas about how this could be implemented?
+      placeholder: |
+        This could be implemented by...
+        It might require changes to...
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Are you willing to contribute?
+      description: Would you like to implement this feature yourself?
+      options:
+        - "Yes, I'd like to implement this"
+        - "Yes, with guidance from maintainers"
+        - "No, but I'm happy to test it"
+        - "No"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, mockups, or examples about the feature request
+      placeholder: |
+        Links to similar features in other frameworks...
+        Mockups or diagrams...
+        Related research papers...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for similar feature requests and found none
+          required: true
+        - label: I have provided a clear use case for this feature
+          required: true
+        - label: I have considered how this feature might impact existing functionality
+          required: false
+

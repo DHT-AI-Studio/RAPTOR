@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: 'Seaweedfs Dashboards'
+    orgId: 1
+    folder: 'Seaweedfs'
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

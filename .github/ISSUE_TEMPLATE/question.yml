@@ -1,0 +1,99 @@
+name: Question
+description: Ask a question about RAPTOR
+title: "[Question]: "
+labels: ["question", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about RAPTOR? We're here to help!
+        
+        Before submitting:
+        - Check the documentation
+        - Search existing issues and discussions
+        - Make sure this is a question and not a bug report or feature request
+        
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know about RAPTOR?
+      placeholder: Ask your question here...
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What is your question about?
+      options:
+        - Installation and setup
+        - Usage and how-to
+        - API and functionality
+        - Performance and optimization
+        - Best practices
+        - Documentation
+        - Troubleshooting
+        - Contributing
+        - Other
+    validations:
+      required: true
+      
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context that might help us answer your question
+      placeholder: |
+        I'm trying to...
+        I've read the documentation at...
+        I'm working on...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What Have You Tried?
+      description: What have you already tried to solve this?
+      placeholder: |
+        I tried...
+        I looked at...
+        I searched for...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: code
+    attributes:
+      label: Relevant Code (Optional)
+      description: If applicable, provide code that's relevant to your question
+      placeholder: |
+        ```python
+        # Your code here
+        ```
+      render: python
+    validations:
+      required: false
+      
+  - type: input
+    id: version
+    attributes:
+      label: RAPTOR Version
+      description: Which version are you using? (if relevant)
+      placeholder: e.g., Aigle 0.1.0-beta
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that might help us answer your question
+      placeholder: Any other relevant details...
+    validations:
+      required: false
+

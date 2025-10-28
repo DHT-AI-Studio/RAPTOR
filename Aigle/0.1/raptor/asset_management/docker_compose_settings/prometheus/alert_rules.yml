@@ -1,0 +1,76 @@
+groups:
+- name: SeaweedFS_Alerts
+  rules:
+  # --- Filer Related Alerts ---
+  - alert: HighFilerRequestLatency
+    expr: histogram_quantile(0.99, sum(rate(SeaweedFS_filerStore_request_seconds_bucket[5m])) by (le)) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Filer request latency is high (Instance: {{ $labels.instance }})"
+      description: "99th percentile of Filer request latency has been over 2 seconds for 5 minutes. Current value is {{ $value }} seconds."
+
+  - alert: LowFilerQPS
+    # Use sum() by(instance) to sum up all types of QPS, to avoid generating multiple alerts
+    expr: sum by(instance) (rate(SeaweedFS_filerStore_request_total[5m])) < 10
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Filer QPS Too Low (Instance: {{ $labels.instance }})"
+      description: "The total QPS of all Filer operations has been below 10 for 10 minutes. Current value is {{ $value }}/s."
+
+  # --- S3 Gateway Related Alerts ---
+  - alert: HighS3RequestLatency
+    expr: histogram_quantile(0.95, sum(rate(SeaweedFS_s3_request_seconds_bucket[5m])) by (le)) > 3
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High S3 Request Latency"
+      description: "The 95th percentile of S3 API request latency has been over 3 seconds for 5 minutes. Current value is {{ $value }} seconds."
+
+  # --- Volume Server Related Alerts ---
+  - alert: HighVolumeServerLatency
+    expr: histogram_quantile(0.99, sum(rate(SeaweedFS_volumeServer_request_seconds_bucket[5m])) by (le)) > 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Volume Server latency is high (Instance: {{ $labels.exported_instance }})"
+      description: "The 99th percentile of Volume Server request latency has been over 1 second for 5 minutes. Current value is {{ $value }} seconds."
+
+  - alert: VolumeServerDiskUsageHigh
+    # Use SeaweedFS' built-in resource metric to calculate disk usage
+    expr: |
+      (1 - (
+        SeaweedFS_volumeServer_resource{type="free"} 
+        / 
+        SeaweedFS_volumeServer_resource{type="all"}
+      )) * 100 > 85
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Volume Server disk usage is high (Host: {{ $labels.exported_instance }}, Path: {{ $labels.name }})"
+      description: "Volume Server disk usage has been over 85% for 10 minutes."
+
+  # --- Host Resource Alerts ---
+  - alert: HighMemoryUsage
+    expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 80
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High Memory Usage (Instance: {{ $labels.instance }})"
+      description: "Memory usage has been over 80% for 10 minutes."
+
+  - alert: HighCPUUsage
+    expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High Host CPU Usage (Instance: {{ $labels.instance }})"
+      description: "Host CPU usage has been over 80% for 10 minutes."

@@ -1,0 +1,51 @@
+
+services:
+  redis-master:
+    image: redis:8.0.2
+    container_name: redis-master
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    restart: unless-stopped
+    environment:
+      - MASTER=true
+    networks:
+      - redis-net
+
+  redis-slave:
+    image: redis:8.0.2
+    container_name: redis-slave
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./redis-slave.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    networks:
+      - redis-net
+
+  redisinsight:
+    image: redislabs/redisinsight:2.70
+    container_name: redisinsight
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight_data:/db
+    depends_on:
+      - redis-master
+    restart: unless-stopped
+    networks:
+      - redis-net
+      
+volumes:
+  redis_data:
+  redisinsight_data:
+
+networks:
+  redis-net:
+    driver: bridge

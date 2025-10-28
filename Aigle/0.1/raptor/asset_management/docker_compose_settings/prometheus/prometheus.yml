@@ -1,0 +1,64 @@
+global:
+  scrape_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'seaweedfs-master1'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-master1:1234']
+
+  - job_name: 'seaweedfs-master2'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-master2:1235']
+
+  - job_name: 'seaweedfs-master3'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-master3:1236']
+
+  - job_name: 'seaweedfs-volume1'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-volume1:1237']
+
+  - job_name: 'seaweedfs-volume2'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-volume2:1238']
+
+  - job_name: 'seaweedfs-volume3'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-volume3:1239']
+
+  - job_name: 'seaweedfs-volume4'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-volume4:1240']
+
+  - job_name: 'seaweedfs-filer'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-filer:1241']
+    metric_relabel_configs:
+      - source_labels: [__address__]
+        target_label: exported_job
+        replacement: filer
+
+  - job_name: 'seaweedfs-s3'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['seaweedfs-s3:1242']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']

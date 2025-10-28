@@ -1,0 +1,33 @@
+# src/core/configs/base.yaml
+
+model_repository:
+  storage_backend: s3
+  bucket_name: "lakefs"
+
+mlflow:
+  tracking_uri: "${MLFLOW_TRACKING_URI}"
+
+storage:
+  # 默認模型和數據集從網路上下載下來的暫存路徑 
+  models_tmp_root: "${PROJECT_ROOT}/tmp/models"
+  datasets_tmp_root: "${PROJECT_ROOT}/tmp/datasets"
+  # 模型從 lakeFS 下載下來的本地緩存路徑
+  models_from_lakefs_root: "${PROJECT_ROOT}/data/models"
+  datasets_from_lakefs_root: "${PROJECT_ROOT}/data/datasets"
+  
+ollama:
+  api_base: "${OLLAMA_API_BASE}"
+
+lakefs:
+  endpoint: "${MLFLOW_S3_ENDPOINT_URL}"  # lakeFS API
+  access_key: "${AWS_ACCESS_KEY_ID}"         # lakeFS access key
+  secret_key: "${AWS_SECRET_ACCESS_KEY}" # lakeFS secret key
+  namespace: lakefs
+   # 定義在底層儲存體中的路徑，用於創建新 Repo
+  model_storage_namespace: "s3://lakefs/models"
+  dataset_storage_namespace: "s3://lakefs/datasets"  
+  # 新 Repo 的預設分支名
+  default_branch: "main"
+
+huggingface:
+  hf_token: "${HF_TOKEN}"

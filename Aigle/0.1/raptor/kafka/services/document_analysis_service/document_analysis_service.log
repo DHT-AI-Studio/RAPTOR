@@ -1,0 +1,20 @@
+2025-10-27 17:13:18,733 - __main__ - INFO - Starting Document Analysis Service with Standard Message Format...
+2025-10-27 17:13:18,733 - document_analysis - INFO - Initializing shared VLM annotator...
+2025-10-27 17:13:19,302 - transformers_modules.OpenGVLab.InternVL3_5-4B.481f6e32467eab4e922ccd7fd6cf420441a62331.configuration_internvl_chat - INFO - vision_select_layer: -1
+2025-10-27 17:13:19,302 - transformers_modules.OpenGVLab.InternVL3_5-4B.481f6e32467eab4e922ccd7fd6cf420441a62331.configuration_internvl_chat - INFO - ps_version: v2
+2025-10-27 17:13:19,302 - transformers_modules.OpenGVLab.InternVL3_5-4B.481f6e32467eab4e922ccd7fd6cf420441a62331.configuration_internvl_chat - INFO - min_dynamic_patch: 1
+2025-10-27 17:13:19,302 - transformers_modules.OpenGVLab.InternVL3_5-4B.481f6e32467eab4e922ccd7fd6cf420441a62331.configuration_internvl_chat - INFO - max_dynamic_patch: 12
+2025-10-27 17:13:19,699 - transformers_modules.OpenGVLab.InternVL3_5-4B.481f6e32467eab4e922ccd7fd6cf420441a62331.modeling_internvl_chat - INFO - num_image_token: 256
+2025-10-27 17:13:19,699 - transformers_modules.OpenGVLab.InternVL3_5-4B.481f6e32467eab4e922ccd7fd6cf420441a62331.modeling_internvl_chat - INFO - ps_version: v2
+2025-10-27 17:13:22,304 - processors.office_processor - INFO - 本地 InternVL 模型初始化完成
+2025-10-27 17:13:22,304 - document_analysis - INFO - VLM annotator initialized successfully
+2025-10-27 17:13:28,183 - processors.pdf_ocr_processor - INFO - 使用共享的 VLM 實例
+2025-10-27 17:13:28,183 - processors.pdf_ocr_processor - INFO - PDF處理器初始化完成
+2025-10-27 17:13:28,183 - document_analysis - INFO - Document analysis client initialized
+2025-10-27 17:13:28,183 - kafka_handler - INFO - Initialized with 4 workers, max concurrent tasks: 8
+2025-10-27 17:13:28,183 - aiokafka.consumer.subscription_state - INFO - Updating subscribed topics to: frozenset({'document-analysis-requests'})
+2025-10-27 17:13:28,183 - __main__ - ERROR - Unexpected error: 'NoneType' object is not iterable
+2025-10-27 17:13:28,588 - asyncio - ERROR - Unclosed AIOKafkaConsumer
+consumer: <aiokafka.consumer.consumer.AIOKafkaConsumer object at 0x751e62864bb0>
+2025-10-27 17:13:28,588 - asyncio - ERROR - Unclosed AIOKafkaProducer
+producer: <aiokafka.producer.producer.AIOKafkaProducer object at 0x751e59d3ace0>

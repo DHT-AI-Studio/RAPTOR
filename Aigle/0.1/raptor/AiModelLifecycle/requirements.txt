@@ -1,0 +1,77 @@
+# ========================================
+# AI Model Lifecycle Management Platform
+# Python Dependencies
+# ========================================
+
+# ========================================
+# Core Web Framework & API
+# ========================================
+fastapi
+uvicorn
+pydantic
+python-multipart
+# ========================================
+# MLOps & Model Management
+# ========================================
+mlflow
+ollama
+lakefs-client
+lakefs-spec
+
+# ========================================
+# Cloud Storage & Database
+# ========================================
+boto3 # mlflow s3 artifact store 需要
+psycopg2-binary # mlflow postgres backend store 需要
+
+
+# ========================================
+# Machine Learning & Deep Learning
+# ========================================
+transformers
+torch
+torchvision
+torchaudio
+sentencepiece
+accelerate
+datasets
+
+# ========================================
+# Audio & Video Processing  
+# ========================================
+librosa
+opencv-python
+pillow
+soundfile
+
+# ========================================
+# Configuration & Environment
+# ========================================
+pyyaml
+python-dotenv
+# ========================================
+# HTTP Client & Networking
+# ========================================
+httpx
+aiohttp
+requests
+
+# ========================================
+# Data Processing & Utilities
+# ========================================
+numpy
+pandas
+scipy
+scikit-learn
+
+# ========================================
+# Async & Concurrency
+# ========================================
+asyncio
+aiofiles
+celery
+
+# ========================================
+# Performance & Optimization
+# ========================================
+psutil

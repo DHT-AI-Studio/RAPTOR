@@ -1,0 +1,176 @@
+# services/audio_orchestrator_service/message_utils.py
+
+import uuid
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional
+
+class MessageBuilder:
+    @staticmethod
+    def create_message(
+        source_service: str,
+        target_service: str,
+        message_type: str,
+        payload: Dict[str, Any],
+        priority: str = "MEDIUM",
+        correlation_id: Optional[str] = None,
+        retry_count: int = 0,
+        ttl: int = 3600
+    ) -> Dict[str, Any]:
+        """創建符合標準格式的消息"""
+        return {
+            "message_id": str(uuid.uuid4()),
+            "correlation_id": correlation_id or str(uuid.uuid4()),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source_service": source_service,
+            "target_service": target_service,
+            "message_type": message_type,
+            "priority": priority,
+            "payload": payload,
+            "retry_count": retry_count,
+            "ttl": ttl
+        }
+    
+    @staticmethod
+    def create_response(
+        original_message: Dict[str, Any],
+        payload: Dict[str, Any],
+        message_type: str = "RESPONSE"
+    ) -> Dict[str, Any]:
+        """基於原始消息創建響應消息"""
+        return MessageBuilder.create_message(
+            source_service="audio_orchestrator_service",
+            target_service=original_message["source_service"],
+            message_type=message_type,
+            payload=payload,
+            correlation_id=original_message["correlation_id"],
+            priority=original_message.get("priority", "MEDIUM"),
+            retry_count=original_message.get("retry_count", 0), 
+            ttl=original_message.get("ttl", 3600) 
+        )
+    
+    @staticmethod
+    def create_processing_request(
+        original_message: Dict[str, Any],
+        target_service: str,
+        action: str,
+        parameters: Dict[str, Any],
+        temp_file_path: str
+    ) -> Dict[str, Any]:
+        """創建處理請求消息"""
+        payload = {
+            "request_id": str(uuid.uuid4()),
+            "original_request_id": original_message["correlation_id"],
+            "user_id": original_message["payload"].get("user_id"),
+            "access_token": original_message["payload"].get("access_token"),
+            "action": action,
+            "parameters": {
+                **parameters,
+                "file_path": temp_file_path,
+                "asset_path": original_message["payload"]["parameters"].get("asset_path"),
+                "version_id": original_message["payload"]["parameters"].get("version_id")
+            },
+            "file_path": temp_file_path,
+            "metadata": {
+                "orchestrator_request_id": original_message["correlation_id"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "original_metadata": original_message["payload"].get("metadata", {})
+            }
+        }
+        
+        return MessageBuilder.create_message(
+            source_service="audio_orchestrator_service",
+            target_service=target_service,
+            message_type="REQUEST",
+            payload=payload,
+            correlation_id=original_message["correlation_id"],
+            priority=original_message.get("priority", "MEDIUM"),
+            ttl=original_message.get("ttl", 3600)
+        )
+    
+    @staticmethod
+    def create_error_response(
+        original_message: Dict[str, Any],
+        error_message: str,
+        error_code: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """創建錯誤響應消息"""
+        payload = {
+            "request_id": original_message["payload"].get("request_id"),
+            "action": original_message["payload"].get("action"),
+            "status": "error",
+            "error": {
+                "message": error_message,
+                "code": error_code,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "metadata": {
+                "original_message_id": original_message["message_id"]
+            }
+        }
+        
+        return MessageBuilder.create_response(
+            original_message=original_message,
+            payload=payload,
+            message_type="ERROR"
+        )
+    
+    @staticmethod
+    def create_dlq_message(
+        original_message: Dict[str, Any],
+        error: str,
+        final_retry_count: int
+    ) -> Dict[str, Any]:
+        """創建 DLQ 消息"""
+        payload = {
+            "original_message": original_message,
+            "error": error,
+            "final_retry_count": final_retry_count,
+            "dlq_timestamp": datetime.now(timezone.utc).isoformat(),
+            "metadata": {
+                "reason": "max_retries_exceeded"
+            }
+        }
+        
+        return MessageBuilder.create_message(
+            source_service="audio_orchestrator_service",
+            target_service="dlq_handler",
+            message_type="ERROR",
+            payload=payload,
+            priority="HIGH",
+            correlation_id=original_message["correlation_id"]
+        )
+
+def create_final_result_message(
+    original_message: Dict[str, Any],
+    classifier_result: Dict[str, Any],
+    diarization_result: Dict[str, Any],
+    recognizer_result: Dict[str, Any],
+    summary_result: Dict[str, Any],
+    save_result: Dict[str, Any]
+) -> Dict[str, Any]:
+    """創建最終結果消息"""
+    payload = {
+        "request_id": original_message["payload"].get("request_id"),
+        "user_id": original_message["payload"].get("user_id"),
+        "action": "audio_processing_complete",
+        "status": "success",
+        "results": {
+            "summary": summary_result.get("results", {}),
+            "qdrant_save": save_result.get("results", {})
+        },
+        "metadata": {
+            "processing_completed_at": datetime.now(timezone.utc).isoformat(),
+            "asset_path": original_message["payload"]["parameters"].get("asset_path"),
+            "version_id": original_message["payload"]["parameters"].get("version_id"),
+            "primary_filename": original_message["payload"]["parameters"].get("primary_filename")
+        }
+    }
+    
+    return MessageBuilder.create_message(
+        source_service="audio_orchestrator_service",
+        target_service=original_message["source_service"],
+        message_type="RESPONSE",
+        payload=payload,
+        correlation_id=original_message["correlation_id"],
+        priority=original_message.get("priority", "MEDIUM")
+    )
