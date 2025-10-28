@@ -1,0 +1,1157 @@
+services:
+  redis1:
+    image: redis:8.0.2
+    container_name: redis1
+    env_file:
+      - ./Redis/redis_cluster/.env
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7000", 
+      "--cluster-announce-ip", "${IP}",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    ports:
+      - "7000:7000"
+      - "17000:17000"
+    volumes:
+      - redis1:/data
+      - ./Redis/redis_cluster/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7000", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks:
+      - asset_management
+
+  redis2:
+    image: redis:8.0.2
+    container_name: redis2
+    env_file:
+      - ./Redis/redis_cluster/.env
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7001", 
+      "--cluster-announce-ip", "${IP}",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    ports:
+      - "7001:7001"
+      - "17001:17001"
+    volumes:
+      - redis2:/data
+      - ./Redis/redis_cluster/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7001", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks:
+      - asset_management  
+  redis3:
+    image: redis:8.0.2
+    container_name: redis3
+    env_file:
+      - ./Redis/redis_cluster/.env
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7002", 
+      "--cluster-announce-ip", "${IP}",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    ports:
+      - "7002:7002"
+      - "17002:17002"
+    volumes:
+      - redis3:/data
+      - ./Redis/redis_cluster/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7002", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks:
+      - asset_management  
+  redis4:
+    image: redis:8.0.2
+    container_name: redis4
+    env_file:
+      - ./Redis/redis_cluster/.env
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7003", 
+      "--cluster-announce-ip", "${IP}",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    ports:
+      - "7003:7003"
+      - "17003:17003"
+    volumes:
+      - redis4:/data
+      - ./Redis/redis_cluster/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7003", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks:
+      - asset_management  
+  redis5:
+    image: redis:8.0.2
+    container_name: redis5
+    env_file:
+      - ./Redis/redis_cluster/.env
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7004", 
+      "--cluster-announce-ip", "${IP}",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    ports:
+      - "7004:7004"
+      - "17004:17004"
+    volumes:
+      - redis5:/data
+      - ./Redis/redis_cluster/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7004", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks:
+      - asset_management  
+  redis6:
+    image: redis:8.0.2
+    container_name: redis6
+    env_file:
+      - ./Redis/redis_cluster/.env
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7005", 
+      "--cluster-announce-ip", "${IP}",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    ports:
+      - "7005:7005"
+      - "17005:17005"
+    volumes:
+      - redis6:/data
+      - ./Redis/redis_cluster/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7005", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks:
+      - asset_management
+  redisinsight:
+    image: redislabs/redisinsight:2.70
+    container_name: redisinsight
+    ports:
+      - "5540:5540"
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  redis-cluster-creator:
+    image: redis:8.0.2
+    container_name: redis-cluster-creator
+    env_file:
+      - ./Redis/redis_cluster/.env
+    entrypoint: [/bin/sh,-c,'echo "yes" | redis-cli -a ${REDIS_PASSWORD} --cluster create ${IP}:7000 ${IP}:7001 ${IP}:7002 ${IP}:7003 ${IP}:7004 ${IP}:7005 --cluster-replicas 1']
+    # restart: unless-stopped
+    depends_on:
+      redis1:
+        condition: service_healthy
+      redis2:
+        condition: service_healthy
+      redis3:
+        condition: service_healthy
+      redis4:
+        condition: service_healthy
+      redis5:
+        condition: service_healthy
+      redis6:
+        condition: service_healthy
+    networks:
+      - asset_management
+  
+  app:
+    build: 
+      context: ./asset_management
+      dockerfile: Dockerfile
+    image: asset-management-app_test:latest
+    container_name: app_dev
+    ports:
+      - "8086:8000"  #8000:8000
+    env_file:
+      - ./asset_management/.env
+    environment:
+      - TZ=${TIMEZONE}
+    # volumes:
+    #   - app:/appped
+    networks:
+      - asset_management
+    depends_on:
+      mysql:
+        condition: service_healthy
+      seaweedfs-s3:
+        condition: service_healthy
+      lakefs:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_dev
+    env_file:
+      - ./asset_management/.env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3307:3306"  #3306:3306
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - asset_management
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  seaweedfs-master1:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-master1_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "9343:9333" #9333:9333
+      - "19343:19333" #19333:19333
+      - "1244:1234" #1234:1234
+    command: master -port=9333 -port.grpc=19333 -mdir=/data/master1 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \ 
+     -ip=seaweedfs-master1 -ip.bind=0.0.0.0 \
+     -defaultReplication=011 -metricsPort=1234 \
+     -peers=seaweedfs-master2:9334,seaweedfs-master3:9335
+    volumes:
+      - seaweedfs_master1:/data/master1
+      - ./asset_management/docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-master2:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-master2_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "9344:9334"  #9334:9334
+      - "19344:19334" #19334:19334
+      - "1245:1235" #1235:1235
+    command: master -port=9334 -port.grpc=19334 -mdir=/data/master2 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \ 
+     -ip=seaweedfs-master2 -ip.bind=0.0.0.0 \
+     -defaultReplication=011  -metricsPort=1235 \
+     -peers=seaweedfs-master1:9333,seaweedfs-master3:9335
+    volumes:
+      - seaweedfs_master2:/data/master2
+      - ./asset_management/docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+      
+  seaweedfs-master3:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-master3_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "9345:9335"  #9335:9335
+      - "19345:19335" #19335:19335
+      - "1246:1236" #1236:1236
+    command: master -port=9335 -port.grpc=19335 -mdir=/data/master3 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \
+     -ip=seaweedfs-master3 -ip.bind=0.0.0.0 \
+     -defaultReplication=011  -metricsPort=1236 \
+     -peers=seaweedfs-master1:9333,seaweedfs-master2:9334
+    volumes:
+      - seaweedfs_master3:/data/master3
+      - ./asset_management/docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume1:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume1_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "8091:8081"   #8081:8081
+      - "18091:18081" #18081:18081
+      - "1247:1237" #1237:1237 
+    command: volume -dir=/data/vol1 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -port=8081 -port.grpc=18081 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume1 \ 
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack1 -metricsPort=1237
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol1:/data/vol1
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume2:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume2_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "8092:8082" #8082:8082
+      - "18092:18082" #18082:18082
+      - "1248:1238" #1238:1238
+    command: volume -dir=/data/vol2 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -port=8082 -port.grpc=18082 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume2 \
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack1 -metricsPort=1238
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol2:/data/vol2
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume3:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume3_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "8093:8083" #8083:8083
+      - "18093:18083" #18083:18083
+      - "1249:1239" #1239:1239
+    command: volume -dir=/data/vol3 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \ 
+     -port=8083 -port.grpc=18083 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume3 \ 
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack2 -metricsPort=1239
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol3:/data/vol3
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume4:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume4_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "8094:8084" #8084:8084 
+      - "18094:18084" #18084:18084
+      - "1250:1240" #1240:1240
+    command: volume -dir=/data/vol4 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \ 
+     -port=8084 -port.grpc=18084 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume4 \ 
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack2 -metricsPort=1240
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol4:/data/vol4
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-filer_dev
+    user: "0"
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "8898:8888" #8888:8888
+      - "18898:18888" #18888:18888
+      - "1251:1241" #1241:1241
+    command: filer -master=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 -ip=seaweedfs-filer -ip.bind=0.0.0.0  \ 
+     -port=8888 -port.grpc=18888 -s3.allowEmptyFolder=false -encryptVolumeData -metricsPort=1241
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+      - seaweedfs-volume1
+      - seaweedfs-volume2
+      - seaweedfs-volume3
+      - seaweedfs-volume4
+    volumes:
+      - seaweedfs_filer:/data/filer
+      - ./asset_management/docker_compose_settings/seaweedfs/filer.toml:/etc/seaweedfs/filer.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-s3_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "8343:8333" #8333:8333
+      - "18343:18333" #18333:18333
+      - "1252:1242" #1242:1242
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_KEY}
+    command: s3 -filer=seaweedfs-filer:8888 -ip.bind=0.0.0.0 -port=8333 -port.grpc=18333 -allowEmptyFolder=false -metricsPort=1242
+    depends_on:
+      - seaweedfs-filer
+    volumes:
+      - seaweedfs_s3:/data/s3
+    restart: unless-stopped
+    networks:
+      - asset_management
+    healthcheck:
+      test: ["CMD", "weed", "version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  seaweedfs-admin:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-admin_dev
+    ports:
+      - "23656:23646" #23646:23646
+      - "33656:33646" #33646:33646
+    command: admin -masters=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -dataDir=/data/admin -port=23646 # -adminUser=${ADMIN_USERNAME} -adminPassword=${ADMIN_PASSWORD}
+    depends_on:
+      - seaweedfs-filer
+    volumes:
+      - seaweedfs_admin:/data/admin
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-worker1:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-worker1_dev
+    command: worker -admin=seaweedfs-admin:23646 -capabilities=vacuum,ec,balance -maxConcurrent=2 -heartbeat=30s -taskInterval=5s
+    depends_on:
+      - seaweedfs-admin
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-backup:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-backup_dev
+    command: filer.backup -filer=seaweedfs-filer:8888
+    volumes:
+      - ./asset_management/docker_compose_settings/seaweedfs/replication.toml:/etc/seaweedfs/replication.toml:ro
+      - seaweedfs_backup:/backup
+    depends_on:
+      - seaweedfs-filer
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: prometheus_dev
+    user: "0"
+    env_file:
+      - ./asset_management/.env
+    environment:
+      - TZ=${TIMEZONE}
+    command: --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./asset_management/docker_compose_settings/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./asset_management/docker_compose_settings/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
+    ports:
+      - "9091:9090"   #9090:9090
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  alertmanager:
+    build: ./asset_management/docker_compose_settings/alertmanager
+    container_name: alertmanager_dev
+    env_file:
+      - ./asset_management/.env
+    restart: unless-stopped
+    ports:
+      - "9094:9093" #9093:9093
+    networks:
+      - asset_management
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter_dev
+    env_file:
+      - ./asset_management/.env
+    user: root
+    privileged: true
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    environment:
+      - TZ=${TIMEZONE}
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9101:9100"  #9100:9100
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    container_name: grafana_dev
+    env_file:
+      - ./asset_management/.env
+    ports:
+      - "3031:3000" #3030:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./asset_management/docker_compose_settings/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./asset_management/docker_compose_settings/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - TZ=${TIMEZONE}
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  lakefs:
+    image: treeverse/lakefs:1.65.2
+    container_name: lakefs_dev
+    ports:
+      - "8011:8000" #8001:8000
+    env_file:
+      - ./asset_management/.env
+    environment:
+      - LAKEFS_DATABASE_TYPE=local
+      - LAKEFS_BLOCKSTORE_TYPE=s3
+      - LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE=true
+      - LAKEFS_BLOCKSTORE_S3_ENDPOINT=${S3_ENDPOINT}
+      - LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION=false
+      - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
+      - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${AWS_SECRET_KEY}
+      - LAKEFS_INSTALLATION_USER_NAME=admin
+      - LAKEFS_INSTALLATION_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
+      - LAKEFS_INSTALLATION_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
+      - LAKECTL_CREDENTIALS_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
+      - LAKECTL_CREDENTIALS_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
+      - LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_AUTH_ENCRYPT_SECRET_KEY}
+      - LAKEFS_BLOCKSTORE_S3_REGION="none"
+      - LAKEFS_BLOCKSTORE_S3_PRE_SIGNED_ENDPOINT=${S3_PUBLIC_URL}
+      - LAKEFS_BLOCKSTORE_S3_PRE_SIGNED_EXPIRY=${LAKEFS_PRE_SIGNED_EXPIRY}
+      - TZ=${TIMEZONE}
+    depends_on:
+      seaweedfs-s3:
+        condition: service_started
+    volumes:
+      - lakefs_data:/home/lakefs
+    restart: unless-stopped
+    networks:
+      - asset_management
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/api/v1/healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  lakefs-gc-cron:
+    build: ./asset_management/docker_compose_settings/lakefs/gc-runner
+    container_name: lakefs-gc-cron_dev
+    env_file:
+      - ./asset_management/.env
+    environment:
+      - LAKEFS_ENDPOINT=${LAKEFS_ENDPOINT}
+      - LAKEFS_ACCESS_KEY=${LAKEFS_ACCESS_KEY}
+      - LAKEFS_SECRET_KEY=${LAKEFS_SECRET_KEY}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - LAKEFS_REPOSITORY=${LAKEFS_REPOSITORY}
+      - GC_CRON_SCHEDULE=${GC_CRON_SCHEDULE}
+      - TZ=${TIMEZONE}
+    command: >
+      /bin/bash -c "chmod +x /usr/local/bin/run-gc.sh && /usr/local/bin/entrypoint.sh"
+    depends_on:
+      lakefs:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - asset_management
+  postgres:
+    image: postgres:15
+    container_name: mlflow-postgres_dev
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432" #5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - asset_management
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION}
+    # image: bitnami/mlflow:latest
+    container_name: mlflow-server_dev
+    depends_on:
+      postgres:
+        condition: service_healthy      
+      
+    environment:
+      # Backend store URI built from vars
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+
+      # S3 settings for lakeFS
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+
+      # Server host/port
+      MLFLOW_HOST: ${MLFLOW_HOST}
+      MLFLOW_PORT: ${MLFLOW_PORT}
+    command:
+      - /bin/bash
+      - -c
+      - >
+        pip install --no-cache-dir psycopg2-binary boto3 &&
+        mlflow server
+        --backend-store-uri '${MLFLOW_BACKEND_STORE_URI}'
+        --host '${MLFLOW_HOST}'
+        --port '${MLFLOW_PORT}'
+    ports:
+      - "${MLFLOW_PORT}:${MLFLOW_PORT}"
+    networks:
+      - asset_management
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:${MLFLOW_PORT}/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  api:
+    build:
+      context: ./AiModelLifecycle
+      dockerfile: Dockerfile
+    container_name: ai-model-lifecycle-api_dev
+    depends_on:
+      - mlflow
+    ports:
+      - "8010:8010" 
+    volumes:
+      # 掛載 src 目錄，實現熱加載
+      # tmp 目錄用於存放臨時文件，如下載的模型和數據集，不需重複下載
+      - ./AiModelLifecycle/src:/app/src
+      - ./AiModelLifecycle/tmp:/app/tmp
+    env_file:
+      - ./AiModelLifecycle/.env
+    # environment:      
+    #   MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+    #   OLLAMA_API_BASE: ${OLLAMA_API_BASE} 
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8010 --reload
+    networks:
+      - asset_management
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+
+  kafka-gen:
+    image: confluentinc/cp-kafka:7.9.0
+    hostname: kafka-gen
+    container_name: kafka-gen_dev
+    user: "0"
+    restart: "no"
+    volumes:
+      - ./kafka/scripts/create_cluster_id.sh:/tmp/create_cluster_id.sh
+      - ./kafka/clusterID:/tmp/clusterID
+    command: "bash -c '/tmp/create_cluster_id.sh'"
+    networks:
+      - asset_management
+  cntrl1:
+    image: confluentinc/cp-kafka:7.9.0
+    restart: always
+    hostname: cntrl1
+    container_name: cntrl1_dev
+    user: "0"
+    environment:
+        KAFKA_NODE_ID: 1
+        KAFKA_PROCESS_ROLES: controller
+        KAFKA_CONTROLLER_QUORUM_VOTERS: 1@cntrl1:9193,2@cntrl2:9193,3@cntrl3:9193
+        KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+        KAFKA_LISTENERS: CONTROLLER://cntrl1:9193
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+        KAFKA_METADATA_LOG_DIR: /var/lib/kafka/data
+        KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+    volumes:
+      - cntrl1-logs:/data
+      - ./kafka/scripts/update_run.sh:/tmp/update_run.sh
+      - ./kafka/clusterID:/tmp/clusterID
+      - ./kafka/kafka-config/log4j.properties:/etc/kafka/custom-log4j.properties
+    command: "bash -c '/tmp/update_run.sh'"
+    networks:
+      - asset_management
+  cntrl2:
+    image: confluentinc/cp-kafka:7.9.0
+    restart: always
+    hostname: cntrl2
+    container_name: cntrl2_dev
+    user: "0"
+    environment:
+        KAFKA_NODE_ID: 2
+        KAFKA_PROCESS_ROLES: controller
+        KAFKA_CONTROLLER_QUORUM_VOTERS: 1@cntrl1:9193,2@cntrl2:9193,3@cntrl3:9193
+        KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+        KAFKA_LISTENERS: CONTROLLER://cntrl2:9193
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+        KAFKA_METADATA_LOG_DIR: /var/lib/kafka/data
+        KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+    volumes:
+      - cntrl2-logs:/data
+      - ./kafka/scripts/update_run.sh:/tmp/update_run.sh
+      - ./kafka/clusterID:/tmp/clusterID
+      - ./kafka/kafka-config/log4j.properties:/etc/kafka/custom-log4j.properties
+    command: "bash -c '/tmp/update_run.sh'"
+    networks:
+      - asset_management
+  cntrl3:
+    image: confluentinc/cp-kafka:7.9.0
+    restart: always
+    hostname: cntrl3
+    container_name: cntrl3_dev
+    user: "0"
+    environment:
+        KAFKA_NODE_ID: 3
+        KAFKA_PROCESS_ROLES: controller
+        KAFKA_CONTROLLER_QUORUM_VOTERS: 1@cntrl1:9193,2@cntrl2:9193,3@cntrl3:9193
+        KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+        KAFKA_LISTENERS: CONTROLLER://cntrl3:9193
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+        KAFKA_METADATA_LOG_DIR: /var/lib/kafka/data
+        KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+    volumes:
+      - cntrl3-logs:/data
+      - ./kafka/scripts/update_run.sh:/tmp/update_run.sh
+      - ./kafka/clusterID:/tmp/clusterID
+      - ./kafka/kafka-config/log4j.properties:/etc/kafka/custom-log4j.properties
+    command: "bash -c '/tmp/update_run.sh'"
+    networks:
+      - asset_management
+  kafka1:
+    image: confluentinc/cp-kafka:7.9.0
+    restart: always
+    hostname: kafka1
+    container_name: kafka1-kraft_dev
+    user: "0"
+    ports:
+      - "19002:19092" #19092:19092
+    environment:
+      KAFKA_NODE_ID: 4
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@cntrl1:9193,2@cntrl2:9193,3@cntrl3:9193
+      KAFKA_LISTENERS: BROKER://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka1:9092,EXTERNAL://${IP}:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+    volumes:
+      - kafka1-data:/var/lib/kafka/data
+      - ./kafka/jmx_exporter:/usr/app/jmx_exporter/
+      - ./kafka/scripts/update_run.sh:/tmp/update_run.sh
+      - ./kafka/clusterID:/tmp/clusterID
+      - ./kafka/kafka-config/log4j.properties:/etc/kafka/custom-log4j.properties
+    command: "bash -c '/tmp/update_run.sh'"
+    depends_on:
+      - cntrl1
+      - cntrl2
+      - cntrl3
+    networks:
+      - asset_management
+  kafka2:
+    image: confluentinc/cp-kafka:7.9.0
+    restart: always
+    hostname: kafka2
+    container_name: kafka2-kraft_dev
+    user: "0"
+    ports:
+      - "19003:19093" #19093:19093
+    environment:
+      KAFKA_NODE_ID: 5
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@cntrl1:9193,2@cntrl2:9193,3@cntrl3:9193
+      KAFKA_LISTENERS: BROKER://0.0.0.0:9092,EXTERNAL://0.0.0.0:19093
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka2:9092,EXTERNAL://${IP}:19093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+    volumes:
+      - kafka2-data:/var/lib/kafka/data
+      - ./kafka/jmx_exporter:/usr/app/jmx_exporter/
+      - ./kafka/scripts/update_run.sh:/tmp/update_run.sh
+      - ./kafka/clusterID:/tmp/clusterID
+      - ./kafka/kafka-config/log4j.properties:/etc/kafka/custom-log4j.properties
+    command: "bash -c '/tmp/update_run.sh'"
+    depends_on:
+      - cntrl1
+      - cntrl2
+      - cntrl3
+    networks:
+      - asset_management
+  kafka3:
+    image: confluentinc/cp-kafka:7.9.0
+    restart: always
+    hostname: kafka3
+    container_name: kafka3-kraft_dev
+    user: "0"
+    ports:
+      - "19004:19094" #19094:19094
+    environment:
+      KAFKA_NODE_ID: 6
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@cntrl1:9193,2@cntrl2:9193,3@cntrl3:9193
+      KAFKA_LISTENERS: BROKER://0.0.0.0:9092,EXTERNAL://0.0.0.0:19094
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka3:9092,EXTERNAL://${IP}:19094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+    volumes:
+      - kafka3-data:/var/lib/kafka/data
+      - ./kafka/jmx_exporter:/usr/app/jmx_exporter/
+      - ./kafka/scripts/update_run.sh:/tmp/update_run.sh
+      - ./kafka/clusterID:/tmp/clusterID
+      - ./kafka/kafka-config/log4j.properties:/etc/kafka/custom-log4j.properties
+    command: "bash -c '/tmp/update_run.sh'"
+    depends_on:
+      - cntrl1
+      - cntrl2
+      - cntrl3
+    networks:
+      - asset_management
+  akhq:
+    image: tchiotludo/akhq:0.22.0
+    restart: always
+    container_name: akhq_dev
+    user: "0"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka1:9092,kafka2:9092,kafka3:9092"
+    ports:
+      - 8280:8080 #8180:8080
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    networks:
+      - asset_management
+  # Redis (用於快取和會話管理)
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis-kafka_dev
+    restart: always
+    ports:
+      - "6391:6379" #6381:6379
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - asset_management
+  # Kafdrop (Kafka UI 管理工具)
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop_dev
+    restart: always
+    ports:
+      - "9020:9000" #9010:9000
+    environment:
+      KAFKA_BROKERCONNECT: "kafka1:9092,kafka2:9092,kafka3:9092"
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    networks:
+      - asset_management
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_server
+    ports:
+      - "6334:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - asset_management
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # 只 build 一次
+  app_base:
+    build:
+      context: ./qdrant_search_docker
+      dockerfile: Dockerfile
+    image: search_api_base
+    command: ["sleep", "infinity"]   # 不啟動，只作為 base image
+  video_search_api:
+    build:
+      context: ./qdrant_search_docker
+    image: search_api_base
+    container_name: video_search_api
+    ports:
+      - "8821:8811"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=${IP}
+      - REDIS_PORT=7000
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_video_search_with_cache:app --host 0.0.0.0 --port 8811 --reload
+    networks:
+      - asset_management
+    restart: unless-stopped
+
+  image_search_api:
+    build:
+      context: ./qdrant_search_docker
+    image: search_api_base
+    container_name: image_search_api
+    ports:
+      - "8824:8814"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=${IP}
+      - REDIS_PORT=7000
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_image_search_with_cache:app --host 0.0.0.0 --port 8814 --reload
+    networks:
+      - asset_management
+    restart: unless-stopped
+
+  audio_search_api:
+    build:
+      context: ./qdrant_search_docker
+    image: search_api_base
+    container_name: audio_search_api
+    ports:
+      - "8822:8812"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=${IP}
+      - REDIS_PORT=7000
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_audio_search_with_cache:app --host 0.0.0.0 --port 8812 --reload
+    networks:
+      - asset_management
+    restart: unless-stopped
+
+  document_search_api:
+    build:
+      context: ./qdrant_search_docker
+    image: search_api_base
+    container_name: document_search_api
+    ports:
+      - "8823:8813"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=${IP}
+      - REDIS_PORT=7000
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_document_search_with_cache:app --host 0.0.0.0 --port 8813 --reload
+    networks:
+      - asset_management
+    restart: unless-stopped
+
+  insert_api:
+    build:
+      context: ./qdrant_search_docker
+    image: search_api_base
+    container_name: insert_api
+    ports:
+      - "8815:8815"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    command: python -m uvicorn api_insert:app --host 0.0.0.0 --port 8815 --reload
+    networks:
+      - asset_management
+    restart: unless-stopped
+volumes:
+  app:
+  qdrant_storage:
+  mysql_data:
+  grafana_data:
+  lakefs_data:
+
+  seaweedfs_master1:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/master1"
+
+  seaweedfs_master2:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/master2"
+
+  seaweedfs_master3:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/master3"
+
+  seaweedfs_vol1:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol1"
+
+  seaweedfs_vol2:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol2"
+
+  seaweedfs_vol3:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol3"
+
+  seaweedfs_vol4:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol4"
+
+  seaweedfs_filer:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/filer"
+
+  seaweedfs_s3:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/s3"
+
+  seaweedfs_admin:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/admin"
+
+  seaweedfs_backup:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/backup"
+  pgdata:
+  redis1:
+  redis2:
+  redis3:
+  redis4:
+  redis5:
+  redis6:
+  data:
+  redis_data:
+  cntrl1-logs:
+  cntrl2-logs:
+  cntrl3-logs:
+  kafka1-data:
+  kafka2-data:
+  kafka3-data:
+  redis-data:
+networks:
+  asset_management:
+    driver: bridge

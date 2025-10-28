@@ -1,0 +1,15 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/DHT-AI-Studio/RAPTOR/tree/main/docs
+    about: Check our documentation for guides and API reference
+  - name: 💬 GitHub Discussions
+    url: https://github.com/DHT-AI-Studio/RAPTOR/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📱 Telegram Community
+    url: https://t.me/raptor_ai
+    about: Join our Telegram group for community support (coming soon)
+  - name: 🏢 DHT Solutions
+    url: https://dhtsolution.com/
+    about: Visit DHT Solutions company website
+

@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_server
+    ports:
+      - "6334:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - search_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # 只 build 一次
+  app_base:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: search_api_base
+    command: ["sleep", "infinity"]   # 不啟動，只作為 base image
+  video_search_api:
+    image: search_api_base
+    container_name: video_search_api
+    ports:
+      - "8821:8811"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=192.168.157.123
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_video_search_with_cache:app --host 0.0.0.0 --port 8811 --reload
+    networks:
+      - search_network
+    restart: unless-stopped
+
+  image_search_api:
+    image: search_api_base
+    container_name: image_search_api
+    ports:
+      - "8824:8814"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=192.168.157.123
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_image_search_with_cache:app --host 0.0.0.0 --port 8814 --reload
+    networks:
+      - search_network
+    restart: unless-stopped
+
+  audio_search_api:
+    image: search_api_base
+    container_name: audio_search_api
+    ports:
+      - "8822:8812"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=192.168.157.123
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_audio_search_with_cache:app --host 0.0.0.0 --port 8812 --reload
+    networks:
+      - search_network
+    restart: unless-stopped
+
+  document_search_api:
+    image: search_api_base
+    container_name: document_search_api
+    ports:
+      - "8823:8813"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_HOST=192.168.157.123
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=dht888888
+    command: python -m uvicorn api_document_search_with_cache:app --host 0.0.0.0 --port 8813 --reload
+    networks:
+      - search_network
+    restart: unless-stopped
+
+  insert_api:
+    image: search_api_base
+    container_name: insert_api
+    ports:
+      - "8815:8815"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    command: python -m uvicorn api_insert:app --host 0.0.0.0 --port 8815 --reload
+    networks:
+      - search_network
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+
+networks:
+  search_network:
+    driver: bridge
+

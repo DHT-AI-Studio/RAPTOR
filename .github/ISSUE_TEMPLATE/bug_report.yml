@@ -1,0 +1,158 @@
+name: Bug Report
+description: Report a bug or issue with RAPTOR
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this bug! Please fill out the sections below.
+        
+        Before submitting:
+        - Search existing issues to avoid duplicates
+        - Update to the latest version if possible
+        
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug you encountered...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Import '...'
+        2. Run command '...'
+        3. Call function '...'
+        4. See error
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe what should have happened...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: code
+    attributes:
+      label: Code Sample
+      description: If applicable, add a minimal code sample that reproduces the issue
+      placeholder: |
+        ```python
+        # Your code here
+        ```
+      render: python
+    validations:
+      required: false
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs
+      description: If applicable, paste relevant error logs or stack traces
+      placeholder: Paste error logs here...
+      render: shell
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: version
+    attributes:
+      label: RAPTOR Version
+      description: Which version of RAPTOR are you using?
+      options:
+        - Aigle 0.1.0-beta
+        - main branch (latest)
+        - Other (specify in additional context)
+    validations:
+      required: true
+      
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What version of Python are you using?
+      placeholder: e.g., 3.9.7, 3.10.4, 3.11.0
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other (specify in additional context)
+    validations:
+      required: true
+      
+  - type: input
+    id: os-version
+    attributes:
+      label: OS Version
+      description: Specific OS version
+      placeholder: e.g., Ubuntu 22.04, macOS 13.0, Windows 11
+    validations:
+      required: false
+      
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Any other relevant environment details (GPU, CUDA version, etc.)
+      placeholder: |
+        - GPU: NVIDIA RTX 3090
+        - CUDA: 11.8
+        - PyTorch: 2.0.1
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or information about the problem
+      placeholder: Any other relevant information...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for similar issues and found none
+          required: true
+        - label: I have updated to the latest version of RAPTOR
+          required: false
+        - label: I have provided all requested information
+          required: true
+        - label: I have read the documentation
+          required: false
+

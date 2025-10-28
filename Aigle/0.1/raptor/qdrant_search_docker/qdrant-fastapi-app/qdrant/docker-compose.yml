@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v0.9.0
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__STORAGE__BACKEND: "disk"
+      QDRANT__LOG_LEVEL: "info"
+
+  fastapi:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8811:8811"
+    depends_on:
+      - qdrant
+
+volumes:
+  qdrant_data:

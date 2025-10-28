@@ -1,0 +1,15 @@
+aioboto3==15.0.0
+APScheduler==3.11.0
+fastapi==0.116.1
+passlib==1.7.4
+pydantic==2.11.7
+pydantic_settings==2.10.1
+python_jose==3.5.0
+python_magic==0.4.27
+qdrant_client==1.15.0
+uvicorn==0.35.0
+python-multipart==0.0.20
+aiomysql==0.2.0
+cryptography
+lakefs==0.11.1
+requests==2.32.3

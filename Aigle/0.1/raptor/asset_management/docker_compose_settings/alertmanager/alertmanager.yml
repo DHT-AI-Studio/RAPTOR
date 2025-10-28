@@ -1,0 +1,32 @@
+global:
+  # --- SMTP global configuration ---
+  smtp_smarthost: ${SMTP_SMARTHOST}  # SMTP server address and port
+  smtp_from: ${SMTP_FROM_EMAIL}       # sender email address
+  smtp_auth_username: ${SMTP_AUTH_USERNAME}  # SMTP authentication username
+  smtp_auth_password: ${SMTP_AUTH_PASSWORD}  # application password, not email password
+  smtp_hello: ${SMTP_HELLO_DOMAIN}               # optional, usually 'localhost'
+  smtp_require_tls: true                # force TLS encryption
+
+# --- Route configuration ---
+route:
+  group_by: ['alertname', 'job', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+  receiver: 'email-receiver'
+
+# --- Receiver configuration ---
+receivers:
+  - name: 'email-receiver'
+    email_configs:
+      - to: ${ALERT_EMAIL_TO}  # primary admin email address
+        send_resolved: true     # send resolved notifications when alerts are resolved
+
+
+# --- Inhibit rules (optional) ---
+# inhibit_rules:
+#   - source_match:
+#       severity: 'critical'
+#     target_match:
+#       severity: 'warning'
+#     equal: ['alertname', 'dev', 'instance']

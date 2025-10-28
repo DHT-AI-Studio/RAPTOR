@@ -1,0 +1,11 @@
+__pycache__
+*/__pycache__
+# ignore temporary files and data directories
+tmp
+data
+
+*.txt 
+# do not ignore requirements.txt
+!requirements.txt
+/devs
+kafka

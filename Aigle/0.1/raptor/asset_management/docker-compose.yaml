@@ -1,0 +1,493 @@
+services:
+  app:
+    build: .
+    container_name: app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - TZ=${TIMEZONE}
+    # volumes:
+    #   - app:/app
+    restart: unless-stopped
+    networks:
+      - asset_management
+    depends_on:
+      mysql:
+        condition: service_healthy
+      seaweedfs-s3:
+        condition: service_healthy
+      lakefs:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # qdrant:
+  #   image: qdrant/qdrant:v1.15.1
+  #   container_name: qdrant
+  #   ports:
+  #     - "6333:6333"
+  #   volumes:
+  #     - qdrant_data:/qdrant/storage
+  #   restart: unless-stopped
+  #   networks:
+  #     - asset_management
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - asset_management
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  seaweedfs-master1:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-master1
+    ports:
+      - "9333:9333"
+      - "19333:19333"
+      - "1234:1234"
+    command: master -port=9333 -port.grpc=19333 -mdir=/data/master1 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \ 
+     -ip=seaweedfs-master1 -ip.bind=0.0.0.0 \
+     -defaultReplication=011 -metricsPort=1234 \
+     -peers=seaweedfs-master2:9334,seaweedfs-master3:9335
+    volumes:
+      - seaweedfs_master1:/data/master1
+      - ./docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-master2:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-master2
+    ports:
+      - "9334:9334"
+      - "19334:19334"
+      - "1235:1235"
+    command: master -port=9334 -port.grpc=19334 -mdir=/data/master2 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \ 
+     -ip=seaweedfs-master2 -ip.bind=0.0.0.0 \
+     -defaultReplication=011  -metricsPort=1235 \
+     -peers=seaweedfs-master1:9333,seaweedfs-master3:9335
+    volumes:
+      - seaweedfs_master2:/data/master2
+      - ./docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+      
+  seaweedfs-master3:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-master3
+    ports:
+      - "9335:9335"
+      - "19335:19335"
+      - "1236:1236"
+    command: master -port=9335 -port.grpc=19335 -mdir=/data/master3 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \
+     -ip=seaweedfs-master3 -ip.bind=0.0.0.0 \
+     -defaultReplication=011  -metricsPort=1236 \
+     -peers=seaweedfs-master1:9333,seaweedfs-master2:9334
+    volumes:
+      - seaweedfs_master3:/data/master3
+      - ./docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume1:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume1
+    ports:
+      - "8081:8081"
+      - "18081:18081"
+      - "1237:1237"
+    command: volume -dir=/data/vol1 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -port=8081 -port.grpc=18081 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume1 \ 
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack1 -metricsPort=1237
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol1:/data/vol1
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume2:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume2
+    ports:
+      - "8082:8082"
+      - "18082:18082"
+      - "1238:1238"
+    command: volume -dir=/data/vol2 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -port=8082 -port.grpc=18082 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume2 \
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack1 -metricsPort=1238
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol2:/data/vol2
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume3:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume3
+    ports:
+      - "8083:8083"
+      - "18083:18083"
+      - "1239:1239"
+    command: volume -dir=/data/vol3 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \ 
+     -port=8083 -port.grpc=18083 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume3 \ 
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack2 -metricsPort=1239
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol3:/data/vol3
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-volume4:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-volume4
+    ports:
+      - "8084:8084"
+      - "18084:18084"
+      - "1240:1240"
+    command: volume -dir=/data/vol4 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \ 
+     -port=8084 -port.grpc=18084 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume4 \ 
+     -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack2 -metricsPort=1240
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+    volumes:
+      - seaweedfs_vol4:/data/vol4
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-filer
+    ports:
+      - "8888:8888"
+      - "18888:18888"
+      - "1241:1241"
+    command: filer -master=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 -ip=seaweedfs-filer -ip.bind=0.0.0.0  \ 
+     -port=8888 -port.grpc=18888 -s3.allowEmptyFolder=false -encryptVolumeData -metricsPort=1241
+    depends_on:
+      - seaweedfs-master1
+      - seaweedfs-master2
+      - seaweedfs-master3
+      - seaweedfs-volume1
+      - seaweedfs-volume2
+      - seaweedfs-volume3
+      - seaweedfs-volume4
+    volumes:
+      - seaweedfs_filer:/data/filer
+      - ./docker_compose_settings/seaweedfs/filer.toml:/etc/seaweedfs/filer.toml
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-s3
+    ports:
+      - "8333:8333"
+      - "18333:18333"
+      - "1242:1242"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_KEY}
+    command: s3 -filer=seaweedfs-filer:8888 -ip.bind=0.0.0.0 -port=8333 -port.grpc=18333 -allowEmptyFolder=false -metricsPort=1242
+    depends_on:
+      - seaweedfs-filer
+    volumes:
+      - seaweedfs_s3:/data/s3
+    restart: unless-stopped
+    networks:
+      - asset_management
+    healthcheck:
+      test: ["CMD", "weed", "version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  seaweedfs-admin:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-admin
+    ports:
+      - "23646:23646"
+      - "33646:33646"
+    command: admin -masters=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -dataDir=/data/admin -port=23646 # -adminUser=${ADMIN_USERNAME} -adminPassword=${ADMIN_PASSWORD}
+    depends_on:
+      - seaweedfs-filer
+    volumes:
+      - seaweedfs_admin:/data/admin
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-worker1:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-worker1
+    command: worker -admin=seaweedfs-admin:23646 -capabilities=vacuum,ec,balance -maxConcurrent=2 -heartbeat=30s -taskInterval=5s
+    depends_on:
+      - seaweedfs-admin
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  seaweedfs-backup:
+    image: chrislusf/seaweedfs:3.96
+    container_name: seaweedfs-backup
+    command: filer.backup -filer=seaweedfs-filer:8888
+    volumes:
+      - ./docker_compose_settings/seaweedfs/replication.toml:/etc/seaweedfs/replication.toml:ro
+      - seaweedfs_backup:/backup
+    depends_on:
+      - seaweedfs-filer
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: prometheus
+    environment:
+      - TZ=${TIMEZONE}
+    command: --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./docker_compose_settings/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker_compose_settings/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  alertmanager:
+    build: ./docker_compose_settings/alertmanager
+    container_name: alertmanager
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    networks:
+      - asset_management
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    user: root
+    privileged: true
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    environment:
+      - TZ=${TIMEZONE}
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    container_name: grafana
+    ports:
+      - "3030:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker_compose_settings/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./docker_compose_settings/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - TZ=${TIMEZONE}
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+  lakefs:
+    image: treeverse/lakefs:1.65.2
+    container_name: lakefs
+    ports:
+      - "8001:8000"
+    environment:
+      - LAKEFS_DATABASE_TYPE=local
+      - LAKEFS_BLOCKSTORE_TYPE=s3
+      - LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE=true
+      - LAKEFS_BLOCKSTORE_S3_ENDPOINT=${S3_ENDPOINT}
+      - LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION=false
+      - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
+      - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${AWS_SECRET_KEY}
+      - LAKEFS_INSTALLATION_USER_NAME=admin
+      - LAKEFS_INSTALLATION_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
+      - LAKEFS_INSTALLATION_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
+      - LAKECTL_CREDENTIALS_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
+      - LAKECTL_CREDENTIALS_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
+      - LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_AUTH_ENCRYPT_SECRET_KEY}
+      - LAKEFS_BLOCKSTORE_S3_REGION="none"
+      - LAKEFS_BLOCKSTORE_S3_PRE_SIGNED_ENDPOINT=${S3_PUBLIC_URL}
+      - LAKEFS_BLOCKSTORE_S3_PRE_SIGNED_EXPIRY=${LAKEFS_PRE_SIGNED_EXPIRY}
+      - TZ=${TIMEZONE}
+    depends_on:
+      seaweedfs-s3:
+        condition: service_started
+    volumes:
+      - lakefs_data:/home/lakefs
+    restart: unless-stopped
+    networks:
+      - asset_management
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/api/v1/healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  lakefs-gc-cron:
+    build: ./docker_compose_settings/lakefs/gc-runner
+    container_name: lakefs-gc-cron
+    environment:
+      - LAKEFS_ENDPOINT=${LAKEFS_ENDPOINT}
+      - LAKEFS_ACCESS_KEY=${LAKEFS_ACCESS_KEY}
+      - LAKEFS_SECRET_KEY=${LAKEFS_SECRET_KEY}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - LAKEFS_REPOSITORY=${LAKEFS_REPOSITORY}
+      - GC_CRON_SCHEDULE=${GC_CRON_SCHEDULE}
+      - TZ=${TIMEZONE}
+    command: >
+      /bin/bash -c "chmod +x /usr/local/bin/run-gc.sh && /usr/local/bin/entrypoint.sh"
+    depends_on:
+      lakefs:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+volumes:
+  app:
+  qdrant_data:
+  mysql_data:
+  grafana_data:
+  lakefs_data:
+
+  seaweedfs_master1:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/master1"
+
+  seaweedfs_master2:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/master2"
+
+  seaweedfs_master3:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/master3"
+
+  seaweedfs_vol1:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol1"
+
+  seaweedfs_vol2:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol2"
+
+  seaweedfs_vol3:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol3"
+
+  seaweedfs_vol4:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/vol4"
+
+  seaweedfs_filer:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/filer"
+
+  seaweedfs_s3:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/s3"
+
+  seaweedfs_admin:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/admin"
+
+  seaweedfs_backup:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_EXPORT}/${BASE_DIR}/backup"
+
+networks:
+  asset_management:
+    driver: bridge
