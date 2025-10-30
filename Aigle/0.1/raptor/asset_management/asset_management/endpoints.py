@@ -2,8 +2,9 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from contextlib import asynccontextmanager
 from jose import JWTError, jwt
+import uuid
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import logging
 # import uvicorn
@@ -46,11 +47,15 @@ DESTROY_HOUR, DESTROY_MINUTE = settings.auto_daily_destroy_hour_minute
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now() + expires_delta
-    else:
-        expire = datetime.now() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+    now_utc = datetime.now(timezone.utc)
+    expire = now_utc + (expires_delta or timedelta(minutes=15))
+    to_encode.update(
+        {
+            "exp": int(expire.timestamp()),
+            "iat": int(now_utc.timestamp()),
+            "jti": str(uuid.uuid4())
+        }
+    )
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
