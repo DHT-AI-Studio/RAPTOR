@@ -142,3 +142,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - N/A
 
 ---
+
+## [0.1.4] - 2025-10-30
+
+### Added
+- N/A
+
+### Changed
+- Replaced datetime.now() with datetime.now(timezone.utc) to ensure UTC timestamps in JWT
+- Added 'jti' (JWT ID) claim for better tracking and unique identification of JWTs
+- Added tests for the new timestamp handling and jti claim functionality
+
+### Fixed
+- N/A
+
+---
