@@ -47,6 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   - All project Docker images now specify explicit version tags instead of using `:latest`, improving build **reproducibility and stability**.
 - **Docker Compose Secrets Management.**
   - Refactored the Redis Cluster Docker Compose YAML to move sensitive data (such as passwords) into the **`.env`** file.
+- **Centralized Secrets Management in Docker Configs.**
+  - Hardcoded passwords across Docker configurations (both in `./master_slave_replication` and `./redis_cluster` directories) have been replaced with the **`<YOUR_REDIS_PASSWORD>` placeholder**. This centralizes password management to the project's `.env` files, eliminating secrets from version-controlled configuration files.
 
 ### Fixed
 - **Codebase Clean-up.**
@@ -80,6 +82,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+* N/A
+
+---
+
+## [0.3.0] - 2025-10-31 
+
+### Added
+* **Dual Mode Docker Compose Configuration in `./redis_cluster`.**
+    * Introduced two separate Docker Compose files (`docker-compose.public.yml` and `docker-compose.internal.yml`) to support distinct networking strategies.
+    * Added corresponding environment variable templates (`.env.public.example`, `.env.internal.example`) for deployment configuration.
+* **Dedicated Environment Variable Loading.**
+    * Deployment now explicitly uses the `--env-file` flag (`.env.public` or `.env.internal`) to ensure correct variable substitution during YAML parsing.
+
+### Changed
+* **Refactored Redis Cluster Port Mapping.**
+    * The configuration is now split to manage external accessibility:
+        * **Public Mode:** Maps all Redis data/cluster ports (`7000-7005` and `17000-17005`) to the host.
+        * **Internal Mode:** **Removes mapping** for Redis data/cluster ports, isolating them within the Docker network.
+* **Standardized RedisInsight Port Exposure.**
+    * `RedisInsight` port (`5540`) is **now consistently mapped** to the host in *both* Public and Internal modes, ensuring monitoring is always accessible.
+* **Updated Documentation (`README.md`).**
+    * Completely revised the README to detail the **two deployment modes**, provide clear **setup instructions**, and explain the specific **connection requirements for RedisInsight** in each mode.
+* **Simplified Cluster Testing.**
+    * Updated cluster verification instructions to primarily use the **RedisInsight CLI and Browser** instead of relying on the host-installed `redis-cli`.
+
+### Fixed
 * N/A
 
 ---
