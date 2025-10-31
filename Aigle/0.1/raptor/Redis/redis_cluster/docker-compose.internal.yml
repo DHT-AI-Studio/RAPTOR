@@ -1,0 +1,168 @@
+services:
+  redis1:
+    image: redis:8.0.2
+    container_name: redis1
+    mem_limit: 256m
+    cpus: 0.3
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7000", 
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    volumes:
+      - redis1:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7000", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  redis2:
+    image: redis:8.0.2
+    container_name: redis2
+    mem_limit: 256m
+    cpus: 0.3
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7001", 
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    volumes:
+      - redis2:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7001", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      
+  redis3:
+    image: redis:8.0.2
+    container_name: redis3
+    mem_limit: 256m
+    cpus: 0.3
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7002", 
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    volumes:
+      - redis3:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7002", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      
+  redis4:
+    image: redis:8.0.2
+    container_name: redis4
+    mem_limit: 256m
+    cpus: 0.3
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7003", 
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    volumes:
+      - redis4:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7003", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      
+  redis5:
+    image: redis:8.0.2
+    container_name: redis5
+    mem_limit: 256m
+    cpus: 0.3
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7004", 
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    volumes:
+      - redis5:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7004", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      
+  redis6:
+    image: redis:8.0.2
+    container_name: redis6
+    mem_limit: 256m
+    cpus: 0.3
+    command: [
+      "redis-server", 
+      "/usr/local/etc/redis/redis.conf", 
+      "--port", "7005", 
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}"
+    ]
+    volumes:
+      - redis6:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "7005", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  redisinsight:
+    image: redislabs/redisinsight:2.70
+    container_name: redisinsight
+    mem_limit: 256m
+    cpus: 0.3
+    ports:
+      - "5540:5540"
+    restart: on-failure
+
+
+  redis-cluster-creator:
+    image: redis:8.0.2
+    container_name: redis-cluster-creator
+    entrypoint: [/bin/sh,-c,'echo "yes" | redis-cli -a ${REDIS_PASSWORD} --cluster create redis1:7000 redis2:7001 redis3:7002 redis4:7003 redis5:7004 redis6:7005 --cluster-replicas 1']
+    depends_on:
+      redis1:
+        condition: service_healthy
+      redis2:
+        condition: service_healthy
+      redis3:
+        condition: service_healthy
+      redis4:
+        condition: service_healthy
+      redis5:
+        condition: service_healthy
+      redis6:
+        condition: service_healthy
+
+volumes:
+  redis1:
+  redis2:
+  redis3:
+  redis4:
+  redis5:
+  redis6:
