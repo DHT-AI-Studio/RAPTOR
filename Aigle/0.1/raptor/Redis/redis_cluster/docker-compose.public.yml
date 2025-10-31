@@ -2,8 +2,8 @@ services:
   redis1:
     image: redis:8.0.2
     container_name: redis1
-    env_file:
-      - .env
+    mem_limit: 256m
+    cpus: 0.3
     command: [
       "redis-server", 
       "/usr/local/etc/redis/redis.conf", 
@@ -28,8 +28,8 @@ services:
   redis2:
     image: redis:8.0.2
     container_name: redis2
-    env_file:
-      - .env
+    mem_limit: 256m
+    cpus: 0.3
     command: [
       "redis-server", 
       "/usr/local/etc/redis/redis.conf", 
@@ -54,8 +54,8 @@ services:
   redis3:
     image: redis:8.0.2
     container_name: redis3
-    env_file:
-      - .env
+    mem_limit: 256m
+    cpus: 0.3
     command: [
       "redis-server", 
       "/usr/local/etc/redis/redis.conf", 
@@ -80,8 +80,8 @@ services:
   redis4:
     image: redis:8.0.2
     container_name: redis4
-    env_file:
-      - .env
+    mem_limit: 256m
+    cpus: 0.3
     command: [
       "redis-server", 
       "/usr/local/etc/redis/redis.conf", 
@@ -106,8 +106,8 @@ services:
   redis5:
     image: redis:8.0.2
     container_name: redis5
-    env_file:
-      - .env
+    mem_limit: 256m
+    cpus: 0.3
     command: [
       "redis-server", 
       "/usr/local/etc/redis/redis.conf", 
@@ -132,8 +132,8 @@ services:
   redis6:
     image: redis:8.0.2
     container_name: redis6
-    env_file:
-      - .env
+    mem_limit: 256m
+    cpus: 0.3
     command: [
       "redis-server", 
       "/usr/local/etc/redis/redis.conf", 
@@ -158,6 +158,8 @@ services:
   redisinsight:
     image: redislabs/redisinsight:2.70
     container_name: redisinsight
+    mem_limit: 256m
+    cpus: 0.3
     ports:
       - "5540:5540"
     restart: unless-stopped
@@ -166,8 +168,6 @@ services:
   redis-cluster-creator:
     image: redis:8.0.2
     container_name: redis-cluster-creator
-    env_file:
-      - .env
     entrypoint: [/bin/sh,-c,'echo "yes" | redis-cli -a ${REDIS_PASSWORD} --cluster create ${IP}:7000 ${IP}:7001 ${IP}:7002 ${IP}:7003 ${IP}:7004 ${IP}:7005 --cluster-replicas 1']
     # restart: unless-stopped
     depends_on:
