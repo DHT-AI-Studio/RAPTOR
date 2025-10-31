@@ -34,7 +34,11 @@ torchvision
 torchaudio
 sentencepiece
 accelerate
-datasets
+# datasets 和 pyarrow 版本兼容性要求
+# datasets >= 2.19.0 支持 pyarrow 14-17
+# 或者使用較舊但穩定的版本組合
+pyarrow>=14.0.0,<18.0.0
+datasets>=2.19.0
 
 # ========================================
 # Audio & Video Processing  

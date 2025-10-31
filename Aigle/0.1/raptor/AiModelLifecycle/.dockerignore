@@ -1,2 +1,44 @@
-tmp
+# 臨時文件和快取
+# tmp
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
 
+# 開發環境
+.venv
+venv
+env
+.env.dev
+.env.backup
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# 文檔（如果不需要在容器中）
+docs
+*.md
+
+# 測試
+tests
+.pytest_cache
+
+# 但保留必要的配置文件
+!requirements.txt
+!pyproject.toml
+!uv.lock
+!.env
+!.env.example
