@@ -51,7 +51,8 @@ services:
     command: >
       /bin/bash -c "
         echo 'Installing additional dependencies...' &&
-        pip install --no-cache-dir psycopg2-binary boto3 &&
+        pip install uv &&
+        uv pip install psycopg2-binary boto3 --system --no-cache &&
         echo 'Starting MLflow server...' &&
         mlflow server \
           --backend-store-uri ${MLFLOW_BACKEND_STORE_URI} \

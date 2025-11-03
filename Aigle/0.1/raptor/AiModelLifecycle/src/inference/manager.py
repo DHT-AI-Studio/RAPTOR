@@ -75,7 +75,7 @@ class InferenceManager:
     _lock = threading.Lock()
     
     def __new__(cls) -> 'InferenceManager':
-        """單例模式實現"""
+        """單例模式實現 - 使用雙重檢查鎖定"""
         if not cls._instance:
             with cls._lock:
                 if not cls._instance:
@@ -83,31 +83,42 @@ class InferenceManager:
         return cls._instance
     
     def __init__(self):
-        """初始化推理管理器"""
-        if hasattr(self, 'initialized'):
-            return
-            
-        try:
-            # 初始化核心組件
-            self.router = TaskRouter()
-            self.registry = ModelRegistry()
-            self.cache = ModelCache()
-            
-            # 統計信息
-            self.stats = {
-                'total_inferences': 0,
-                'successful_inferences': 0,
-                'failed_inferences': 0,
-                'cache_hits': 0,
-                'cache_misses': 0
-            }
-            
-            self.initialized = True
-            logger.info("推理管理器初始化完成")
-            
-        except Exception as e:
-            logger.error(f"推理管理器初始化失敗: {e}")
-            raise InferenceError(f"初始化失敗: {e}")
+        """
+        初始化推理管理器
+        
+        使用類級別的鎖來確保初始化過程的執行緒安全。
+        只有第一次調用會執行初始化邏輯。
+        """
+        # 使用類級別的鎖來保護初始化檢查和設置
+        with self.__class__._lock:
+            if hasattr(self, '_initialized') and self._initialized:
+                return
+                
+            try:
+                # 初始化核心組件
+                self.router = TaskRouter()
+                self.registry = ModelRegistry()
+                self.cache = ModelCache()
+                
+                # 統計信息
+                self.stats = {
+                    'total_inferences': 0,
+                    'successful_inferences': 0,
+                    'failed_inferences': 0,
+                    'cache_hits': 0,
+                    'cache_misses': 0
+                }
+                
+                # 統計數據的執行緒鎖 - 保護 stats 字典的並發訪問
+                self._stats_lock = threading.Lock()
+                
+                # 標記已初始化（使用 _ 前綴表示這是內部屬性）
+                self._initialized = True
+                logger.info("推理管理器初始化完成")
+                
+            except Exception as e:
+                logger.error(f"推理管理器初始化失敗: {e}")
+                raise InferenceError(f"初始化失敗: {e}")
     
     def infer(self, 
               task: str, 
@@ -157,7 +168,10 @@ class InferenceManager:
             InferenceError: 推理過程中的其他錯誤
         """
         start_time = time.time()
-        self.stats['total_inferences'] += 1
+        
+        # 執行緒安全地更新統計計數
+        with self._stats_lock:
+            self.stats['total_inferences'] += 1
         
         try:
             logger.info(f"開始推理 - 任務: {task}, 引擎: {engine}, 模型: {model_name}")
@@ -171,8 +185,10 @@ class InferenceManager:
             # 執行推理
             result = executor.execute(model_name, data, options or {})
             
-            # 更新統計
-            self.stats['successful_inferences'] += 1
+            # 執行緒安全地更新成功統計
+            with self._stats_lock:
+                self.stats['successful_inferences'] += 1
+            
             processing_time = time.time() - start_time
             
             logger.info(f"推理完成 - 用時: {processing_time:.2f}秒")
@@ -188,7 +204,10 @@ class InferenceManager:
             }
             
         except Exception as e:
-            self.stats['failed_inferences'] += 1
+            # 執行緒安全地更新失敗統計
+            with self._stats_lock:
+                self.stats['failed_inferences'] += 1
+            
             logger.error(f"推理失敗: {e}")
             
             return {
@@ -379,19 +398,24 @@ class InferenceManager:
         """
         獲取推理管理器統計信息
         
+        執行緒安全地讀取統計數據，確保返回的數據是一致的快照。
+        
         Returns:
             Dict[str, Any]: 統計信息
         """
+        # 執行緒安全地讀取統計數據，創建一個一致的快照
+        with self._stats_lock:
+            stats_snapshot = self.stats.copy()
+            total = stats_snapshot['total_inferences']
+            successful = stats_snapshot['successful_inferences']
+            cache_hits = stats_snapshot['cache_hits']
+            cache_misses = stats_snapshot['cache_misses']
+        
+        # 在鎖外計算衍生統計（避免長時間持有鎖）
         return {
-            **self.stats,
-            'success_rate': (
-                self.stats['successful_inferences'] / max(self.stats['total_inferences'], 1)
-            ),
-            'cache_hit_rate': (
-                self.stats['cache_hits'] / max(
-                    self.stats['cache_hits'] + self.stats['cache_misses'], 1
-                )
-            ),
+            **stats_snapshot,
+            'success_rate': successful / max(total, 1),
+            'cache_hit_rate': cache_hits / max(cache_hits + cache_misses, 1),
             'cached_models': self.cache.get_cached_models(),
             'supported_tasks': list(self.get_supported_tasks().keys())
         }

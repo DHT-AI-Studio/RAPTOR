@@ -338,8 +338,12 @@ result = inference_manager.infer(
 ## 部署與使用指南
 ### 前置準備
 1.  **容器化工具**: 安裝 Docker。
-2.  **Python**: 本地開發建議 3.8+ 版本。
-3.  **核心服務**:
+2.  **Python**: 本地開發建議 3.10+ 版本。
+3.  **依賴管理**: 
+    *   **推薦**: 使用 [UV](https://github.com/astral-sh/uv) 進行快速且確定性的依賴安裝
+    *   本項目使用 `uv.lock` 和 `requirements.lock.txt` 確保版本一致性
+    *   詳見 [UV 依賴管理最佳實踐](docs/UV_DEPENDENCY_MANAGEMENT.md)
+4.  **核心服務**:
     *   **LakeFS**: 確保您有一個正在運行的 LakeFS 實例，並取得其 Endpoint、Access Key 和 Secret Key。
     *   **Ollama**: 確保您在本機或可訪問的伺服器上安裝並運行了 Ollama 服務。
 

@@ -3,9 +3,9 @@ __pycache__
 # ignore temporary files and data directories
 tmp
 data
-
-*.txt 
-# do not ignore requirements.txt
-!requirements.txt
+.env
+.env.backup
+.env.dev
 /devs
 kafka
+/tests
