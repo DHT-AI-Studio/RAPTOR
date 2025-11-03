@@ -99,7 +99,7 @@ flowchart LR
 ├── test_api.py                 # API testing script
 │
 └── docker_compose_settings/    # External service configurations
-    ├── seaweedfs/              # master.toml, filer.toml, replication.toml
+    ├── seaweedfs/              # master.toml, filer_generated.toml, filer-entrypoint.sh, replication.toml
     ├── prometheus/             # prometheus.yml, alert_rules.yml
     ├── lakefs/gc-runner        # Dockerfile, entrypoint.sh, run-gc.sh
     ├── alertmanager/           # alertmanager.yml
@@ -166,7 +166,7 @@ All directories to be mounted are defined in .env:
 
 ```yaml
 # NFS settings (SeaweedFS will be mounted at ${NFS_SERVER}:${NFS_EXPORT}/${BASE_DIR})
-NFS_SERVER=192.168.157.184
+NFS_SERVER=<NFS_SERVER_IP>
 NFS_EXPORT=/raptor
 BASE_DIR=seaweedfsTest
 SUB_DIRS="admin s3 backup filer vol1 vol2 vol3 vol4 master1 master2 master3"
@@ -251,7 +251,7 @@ The application uses environment variables defined in the `.env` file, managed b
 | Variable                                                                   | Description                                                                                                                                                                   |
 | :------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `S3_ENDPOINT`                                                              | **Internal Endpoint**: The URL for the application (`app` service) to connect to the SeaweedFS S3 gateway **within the Docker network**. Example: `http://seaweedfs-s3:8333`. |
-| `S3_PUBLIC_URL`                                                            | **External Download URL**: Base URL for generating **public presigned download links**, reachable by external clients. Example: `http://192.168.157.123:8333`.                |
+| `S3_PUBLIC_URL`                                                            | **External Download URL**: Base URL for generating **public presigned download links**, reachable by external clients. Example: `http://<YOUR_IP>:8333`.                |
 | `S3_BUCKET`                                                                | The S3 bucket name where all assets are stored, e.g., `lakefs` or `asset-management`.                                                                                         |
 | `AWS_ACCESS_KEY` / `AWS_SECRET_KEY`                                        | Access key and secret key for authenticating with the S3-compatible SeaweedFS service.                                                                                        |
 | `VOLUME_SIZE_LIMIT_MB`                                                     | Maximum storage capacity (in MB) for each SeaweedFS volume. Example: 512                                                                          |
@@ -298,51 +298,26 @@ Once all services are running, you can access the following endpoints:
 | :--------------------------- | :---------------------------------------------------- | :---- |
 | **FastAPI Swagger UI** | [http://localhost:8000/docs](http://localhost:8000/docs) | 8000  |
 | **lakeFS UI** | [http://localhost:8001](http://localhost:8001) | 8001  |
-| **SeaweedFS Filer UI** | [http://localhost:8888](http://localhost:8888)           | 8888  |
 | **SeaweedFS Admin UI** | [http://localhost:23646](http://localhost:23646)         | 23646 |
 | **Grafana Dashboard**  | [http://localhost:3030](http://localhost:3030)           | 3030  |
 | **Prometheus**         | [http://localhost:9090](http://localhost:9090)           | 9090  |
-| **Alertmanager**       | [http://localhost:9093](http://localhost:9093)           | 9093  |
 
-> **Note**: 
-The default Grafana login is `admin`/`dht888888` (change it in `.env`).
-The access key and secret key for lakeFS are also listed in `.env`.
 
 <details>
 <summary>🔌 Port usage (click to expand)</summary>
 
 This table lists the port usage for each service in the `asset_management`.
 
-| Service                                 | Container Port(s) | Host Port(s)      | Description                                |
-| --------------------------------------- | ----------------- | ----------------- | ------------------------------------------ |
-| **app**                                 | 8000              | 8000              | FastAPI application server                 |
-| **lakeFS**                              | 8001              | 8001              | lakeFS UI                                  |
-| **qdrant (for testing purposes only)**  | 6333              | 6333              | Vector database service (HTTP API)         |
-| **mysql**                               | 3306              | 3306              | MySQL database service                     |
-| **seaweedfs-master1**                   | 9333, 19333, 1234 | 9333, 19333, 1234 | SeaweedFS Master 1 (HTTP / gRPC / metrics) |
-| **seaweedfs-master2**                   | 9334, 19334, 1235 | 9334, 19334, 1235 | SeaweedFS Master 2 (HTTP / gRPC / metrics) |
-| **seaweedfs-master3**                   | 9335, 19335, 1236 | 9335, 19335, 1236 | SeaweedFS Master 3 (HTTP / gRPC / metrics) |
-| **seaweedfs-volume1**                   | 8081, 18081, 1237 | 8081, 18081, 1237 | Volume Server 1 (HTTP / gRPC / metrics)    |
-| **seaweedfs-volume2**                   | 8082, 18082, 1238 | 8082, 18082, 1238 | Volume Server 2 (HTTP / gRPC / metrics)    |
-| **seaweedfs-volume3**                   | 8083, 18083, 1239 | 8083, 18083, 1239 | Volume Server 3 (HTTP / gRPC / metrics)    |
-| **seaweedfs-volume4**                   | 8084, 18084, 1240 | 8084, 18084, 1240 | Volume Server 4 (HTTP / gRPC / metrics)    |
-| **seaweedfs-filer**                     | 8888, 18888, 1241 | 8888, 18888, 1241 | Filer (HTTP / gRPC / metrics)              |
-| **seaweedfs-s3**                        | 8333, 18333, 1242 | 8333, 18333, 1242 | S3-compatible API  (HTTP / gRPC / metrics) |
-| **seaweedfs-admin**                     | 23646, 33646      | 23646, 33646      | SeaweedFS Admin Web UI / gRPC              |
-| **prometheus**                          | 9090              | 9090              | Prometheus monitoring                      |
-| **alertmanager**                        | 9093              | 9093              | Alertmanager for notifications             |
-| **node-exporter**                       | 9100              | 9100              | Node Exporter (host metrics collection)    |
-| **grafana**                             | 3000              | 3030              | Grafana dashboard                          |
+| Service                                 | Container Port(s) | Host Port(s)      | Description                   |
+| --------------------------------------- | ----------------- | ----------------- | ----------------------------- |
+| **app**                                 | 8000              | 8000              | FastAPI application server    |
+| **lakeFS**                              | 8001              | 8001              | lakeFS UI                     |
+| **seaweedfs-s3**                        | 8333              | 8333              | S3-compatible API             |
+| **seaweedfs-admin**                     | 23646             | 23646             | SeaweedFS Admin Web UI        |
+| **prometheus**                          | 9090              | 9090              | Prometheus monitoring         |
+| **grafana**                             | 3000              | 3030              | Grafana dashboard             |
 
 > ⚠️ **Reminder**: If your environment uses a firewall (e.g., UFW, iptables, or cloud security groups), make sure to **open the host ports listed above** to allow external access to the corresponding services.
->
-> If you **do not need external access to certain services**, you may close their ports by simply commenting out the corresponding `ports` section in your `docker-compose.yaml`. This way, those services remain accessible within the Docker network but are not exposed to the host.
->
-> **Recommendation:** For proper operation and external access, ensure the following ports are specifically open:
-> * **app** → `8000` (FastAPI server)
-> * **seaweedfs-s3** → `8333` (S3-compatible API)
-> * **seaweedfs-admin** → `23646` (Admin Web UI)
-> * **lakeFS** → `8001` (lakeFS UI)
 
 </details>
 
