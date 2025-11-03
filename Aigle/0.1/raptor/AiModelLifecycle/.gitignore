@@ -8,3 +8,4 @@ data
 .env.dev
 /devs
 kafka
+/tests
