@@ -1,0 +1,32 @@
+[mysql]  # or memsql, tidb
+# CREATE TABLE IF NOT EXISTS `filemeta` (
+#   `dirhash`   BIGINT NOT NULL       COMMENT 'first 64 bits of MD5 hash value of directory field',
+#   `name`      VARCHAR(766) NOT NULL COMMENT 'directory or file name',
+#   `directory` TEXT NOT NULL         COMMENT 'full path to parent directory',
+#   `meta`      LONGBLOB,
+#   PRIMARY KEY (`dirhash`, `name`)
+# ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+enabled = true
+# dsn will take priority over "hostname, port, username, password, database".
+# [username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
+# dsn = "root@tcp(localhost:3306)/seaweedfs?collation=utf8mb4_bin"
+enable_tls = false
+ca_crt = ""                # ca.crt dir when enable_tls set true
+client_crt = ""            # mysql client.crt dir when enable_tls set true
+client_key = ""            # mysql client.key dir when enable_tls set true
+hostname = "${MYSQL_HOST}"
+port = ${MYSQL_PORT}
+username = "${MYSQL_USER}"
+password = "${MYSQL_PASSWORD}"
+database = "${MYSQL_DATABASE}"              # create or use an existing database
+connection_max_idle = 2
+connection_max_open = 100
+connection_max_lifetime_seconds = 0
+interpolateParams = false
+# if insert/upsert failing, you can disable upsert or update query syntax to match your RDBMS syntax:
+enableUpsert = true
+upsertQuery = """INSERT INTO `%s` (`dirhash`,`name`,`directory`,`meta`) VALUES (?,?,?,?) AS `new` ON DUPLICATE KEY UPDATE `meta` = `new`.`meta`"""
+location = "/buckets/${S3_BUCKET}"
+superLargeDirectories = ["/"]
+

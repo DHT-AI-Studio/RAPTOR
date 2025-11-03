@@ -157,3 +157,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - N/A
 
 ---
+
+## [0.1.5] - 2025-11-03
+
+### Added
+- N/A
+
+### Changed
+- **Docker Compose:** Optimized the `docker-compose.yaml` configuration by removing unnecessary port mappings from the internal services (e.g., internal databases, storage services) to the Host. Only essential ports for external services like the **Asset Management Service**, **LakeFS**, **Grafana**, and **Prometheus** remain mapped, reducing the host's exposed surface area.
+- **Documentation:** Updated the relevant sections in `README.md` to reflect the changes in Docker Compose port mappings.
+- **SeaweedFS Filer:** Improved the Filer configuration process. Configuration is no longer dependent on the static `filer.toml` file but is now read from **`.env`** environment variables, enhancing deployment flexibility and configurability.
+
+### Fixed
+- N/A
+
+---
+
