@@ -15,6 +15,19 @@ from pydantic import BaseModel, Field
 # 導入新的推理管理器
 from ..inference.manager import inference_manager
 
+# 導入統一的異常定義
+from ..inference.exceptions import (
+    InferenceError,
+    ValidationError,
+    UnsupportedTaskError,
+    ModelNotFoundError,
+    ResourceNotFoundError,
+    ModelLoadError,
+    InferenceExecutionError,
+    EngineError,
+    ResourceExhaustedError
+)
+
 logger = logging.getLogger(__name__)
 
 # 創建路由器
@@ -127,13 +140,20 @@ def unified_inference(request: InferenceRequest):
     - engine: 使用的引擎
     - model_name: 使用的模型
     - processing_time: 處理時間（秒）
+    - api_processing_time: API 層處理時間（秒）
     - timestamp: 時間戳
+    
+    **錯誤響應:**
+    - 400 Bad Request: 參數驗證失敗或不支持的任務/引擎組合
+    - 404 Not Found: 模型未找到
+    - 500 Internal Server Error: 推理執行失敗或其他服務器錯誤
+    - 503 Service Unavailable: 資源耗盡（GPU/內存不足）
     """
     try:
         start_time = time.time()
         logger.info(f"收到推理請求: {request.task} - {request.engine} - {request.model_name}")
         
-        # 執行推理
+        # 執行推理 - 可能拋出各種自定義異常
         result = inference_manager.infer(
             task=request.task,
             engine=request.engine,
@@ -145,21 +165,66 @@ def unified_inference(request: InferenceRequest):
         # 添加API層的元數據
         result['api_processing_time'] = time.time() - start_time
         result['request_id'] = id(request)
+        result['success'] = True  # API 層添加成功標誌
         
         logger.info(f"推理完成: {request.task} - 用時 {result['processing_time']:.2f}秒")
         return result
-        
-    except ValueError as e:
-        logger.error(f"推理參數錯誤: {e}")
+    
+    # 4xx 客戶端錯誤
+    except (ValidationError, UnsupportedTaskError) as e:
+        logger.warning(f"請求驗證失敗 ({type(e).__name__}): {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"參數錯誤: {str(e)}"
+            detail={
+                "error_type": type(e).__name__,
+                "message": str(e),
+                "task": request.task,
+                "engine": request.engine
+            }
         )
-    except Exception as e:
-        logger.error(f"推理執行失敗: {e}")
+    
+    except (ModelNotFoundError, ResourceNotFoundError) as e:
+        logger.warning(f"資源未找到 ({type(e).__name__}): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error_type": type(e).__name__,
+                "message": str(e),
+                "model_name": request.model_name
+            }
+        )
+    
+    # 503 服務不可用
+    except ResourceExhaustedError as e:
+        logger.error(f"資源耗盡: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error_type": "ResourceExhaustedError",
+                "message": str(e),
+                "retry_after": 60  # 建議60秒後重試
+            }
+        )
+    
+    # 5xx 服務器錯誤
+    except (ModelLoadError, InferenceExecutionError, EngineError, InferenceError) as e:
+        logger.error(f"推理錯誤 ({type(e).__name__}): {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"推理執行失敗: {str(e)}"
+            detail={
+                "error_type": type(e).__name__,
+                "message": str(e)
+            }
+        )
+    
+    except Exception as e:
+        logger.error(f"未預期的錯誤: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_type": "UnexpectedError",
+                "message": "推理服務發生未預期錯誤，請聯繫管理員"
+            }
         )
 
 @router.get("/health", response_model=HealthCheckResponse, summary="健康檢查")

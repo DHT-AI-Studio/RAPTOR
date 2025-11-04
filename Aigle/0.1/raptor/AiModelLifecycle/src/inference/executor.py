@@ -22,6 +22,13 @@ except ImportError:
     except ImportError:
         model_manager = None
 
+# 導入統一的異常定義
+from .exceptions import (
+    ModelLoadError,
+    InferenceExecutionError,
+    InferenceError
+)
+
 logger = logging.getLogger(__name__)
 
 class ModelExecutor:
@@ -59,13 +66,14 @@ class ModelExecutor:
             Any: 推理結果
             
         Raises:
-            Exception: 推理過程中的各種異常
+            ModelLoadError: 模型加載失敗
+            InferenceExecutionError: 推理執行失敗
         """
         try:
             start_time = time.time()
             logger.debug(f"開始執行推理: {model_name}")
             
-            # 步驟 1: 確保模型已加載
+            # 步驟 1: 確保模型已加載 - 可能拋出 ModelLoadError
             model = self._get_or_load_model(model_name)
             
             # 步驟 2: 數據預處理
@@ -84,9 +92,15 @@ class ModelExecutor:
             
             return final_result
             
-        except Exception as e:
-            logger.error(f"推理執行失敗: {e}")
+        except ModelLoadError:
+            # 模型加載錯誤，直接向上傳播
             raise
+        except InferenceError:
+            # 其他已知推理錯誤，直接向上傳播
+            raise
+        except Exception as e:
+            logger.error(f"推理執行失敗: {e}", exc_info=True)
+            raise InferenceExecutionError(f"推理執行失敗: {str(e)}") from e
     
     def _get_or_load_model(self, model_name: str) -> Any:
         """
@@ -97,6 +111,9 @@ class ModelExecutor:
             
         Returns:
             Any: 模型實例
+            
+        Raises:
+            ModelLoadError: 模型加載失敗
         """
         if model_name not in self._loaded_models:
             logger.info(f"加載模型: {model_name}")
@@ -108,8 +125,8 @@ class ModelExecutor:
                 logger.info(f"模型加載成功: {model_name}")
                 
             except Exception as e:
-                logger.error(f"模型加載失敗: {model_name}, 錯誤: {e}")
-                raise
+                logger.error(f"模型加載失敗: {model_name}, 錯誤: {e}", exc_info=True)
+                raise ModelLoadError(f"模型 '{model_name}' 加載失敗: {str(e)}") from e
         else:
             logger.debug(f"重用已加載的模型: {model_name}")
             

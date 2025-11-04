@@ -33,19 +33,20 @@ from .executor import ModelExecutor
 from .registry import ModelRegistry
 from .cache import ModelCache
 
+# 導入統一的異常定義
+from .exceptions import (
+    InferenceError,
+    ValidationError,
+    UnsupportedTaskError,
+    ModelNotFoundError,
+    ResourceNotFoundError,
+    ModelLoadError,
+    InferenceExecutionError,
+    EngineError,
+    ResourceExhaustedError
+)
+
 logger = logging.getLogger(__name__)
-
-class InferenceError(Exception):
-    """推理相關異常基類"""
-    pass
-
-class ModelNotFoundError(InferenceError):
-    """模型未找到異常"""
-    pass
-
-class UnsupportedTaskError(InferenceError):
-    """不支持的任務類型異常"""
-    pass
 
 class InferenceManager:
     """
@@ -154,7 +155,6 @@ class InferenceManager:
                 
         Returns:
             Dict[str, Any]: 推理結果，包含：
-                - success (bool): 是否成功
                 - result (Any): 推理結果
                 - task (str): 任務類型
                 - engine (str): 引擎類型
@@ -163,8 +163,11 @@ class InferenceManager:
                 - timestamp (float): 時間戳
                 
         Raises:
-            UnsupportedTaskError: 不支持的任務類型
+            ValidationError: 參數驗證失敗
+            UnsupportedTaskError: 不支持的任務類型或引擎組合
             ModelNotFoundError: 模型未找到
+            InferenceExecutionError: 推理執行失敗
+            ResourceExhaustedError: 資源耗盡
             InferenceError: 推理過程中的其他錯誤
         """
         start_time = time.time()
@@ -176,13 +179,13 @@ class InferenceManager:
         try:
             logger.info(f"開始推理 - 任務: {task}, 引擎: {engine}, 模型: {model_name}")
             
-            # 參數驗證
+            # 參數驗證 - 可能拋出 ValidationError 或 UnsupportedTaskError
             self._validate_parameters(task, engine, model_name, data)
             
-            # 任務路由，獲取執行器
+            # 任務路由，獲取執行器 - 可能拋出 UnsupportedTaskError
             executor = self.router.route(task, engine, model_name)
             
-            # 執行推理
+            # 執行推理 - 可能拋出 ModelNotFoundError, InferenceExecutionError 等
             result = executor.execute(model_name, data, options or {})
             
             # 執行緒安全地更新成功統計
@@ -193,8 +196,9 @@ class InferenceManager:
             
             logger.info(f"推理完成 - 用時: {processing_time:.2f}秒")
             
+            # 只返回成功結果，不包含 success 標誌
+            # 如果有錯誤，會通過異常拋出
             return {
-                'success': True,
                 'result': result,
                 'task': task,
                 'engine': engine,
@@ -203,22 +207,23 @@ class InferenceManager:
                 'timestamp': time.time()
             }
             
-        except Exception as e:
-            # 執行緒安全地更新失敗統計
+        except (ValidationError, UnsupportedTaskError, ModelNotFoundError, 
+                ResourceNotFoundError, ModelLoadError, InferenceExecutionError,
+                EngineError, ResourceExhaustedError) as e:
+            # 已知的推理異常，執行緒安全地更新失敗統計後直接向上傳播
             with self._stats_lock:
                 self.stats['failed_inferences'] += 1
             
-            logger.error(f"推理失敗: {e}")
+            logger.error(f"推理失敗 ({type(e).__name__}): {e}")
+            raise
             
-            return {
-                'success': False,
-                'error': str(e),
-                'task': task,
-                'engine': engine,
-                'model_name': model_name,
-                'processing_time': time.time() - start_time,
-                'timestamp': time.time()
-            }
+        except Exception as e:
+            # 未預期的異常，包裝為 InferenceExecutionError 後向上傳播
+            with self._stats_lock:
+                self.stats['failed_inferences'] += 1
+            
+            logger.error(f"推理執行時發生未預期錯誤: {e}", exc_info=True)
+            raise InferenceExecutionError(f"推理執行失敗: {str(e)}") from e
     
     def _validate_parameters(self, task: str, engine: str, model_name: str, data: Dict) -> None:
         """
@@ -231,12 +236,12 @@ class InferenceManager:
             data (Dict): 輸入數據
             
         Raises:
+            ValidationError: 參數無效
             UnsupportedTaskError: 不支持的任務或引擎組合
-            ValueError: 參數無效
         """
         # 檢查參數完整性
         if not all([task, engine, model_name]):
-            raise ValueError("task, engine, model_name 不能為空")
+            raise ValidationError("task, engine, model_name 不能為空")
         
         # 檢查任務類型
         supported_tasks = {
@@ -252,7 +257,7 @@ class InferenceManager:
         # 檢查引擎類型
         supported_engines = {'ollama', 'transformers'}
         if engine not in supported_engines:
-            raise UnsupportedTaskError(f"不支持的引擎類型: {engine}")
+            raise UnsupportedTaskError(f"不支持的引擎類型: {engine}，支持的引擎: {supported_engines}")
         
         # 檢查引擎與任務的兼容性
         ollama_tasks = {'text-generation', 'text-generation-ollama'}
@@ -261,7 +266,7 @@ class InferenceManager:
         
         # 檢查輸入數據
         if not isinstance(data, dict) or not data:
-            raise ValueError("data 必須是非空字典")
+            raise ValidationError("data 必須是非空字典")
         
         # 根據任務類型檢查必需的數據字段
         required_fields = {
@@ -286,7 +291,7 @@ class InferenceManager:
         if task in required_fields:
             missing_fields = [field for field in required_fields[task] if field not in data]
             if missing_fields:
-                raise ValueError(f"任務 {task} 缺少必需的數據字段: {missing_fields}")
+                raise ValidationError(f"任務 {task} 缺少必需的數據字段: {missing_fields}")
     
     def get_supported_tasks(self) -> Dict[str, Dict[str, Any]]:
         """
