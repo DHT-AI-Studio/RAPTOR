@@ -15,6 +15,13 @@ from .engines.ollama import OllamaEngine
 from .engines.transformers import TransformersEngine
 from .models import get_model_handler
 
+# 導入統一的異常定義
+from .exceptions import (
+    UnsupportedTaskError,
+    ValidationError,
+    InferenceError
+)
+
 logger = logging.getLogger(__name__)
 
 class TaskRouter:
@@ -115,20 +122,22 @@ class TaskRouter:
             ModelExecutor: 模型執行器實例
             
         Raises:
-            ValueError: 不支持的任務或引擎組合
+            UnsupportedTaskError: 不支持的任務或引擎組合
+            ValidationError: 參數無效
+            InferenceError: 路由過程中的其他錯誤
         """
         try:
             logger.debug(f"路由任務: {task} -> {engine} -> {model_name}")
             
             # 檢查任務類型是否支持
             if task not in self._task_engine_mapping:
-                raise ValueError(f"不支持的任務類型: {task}")
+                raise UnsupportedTaskError(f"不支持的任務類型: {task}")
             
             # 檢查引擎類型是否支持該任務
             task_engines = self._task_engine_mapping[task]
             if engine not in task_engines:
                 supported_engines = list(task_engines.keys())
-                raise ValueError(
+                raise UnsupportedTaskError(
                     f"任務 '{task}' 不支持引擎 '{engine}'，支持的引擎: {supported_engines}"
                 )
             
@@ -151,9 +160,13 @@ class TaskRouter:
             logger.debug(f"成功創建並緩存執行器: {task} -> {engine}")
             return executor
             
+        except (UnsupportedTaskError, ValidationError):
+            # 已知異常，直接向上傳播
+            raise
         except Exception as e:
             logger.error(f"路由失敗: {e}")
-            raise
+            # 將未知異常包裝為推理錯誤
+            raise InferenceError(f"任務路由失敗: {str(e)}") from e
     
     def _get_or_create_engine(self, engine_type: str, engine_class) -> Any:
         """
