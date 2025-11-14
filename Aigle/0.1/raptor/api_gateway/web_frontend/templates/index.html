@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <title>RAPTOR API Gateway 控制台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <div class="header-main">
+            <div>
+                <h1>RAPTOR API Gateway 控制台</h1>
+                <p>目前目標 API：<strong>{{ base_url }}</strong></p>
+            </div>
+            <div class="header-meta">
+                {% if token %}
+                <p>Token：<code>{{ token[:24] }}{% if token|length > 24 %}...{% endif %}</code></p>
+                {% else %}
+                <p class="hint">尚未登入，部分操作需要先取得 Token。</p>
+                {% endif %}
+            </div>
+        </div>
+        <nav class="top-nav">
+            {% for key, label in pages %}
+            <a href="{{ url_for('dashboard', page=key) }}" class="nav-link{% if active_page == key %} active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </nav>
+    </header>
+
+    <section class="status-panel">
+        {% if error %}
+        <div class="alert alert-error">
+            <h2>錯誤</h2>
+            <pre>{{ error }}</pre>
+        </div>
+        {% elif result %}
+        <div class="alert alert-success">
+            <h2>結果 - {{ last_action }}</h2>
+            {% if result.type == 'json' %}
+            <pre>{{ result.value }}</pre>
+            {% elif result.type == 'binary' %}
+            <p>{{ result.note }}</p>
+            <textarea readonly>{{ result.value }}</textarea>
+            {% else %}
+            <pre>{{ result.value }}</pre>
+            {% endif %}
+        </div>
+        {% endif %}
+    </section>
+
+    <main class="page-content">
+        {% if active_page == 'settings' %}
+        <section class="panel">
+            <h2>環境設定</h2>
+            <form method="post" class="form-grid">
+                <input type="hidden" name="action" value="update_base_url">
+                <label>API Base URL
+                    <input type="text" name="base_url" value="{{ base_url }}" required>
+                </label>
+                <button type="submit">更新 Base URL</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>系統健康檢查</h2>
+            <form method="post" class="inline-form">
+                <input type="hidden" name="action" value="health_check">
+                <input type="hidden" name="base_url" value="{{ base_url }}">
+                <button type="submit">呼叫 /health</button>
+            </form>
+        </section>
+
+        {% elif active_page == 'auth' %}
+        <section class="panel">
+            <h2>帳號與登入</h2>
+            <p class="hint">登入後 Token 會儲存在瀏覽器 Session 中，方便後續操作。</p>
+            <div class="form-container">
+                <form method="post">
+                    <input type="hidden" name="action" value="register">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>註冊使用者</h3>
+                    <label>使用者名稱<input type="text" name="username" required></label>
+                    <label>電子郵件<input type="email" name="email" required></label>
+                    <label>密碼<input type="password" name="password" required></label>
+                    <button type="submit">送出註冊</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="login">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>登入取得 Token</h3>
+                    <label>使用者名稱<input type="text" name="username" required></label>
+                    <label>密碼<input type="password" name="password" required></label>
+                    <button type="submit">登入</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="logout">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>登出</h3>
+                    <p>清除目前儲存的 Token。</p>
+                    <button type="submit">清除 Token</button>
+                </form>
+            </div>
+        </section>
+
+        {% elif active_page == 'search' %}
+        <section class="panel">
+            <h2>搜尋功能</h2>
+            <div class="form-container">
+                <form method="post">
+                    <input type="hidden" name="action" value="video_search">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>影片搜尋</h3>
+                    <label>查詢文字<textarea name="query_text" required>機器學習</textarea></label>
+                    <label>Embedding 類型
+                        <select name="embedding_type">
+                            <option value="text">text</option>
+                            <option value="summary">summary</option>
+                        </select>
+                    </label>
+                    <label>檔名 (逗號或換行分隔)<textarea name="filename"></textarea></label>
+                    <label>說話者 (逗號或換行分隔)<textarea name="speaker"></textarea></label>
+                    <label>結果上限<input type="number" name="limit" value="5" min="1" max="50"></label>
+                    <button type="submit">執行影片搜尋</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="audio_search">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>音訊搜尋</h3>
+                    <label>查詢文字<textarea name="query_text" required>機器學習</textarea></label>
+                    <label>Embedding 類型
+                        <select name="embedding_type">
+                            <option value="text">text</option>
+                            <option value="summary">summary</option>
+                        </select>
+                    </label>
+                    <label>檔名<textarea name="filename"></textarea></label>
+                    <label>說話者<textarea name="speaker"></textarea></label>
+                    <label>結果上限<input type="number" name="limit" value="5" min="1" max="50"></label>
+                    <button type="submit">執行音訊搜尋</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="document_search">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>文件搜尋</h3>
+                    <label>查詢文字<textarea name="query_text" required>財務報告</textarea></label>
+                    <label>Embedding 類型
+                        <select name="embedding_type">
+                            <option value="text">text</option>
+                            <option value="summary">summary</option>
+                        </select>
+                    </label>
+                    <label>檔名<textarea name="filename"></textarea></label>
+                    <label>來源 (例如 csv, pdf)<input type="text" name="source"></label>
+                    <label>結果上限<input type="number" name="limit" value="5" min="1" max="50"></label>
+                    <button type="submit">執行文件搜尋</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="image_search">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>圖片搜尋</h3>
+                    <label>查詢文字<textarea name="query_text" required>風景</textarea></label>
+                    <label>Embedding 類型
+                        <select name="embedding_type">
+                            <option value="text">text</option>
+                            <option value="summary">summary</option>
+                        </select>
+                    </label>
+                    <label>檔名<textarea name="filename"></textarea></label>
+                    <label>來源 (副檔名)<input type="text" name="source"></label>
+                    <label>結果上限<input type="number" name="limit" value="5" min="1" max="50"></label>
+                    <button type="submit">執行圖片搜尋</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="unified_search">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>跨集合統一搜尋</h3>
+                    <label>查詢文字<textarea name="query_text" required>機器學習和人工智慧</textarea></label>
+                    <label>Embedding 類型
+                        <select name="embedding_type">
+                            <option value="text">text</option>
+                            <option value="summary">summary</option>
+                        </select>
+                    </label>
+                    <label>Filters JSON<textarea name="filters" placeholder='{"video": {"filename": ["MV.mp4"]}}'></textarea></label>
+                    <label>每集合限制<input type="number" name="limit_per_collection" value="5" min="1" max="50"></label>
+                    <label>全域限制<input type="number" name="global_limit" min="1" max="100"></label>
+                    <label>分數閾值<input type="number" name="score_threshold" step="0.01" min="0" max="1"></label>
+                    <button type="submit">執行統一搜尋</button>
+                </form>
+            </div>
+        </section>
+
+        {% elif active_page == 'uploads' %}
+        <section class="panel">
+            <h2>檔案上傳與分析</h2>
+            <p class="hint">成功上傳後的 asset_path、version_id 會自動加入最近資產紀錄，方便在下一步直接套用。</p>
+            <div class="form-container">
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="upload_file">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>上傳單一檔案</h3>
+                    <label>檔案<input type="file" name="primary_file" required></label>
+                    <label>Archive TTL (天)<input type="number" name="archive_ttl" value="30" min="1"></label>
+                    <label>Destroy TTL (天)<input type="number" name="destroy_ttl" value="30" min="1"></label>
+                    <button type="submit">上傳檔案</button>
+                </form>
+
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="upload_files_batch">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>批次上傳</h3>
+                    <label>檔案<input type="file" name="primary_files" multiple required></label>
+                    <label>Archive TTL<input type="number" name="archive_ttl" value="30" min="1"></label>
+                    <label>Destroy TTL<input type="number" name="destroy_ttl" value="30" min="1"></label>
+                    <label>最大並行數<input type="number" name="concurrency" value="4" min="1" max="16"></label>
+                    <button type="submit">批次上傳</button>
+                </form>
+
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="upload_file_with_analysis">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>上傳並分析</h3>
+                    <label>檔案<input type="file" name="primary_file" required></label>
+                    <label>Processing Mode<input type="text" name="processing_mode" value="default"></label>
+                    <label>Archive TTL<input type="number" name="archive_ttl" value="30" min="1"></label>
+                    <label>Destroy TTL<input type="number" name="destroy_ttl" value="30" min="1"></label>
+                    <button type="submit">上傳並分析</button>
+                </form>
+
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="upload_files_batch_with_analysis">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>批次上傳並分析</h3>
+                    <label>檔案<input type="file" name="primary_files" multiple required></label>
+                    <label>Processing Mode<input type="text" name="processing_mode" value="default"></label>
+                    <label>Archive TTL<input type="number" name="archive_ttl" value="30" min="1"></label>
+                    <label>Destroy TTL<input type="number" name="destroy_ttl" value="30" min="1"></label>
+                    <label>最大並行數<input type="number" name="concurrency" value="4" min="1" max="16"></label>
+                    <button type="submit">批次上傳並分析</button>
+                </form>
+            </div>
+        </section>
+
+        {% if asset_records %}
+        <section class="panel">
+            <h2>最近的資產紀錄</h2>
+            <p class="hint">從下方選擇資產即可自動填入資產管理與處理相關欄位。</p>
+            <div class="recent-assets">
+                <table class="asset-table">
+                    <thead>
+                        <tr>
+                            <th>Asset Path</th>
+                            <th>Filename</th>
+                            <th>Version ID</th>
+                            <th>來源</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in asset_records %}
+                        <tr>
+                            <td>{{ record.asset_path }}</td>
+                            <td>{% if record.filename %}{{ record.filename }}{% else %}<span class="muted">(未提供)</span>{% endif %}</td>
+                            <td>{{ record.version_id }}</td>
+                            <td>{{ record.source }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
+        {% elif active_page == 'assets' %}
+        <section class="panel">
+            <h2>資產管理</h2>
+            <div class="form-container">
+                <form method="post">
+                    <input type="hidden" name="action" value="list_file_versions">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>列出檔案版本</h3>
+                    {% if asset_records %}
+                    <label>快速套用最近資產
+                        <select class="asset-selector" data-asset-field="#asset-list-path" data-filename-field="#asset-list-filename">
+                            <option value="">選擇資產</option>
+                            {% for record in asset_records %}
+                            <option value="{{ record.encoded }}">{{ record.asset_path }} · {{ record.filename or '未提供檔名' }} · {{ record.version_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
+                    <label>Asset Path<input type="text" id="asset-list-path" name="asset_path" required></label>
+                    <label>檔名<input type="text" id="asset-list-filename" name="filename" required></label>
+                    <button type="submit">取得版本列表</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="download_asset">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>下載資產</h3>
+                    {% if asset_records %}
+                    <label>快速套用最近資產
+                        <select class="asset-selector" data-asset-field="#asset-download-path" data-version-field="#asset-download-version">
+                            <option value="">選擇資產</option>
+                            {% for record in asset_records %}
+                            <option value="{{ record.encoded }}">{{ record.asset_path }} · {{ record.version_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
+                    <label>Asset Path<input type="text" id="asset-download-path" name="asset_path" required></label>
+                    <label>版本 ID<input type="text" id="asset-download-version" name="version_id" required></label>
+                    <label class="checkbox"><input type="checkbox" name="return_file_content"> 同時回傳檔案內容</label>
+                    <button type="submit">下載</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="archive_asset">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>封存資產</h3>
+                    {% if asset_records %}
+                    <label>快速套用最近資產
+                        <select class="asset-selector" data-asset-field="#asset-archive-path" data-version-field="#asset-archive-version">
+                            <option value="">選擇資產</option>
+                            {% for record in asset_records %}
+                            <option value="{{ record.encoded }}">{{ record.asset_path }} · {{ record.version_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
+                    <label>Asset Path<input type="text" id="asset-archive-path" name="asset_path" required></label>
+                    <label>版本 ID<input type="text" id="asset-archive-version" name="version_id" required></label>
+                    <button type="submit">封存</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="delete_asset">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>刪除資產</h3>
+                    {% if asset_records %}
+                    <label>快速套用最近資產
+                        <select class="asset-selector" data-asset-field="#asset-delete-path" data-version-field="#asset-delete-version">
+                            <option value="">選擇資產</option>
+                            {% for record in asset_records %}
+                            <option value="{{ record.encoded }}">{{ record.asset_path }} · {{ record.version_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
+                    <label>Asset Path<input type="text" id="asset-delete-path" name="asset_path" required></label>
+                    <label>版本 ID<input type="text" id="asset-delete-version" name="version_id" required></label>
+                    <button type="submit">刪除</button>
+                </form>
+            </div>
+        </section>
+
+        {% if asset_records %}
+        <section class="panel">
+            <h2>最近的資產紀錄</h2>
+            <div class="recent-assets">
+                <table class="asset-table">
+                    <thead>
+                        <tr>
+                            <th>Asset Path</th>
+                            <th>Filename</th>
+                            <th>Version ID</th>
+                            <th>來源</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in asset_records %}
+                        <tr>
+                            <td>{{ record.asset_path }}</td>
+                            <td>{% if record.filename %}{{ record.filename }}{% else %}<span class="muted">(未提供)</span>{% endif %}</td>
+                            <td>{{ record.version_id }}</td>
+                            <td>{{ record.source }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <form method="post" class="inline-form">
+                <input type="hidden" name="action" value="clear_asset_history">
+                <input type="hidden" name="base_url" value="{{ base_url }}">
+                <button type="submit">清除紀錄</button>
+            </form>
+        </section>
+        {% endif %}
+
+        {% elif active_page == 'processing' %}
+        <section class="panel">
+            <h2>資料處理與快取</h2>
+            <div class="form-container">
+                <form method="post">
+                    <input type="hidden" name="action" value="process_file">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>處理已上傳檔案</h3>
+                    {% if asset_records %}
+                    <label>快速套用最近資產
+                        <select class="asset-selector" data-json-field="#process-upload-result">
+                            <option value="">選擇資產</option>
+                            {% for record in asset_records %}
+                            <option value="{{ record.encoded }}">{{ record.asset_path }} · {{ record.version_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
+                    <label>Upload Result JSON<textarea id="process-upload-result" name="upload_result" placeholder='{"asset_path": "uploads/file", "version_id": "v1"}' required></textarea></label>
+                    <button type="submit">開始處理</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="get_cached_value">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>取得快取</h3>
+                    <label>媒體類型<input type="text" name="m_type" value="document" required></label>
+                    <label>快取鍵<input type="text" name="cache_key" required></label>
+                    <button type="submit">取得快取值</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="get_all_cache">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>列出所有快取</h3>
+                    <button type="submit">取得所有快取</button>
+                </form>
+            </div>
+        </section>
+
+        {% elif active_page == 'chat' %}
+        <section class="panel">
+            <h2>聊天功能</h2>
+            <div class="form-container">
+                <form method="post">
+                    <input type="hidden" name="action" value="send_chat">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>傳送訊息</h3>
+                    <label>User ID<input type="text" name="user_id" required></label>
+                    <label>訊息內容<textarea name="message" required>請幫我總結一下重點</textarea></label>
+                    <label>搜尋結果 JSON<textarea name="search_results" placeholder="可選，貼上搜尋 API 回傳的 items"></textarea></label>
+                    <button type="submit">送出聊天</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="get_chat_memory">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>取得聊天記憶</h3>
+                    <label>User ID<input type="text" name="user_id" required></label>
+                    <button type="submit">取得記憶</button>
+                </form>
+
+                <form method="post">
+                    <input type="hidden" name="action" value="clear_chat_memory">
+                    <input type="hidden" name="base_url" value="{{ base_url }}">
+                    <h3>清除聊天記憶</h3>
+                    <label>User ID<input type="text" name="user_id" required></label>
+                    <button type="submit">清除記憶</button>
+                </form>
+            </div>
+        </section>
+        {% endif %}
+    </main>
+
+    <script>
+    function decodeAssetInfo(encoded) {
+        var binary = atob(encoded);
+        if (window.TextDecoder) {
+            var bytes = new Uint8Array(binary.length);
+            for (var i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return JSON.parse(new TextDecoder('utf-8').decode(bytes));
+        }
+        // Fallback for very old browsers
+        return JSON.parse(decodeURIComponent(escape(binary)));
+    }
+
+    document.querySelectorAll('.asset-selector').forEach(function(selector) {
+        selector.addEventListener('change', function(event) {
+            var value = event.target.value;
+            if (!value) {
+                return;
+            }
+            try {
+                var info = decodeAssetInfo(value);
+                var assetField = selector.dataset.assetField;
+                if (assetField) {
+                    var assetInput = document.querySelector(assetField);
+                    if (assetInput) {
+                        assetInput.value = info.asset_path || '';
+                    }
+                }
+                var versionField = selector.dataset.versionField;
+                if (versionField) {
+                    var versionInput = document.querySelector(versionField);
+                    if (versionInput) {
+                        versionInput.value = info.version_id || '';
+                    }
+                }
+                var filenameField = selector.dataset.filenameField;
+                if (filenameField) {
+                    var filenameInput = document.querySelector(filenameField);
+                    if (filenameInput) {
+                        filenameInput.value = info.filename || '';
+                    }
+                }
+                var jsonField = selector.dataset.jsonField;
+                if (jsonField) {
+                    var jsonInput = document.querySelector(jsonField);
+                    if (jsonInput) {
+                        var payload = {
+                            asset_path: info.asset_path || '',
+                            version_id: info.version_id || '',
+                            filename: info.filename || ''
+                        };
+                        jsonInput.value = JSON.stringify(payload, null, 2);
+                    }
+                }
+                selector.value = '';
+            } catch (error) {
+                console.error('無法解析資產資料', error);
+            }
+        });
+    });
+    </script>
+</body>
+</html>

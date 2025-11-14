@@ -1,0 +1,1979 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FastAPI Gateway",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Register a new gateway user",
+        "description": "Register a new gateway user with a hashed password.",
+        "operationId": "register_user_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Obtain a gateway JWT",
+        "description": "Provides a JWT access token for valid user credentials.",
+        "operationId": "login_for_access_token_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_for_access_token_api_v1_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search/video_search": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search Video",
+        "description": "Search for video similarity using semantic embeddings.\n\n**Parameters:**\n- `query_text`: Search query (required)\n- `embedding_type`: 'text' or 'summary'\n- `filename`: List of video filenames to search\n- `speaker`: List of speakers to filter by\n- `limit`: Number of results to return (default: 5)\n\n**Example:**\n```json\n{\n  \"query_text\": \"機器學習\",\n  \"embedding_type\": \"text\",\n  \"filename\": [\"MV.mp4\"],\n  \"speaker\": [\"SPEAKER_00\"],\n  \"limit\": 5\n}\n```",
+        "operationId": "search_video_api_v1_search_video_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Search Video Api V1 Search Video Search Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/search/audio_search": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search Audio",
+        "description": "Search for audio similarity using semantic embeddings.\n\n**Parameters:**\n- `query_text`: Search query (required)\n- `embedding_type`: 'text' or 'summary'\n- `filename`: List of audio filenames to search\n- `speaker`: List of speakers to filter by\n- `limit`: Number of results to return (default: 5)\n\n**Example:**\n```json\n{\n  \"query_text\": \"機器學習\",\n  \"embedding_type\": \"text\",\n  \"filename\": [\"MV.mp4\"],\n  \"speaker\": [\"SPEAKER_00\"],\n  \"limit\": 5\n}\n```",
+        "operationId": "search_audio_api_v1_search_audio_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudioSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Search Audio Api V1 Search Audio Search Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/search/document_search": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search Document",
+        "description": "Search for document similarity using semantic embeddings.\n\n**Parameters:**\n- `query_text`: Search query (required)\n- `embedding_type`: 'text' or 'summary'\n- `filename`: List of document filenames to search\n- `source`: File type (e.g., csv, pdf, docx)\n- `limit`: Number of results to return (default: 5)\n\n**Example:**\n```json\n{\n  \"query_text\": \"財務報告\",\n  \"embedding_type\": \"text\",\n  \"filename\": [\"EF25Y01.csv\"],\n  \"source\": \"csv\",\n  \"limit\": 5\n}\n```",
+        "operationId": "search_document_api_v1_search_document_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Search Document Api V1 Search Document Search Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/search/image_search": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search Image",
+        "description": "Search for image similarity using semantic embeddings.\n\n**Parameters:**\n- `query_text`: Search query (required)\n- `embedding_type`: 'text' or 'summary'\n- `filename`: List of image filenames to search\n- `source`: File extension (e.g., jpg, png)\n- `limit`: Number of results to return (default: 5)\n\n**Example:**\n```json\n{\n  \"query_text\": \"風景照片\",\n  \"embedding_type\": \"summary\",\n  \"filename\": [\"發票.jpg\"],\n  \"source\": \"jpg\",\n  \"limit\": 5\n}\n```",
+        "operationId": "search_image_api_v1_search_image_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Search Image Api V1 Search Image Search Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/search/unified_search": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Unified Search",
+        "description": "Unified search across multiple collections (video, audio, document, image).\n\nPerforms parallel searches across selected collections and aggregates results\nusing the specified strategy.\n\n**Parameters:**\n- `query_text`: Search query (required)\n- `embedding_type`: 'text' or 'summary' (default: 'text')\n- `filters`: Per-collection filter dictionaries\n- `limit_per_collection`: Number of results per collection (default: 5, max: 50)\n- `global_limit`: Maximum total results after aggregation (max: 100)\n- `score_threshold`: Minimum score threshold (0.0-1.0)",
+        "operationId": "unified_search_api_v1_search_unified_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnifiedSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Unified Search Api V1 Search Unified Search Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/asset/fileupload": {
+      "post": {
+        "tags": [
+          "file-upload"
+        ],
+        "summary": "Upload File To Storage",
+        "description": "Handles file uploads by proxying them to the backend object storage service.\nUses streaming upload to minimize memory usage.",
+        "operationId": "upload_file_to_storage_api_v1_asset_fileupload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_file_to_storage_api_v1_asset_fileupload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Upload File To Storage Api V1 Asset Fileupload Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/asset/fileupload_batch": {
+      "post": {
+        "tags": [
+          "file-upload"
+        ],
+        "summary": "Upload Files To Storage Batch",
+        "description": "Batch upload multiple files to the backend object storage service with bounded concurrency.\n\n**Parameters:**\n- `primary_files`: Multiple files to upload\n- `archive_ttl`: Archive time-to-live (default: 30 days)\n- `destroy_ttl`: Destroy time-to-live (default: 30 days)\n- `concurrency`: Max concurrent uploads (1-16, default: 4)\n\n**Returns:**\n- Batch upload result with per-file success/failure status",
+        "operationId": "upload_files_to_storage_batch_api_v1_asset_fileupload_batch_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_files_to_storage_batch_api_v1_asset_fileupload_batch_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Upload Files To Storage Batch Api V1 Asset Fileupload Batch Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/asset/fileupload_analysis_batch": {
+      "post": {
+        "tags": [
+          "file-upload"
+        ],
+        "summary": "Upload Files To Storage Analysis Batch",
+        "description": "Batch upload multiple files to the backend object storage service with bounded concurrency,\nand automatically send each successfully uploaded file to Kafka for processing/analysis.\n\n**Parameters:**\n- `primary_files`: Multiple files to upload\n- `archive_ttl`: Archive time-to-live (default: 30 days)\n- `destroy_ttl`: Destroy time-to-live (default: 30 days)\n- `processing_mode`: Processing mode for analysis (default: 'default')\n- `concurrency`: Max concurrent uploads (1-16, default: 4)\n\n**Returns:**\n- Batch upload result with per-file success/failure status\n- Kafka processing results for successfully uploaded files",
+        "operationId": "upload_files_to_storage_analysis_batch_api_v1_asset_fileupload_analysis_batch_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_files_to_storage_analysis_batch_api_v1_asset_fileupload_analysis_batch_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Upload Files To Storage Analysis Batch Api V1 Asset Fileupload Analysis Batch Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/asset/fileupload_analysis": {
+      "post": {
+        "tags": [
+          "file-upload"
+        ],
+        "summary": "Upload File To Storage Analysis",
+        "description": "Handles file uploads and schedules downstream analysis via Kafka after upload succeeds.",
+        "operationId": "upload_file_to_storage_analysis_api_v1_asset_fileupload_analysis_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_file_to_storage_analysis_api_v1_asset_fileupload_analysis_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Upload File To Storage Analysis Api V1 Asset Fileupload Analysis Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/asset/fileversions": {
+      "get": {
+        "tags": [
+          "asset-management"
+        ],
+        "summary": "List Versions",
+        "description": "List all versions of an asset.\n\nParameters:\n- asset_path: The asset path identifier\n- filename: The filename to list versions for",
+        "operationId": "list_versions_api_v1_asset_fileversions_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Asset path",
+              "title": "Asset Path"
+            },
+            "description": "Asset path"
+          },
+          {
+            "name": "filename",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Filename",
+              "title": "Filename"
+            },
+            "description": "Filename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+
+                      }
+                    }
+                  ],
+                  "title": "Response List Versions Api V1 Asset Fileversions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset/filedownload": {
+      "get": {
+        "tags": [
+          "asset-management"
+        ],
+        "summary": "Download Asset",
+        "description": "Download an asset from object storage.\n\nParameters:\n- asset_path: The asset path identifier\n- version_id: The version ID to download\n- return_file_content: Whether to return the file content in the response",
+        "operationId": "download_asset_api_v1_asset_filedownload_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Asset path",
+              "title": "Asset Path"
+            },
+            "description": "Asset path"
+          },
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Version ID",
+              "title": "Version Id"
+            },
+            "description": "Version ID"
+          },
+          {
+            "name": "return_file_content",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Return file content",
+              "default": false,
+              "title": "Return File Content"
+            },
+            "description": "Return file content"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Download Asset Api V1 Asset Filedownload Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset/filearchive": {
+      "post": {
+        "tags": [
+          "asset-management"
+        ],
+        "summary": "Archive Asset",
+        "description": "Archive an asset in object storage.\n\nParameters:\n- asset_path: The asset path identifier\n- version_id: The version ID to archive",
+        "operationId": "archive_asset_api_v1_asset_filearchive_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Asset path",
+              "title": "Asset Path"
+            },
+            "description": "Asset path"
+          },
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Version ID",
+              "title": "Version Id"
+            },
+            "description": "Version ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Archive Asset Api V1 Asset Filearchive Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset/delfile": {
+      "post": {
+        "tags": [
+          "asset-management"
+        ],
+        "summary": "Delete Asset",
+        "description": "Delete an archived asset from object storage.\n\nParameters:\n- asset_path: The asset path identifier\n- version_id: The version ID to delete",
+        "operationId": "delete_asset_api_v1_asset_delfile_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Asset path",
+              "title": "Asset Path"
+            },
+            "description": "Asset path"
+          },
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Version ID",
+              "title": "Version Id"
+            },
+            "description": "Version ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Asset Api V1 Asset Delfile Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processing/process-file": {
+      "post": {
+        "tags": [
+          "processing"
+        ],
+        "summary": "Process File",
+        "description": "Sends a request to a Kafka topic to process a previously uploaded file.",
+        "operationId": "process_file_api_v1_processing_process_file_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Process File Api V1 Processing Process File Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/processing/processing/cache/{m_type}/{key}": {
+      "get": {
+        "tags": [
+          "processing"
+        ],
+        "summary": "Get Cached Value",
+        "description": "Retrieve a cached value from Redis by key and media type.\n\n**Parameters:**\n- `m_type`: Media type - one of: document, video, image, audio\n- `key`: The cache key to retrieve\n\n**Returns:**\n- The cached value associated with the combined key",
+        "operationId": "get_cached_value_api_v1_processing_processing_cache__m_type___key__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "m_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "video",
+                "image",
+                "audio"
+              ],
+              "type": "string",
+              "title": "M Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Cached Value Api V1 Processing Processing Cache  M Type   Key  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processing/cache/all": {
+      "get": {
+        "tags": [
+          "processing"
+        ],
+        "summary": "Get All Redis Cache",
+        "description": "Retrieve all key-value pairs from Redis cache.\n\n**Returns:**\n- A dictionary containing all keys and their corresponding values from Redis",
+        "operationId": "get_all_redis_cache_api_v1_processing_cache_all_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get All Redis Cache Api V1 Processing Cache All Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/chat": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Send a chat message",
+        "description": "Send a message to the unified chat service. Requires authentication.",
+        "operationId": "chat_api_v1_chat_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/memory/{user_id}": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Get user chat memory",
+        "description": "Retrieve the short-term memory for a user. Requires authentication.",
+        "operationId": "get_memory_api_v1_chat_memory__user_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Memory Api V1 Chat Memory  User Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Clear user chat memory",
+        "description": "Clear the short-term memory for a user. Requires authentication.",
+        "operationId": "clear_memory_api_v1_chat_memory__user_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "root"
+        ],
+        "summary": "Root",
+        "description": "Health check endpoint for liveness probes.",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Healthcheck",
+        "description": "Health check endpoint for liveness probes.",
+        "operationId": "healthcheck_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Healthcheck Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AudioSearchRequest": {
+        "properties": {
+          "query_text": {
+            "type": "string",
+            "title": "Query Text",
+            "description": "Search query text"
+          },
+          "embedding_type": {
+            "type": "string",
+            "title": "Embedding Type",
+            "description": "Type of embedding: 'text' or 'summary'",
+            "default": "text"
+          },
+          "filename": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Filename",
+            "description": "List of audio filenames to search"
+          },
+          "speaker": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Speaker",
+            "description": "List of speakers to filter by"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "description": "Maximum number of results",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "query_text"
+        ],
+        "title": "AudioSearchRequest",
+        "description": "Request model for audio similarity search."
+      },
+      "Body_login_for_access_token_api_v1_auth_login_post": {
+        "properties": {
+          "grant_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "password"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Type"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": ""
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Body_login_for_access_token_api_v1_auth_login_post"
+      },
+      "Body_upload_file_to_storage_analysis_api_v1_asset_fileupload_analysis_post": {
+        "properties": {
+          "primary_file": {
+            "type": "string",
+            "format": "binary",
+            "title": "Primary File"
+          },
+          "archive_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archive Ttl",
+            "default": 30
+          },
+          "destroy_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destroy Ttl",
+            "default": 30
+          },
+          "processing_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing Mode",
+            "default": "default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "primary_file"
+        ],
+        "title": "Body_upload_file_to_storage_analysis_api_v1_asset_fileupload_analysis_post"
+      },
+      "Body_upload_file_to_storage_api_v1_asset_fileupload_post": {
+        "properties": {
+          "primary_file": {
+            "type": "string",
+            "format": "binary",
+            "title": "Primary File"
+          },
+          "archive_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archive Ttl",
+            "default": 30
+          },
+          "destroy_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destroy Ttl",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "primary_file"
+        ],
+        "title": "Body_upload_file_to_storage_api_v1_asset_fileupload_post"
+      },
+      "Body_upload_files_to_storage_analysis_batch_api_v1_asset_fileupload_analysis_batch_post": {
+        "properties": {
+          "primary_files": {
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "type": "array",
+            "title": "Primary Files",
+            "description": "Multiple files to upload and analyze"
+          },
+          "archive_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archive Ttl",
+            "default": 30
+          },
+          "destroy_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destroy Ttl",
+            "default": 30
+          },
+          "processing_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing Mode",
+            "default": "default"
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 16,
+            "minimum": 1,
+            "title": "Concurrency",
+            "description": "Max concurrent uploads",
+            "default": 4
+          }
+        },
+        "type": "object",
+        "required": [
+          "primary_files"
+        ],
+        "title": "Body_upload_files_to_storage_analysis_batch_api_v1_asset_fileupload_analysis_batch_post"
+      },
+      "Body_upload_files_to_storage_batch_api_v1_asset_fileupload_batch_post": {
+        "properties": {
+          "primary_files": {
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "type": "array",
+            "title": "Primary Files",
+            "description": "Multiple files to upload"
+          },
+          "archive_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archive Ttl",
+            "default": 30
+          },
+          "destroy_ttl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destroy Ttl",
+            "default": 30
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 16,
+            "minimum": 1,
+            "title": "Concurrency",
+            "description": "Max concurrent uploads",
+            "default": 4
+          }
+        },
+        "type": "object",
+        "required": [
+          "primary_files"
+        ],
+        "title": "Body_upload_files_to_storage_batch_api_v1_asset_fileupload_batch_post"
+      },
+      "ChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "消息角色: 'user' 或 'assistant'"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "消息內容"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatMessage",
+        "description": "聊天消息"
+      },
+      "ChatRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id",
+            "description": "用戶 ID"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "用戶消息"
+          },
+          "history": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChatMessage"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History",
+            "description": "對話歷史（可選）"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "message"
+        ],
+        "title": "ChatRequest",
+        "description": "聊天請求"
+      },
+      "ChatResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response",
+            "description": "助手回應"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id",
+            "description": "用戶 ID"
+          },
+          "search_triggered": {
+            "type": "boolean",
+            "title": "Search Triggered",
+            "description": "是否觸發搜尋",
+            "default": false
+          },
+          "search_results": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SearchResult"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Results",
+            "description": "搜尋結果（如果有搜尋）"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ToolCall"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls",
+            "description": "工具調用記錄"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "user_id"
+        ],
+        "title": "ChatResponse",
+        "description": "聊天回應"
+      },
+      "DocumentSearchRequest": {
+        "properties": {
+          "query_text": {
+            "type": "string",
+            "title": "Query Text",
+            "description": "Search query text"
+          },
+          "embedding_type": {
+            "type": "string",
+            "title": "Embedding Type",
+            "description": "Type of embedding: 'text' or 'summary'",
+            "default": "text"
+          },
+          "filename": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Filename",
+            "description": "List of document filenames to search"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "File type (e.g., csv, pdf, docx)",
+            "default": "csv"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "description": "Maximum number of results",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "query_text"
+        ],
+        "title": "DocumentSearchRequest",
+        "description": "Request model for document similarity search."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ImageSearchRequest": {
+        "properties": {
+          "query_text": {
+            "type": "string",
+            "title": "Query Text",
+            "description": "Search query text"
+          },
+          "embedding_type": {
+            "type": "string",
+            "title": "Embedding Type",
+            "description": "Type of embedding: 'text' or 'summary'",
+            "default": "summary"
+          },
+          "filename": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Filename",
+            "description": "List of image filenames to search"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "File extension (e.g., jpg, png)",
+            "default": "jpg"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "description": "Maximum number of results",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "query_text"
+        ],
+        "title": "ImageSearchRequest",
+        "description": "Request model for image similarity search."
+      },
+      "ProcessingRequest": {
+        "properties": {
+          "upload_result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Upload Result",
+            "description": "The result from the file upload endpoint."
+          },
+          "processing_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing Mode",
+            "description": "Optional processing mode (e.g., 'ocr' for PDFs)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_result"
+        ],
+        "title": "ProcessingRequest"
+      },
+      "RegistrationRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "RegistrationRequest"
+      },
+      "SearchResult": {
+        "properties": {
+          "collection": {
+            "type": "string",
+            "title": "Collection"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stats"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          }
+        },
+        "type": "object",
+        "required": [
+          "collection",
+          "items"
+        ],
+        "title": "SearchResult",
+        "description": "搜尋結果"
+      },
+      "ToolCall": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "results_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Count"
+          },
+          "execution_time_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Time Ms"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "api_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Endpoint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "ToolCall",
+        "description": "工具調用記錄"
+      },
+      "UnifiedSearchRequest": {
+        "properties": {
+          "query_text": {
+            "type": "string",
+            "title": "Query Text",
+            "description": "Search query text"
+          },
+          "embedding_type": {
+            "type": "string",
+            "title": "Embedding Type",
+            "description": "Type of embedding: 'text' or 'summary'",
+            "default": "text"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters",
+            "description": "Per-collection filters",
+            "examples": [
+              {
+                "document": {
+                  "source": "pdf"
+                },
+                "video": {
+                  "filename": [
+                    "lecture.mp4"
+                  ],
+                  "speaker": [
+                    "SPEAKER_00"
+                  ]
+                }
+              }
+            ]
+          },
+          "limit_per_collection": {
+            "type": "integer",
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Limit Per Collection",
+            "description": "Maximum results per collection",
+            "default": 5
+          },
+          "global_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100,
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Limit",
+            "description": "Maximum total results after aggregation"
+          },
+          "score_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Threshold",
+            "description": "Minimum score threshold (0.0-1.0)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query_text"
+        ],
+        "title": "UnifiedSearchRequest",
+        "description": "Request model for unified cross-collection search."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VideoSearchRequest": {
+        "properties": {
+          "query_text": {
+            "type": "string",
+            "title": "Query Text",
+            "description": "Search query text"
+          },
+          "embedding_type": {
+            "type": "string",
+            "title": "Embedding Type",
+            "description": "Type of embedding: 'text' or 'summary'",
+            "default": "text"
+          },
+          "filename": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Filename",
+            "description": "List of video filenames to search"
+          },
+          "speaker": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Speaker",
+            "description": "List of speakers to filter by"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "description": "Maximum number of results",
+            "default": 5
+          }
+        },
+        "type": "object",
+        "required": [
+          "query_text"
+        ],
+        "title": "VideoSearchRequest",
+        "description": "Request model for video similarity search."
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": {
+            "scopes": {},
+            "tokenUrl": "/api/v1/auth/login"
+          }
+        }
+      }
+    }
+  }
+}
