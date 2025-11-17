@@ -1,3 +1,601 @@
+# RAPTOR API Gateway - Sample Code Usage Guide
+
+## Overview
+
+This directory contains complete sample code for the RAPTOR API Gateway, including both Python and cURL methods.
+
+- **API Base URL**: http://raptor_open_0_1_api.dhtsolution.com:8012
+- **API Documentation**: http://raptor_open_0_1_api.dhtsolution.com:8012/docs
+
+## File Descriptions
+
+### 1. `sample_code_python.py`
+Complete Python client implementation containing wrappers for all API endpoints.
+
+### 2. `sample_code_curl.sh`
+Shell script examples using cURL to call all API endpoints.
+
+### 3. `openapi.json`
+OpenAPI 3.1.0 specification file containing complete API definitions.
+
+---
+
+## Python Usage
+
+### Install Dependencies
+
+```bash
+pip install requests
+```
+
+### Basic Usage
+
+#### 1. Import and Initialize Client
+
+```python
+from sample_code_python import RaptorAPIClient
+
+# Initialize client
+client = RaptorAPIClient()
+```
+
+#### 2. Register and Login
+
+```python
+# Register new user
+client.register_user(
+    username="your_username",
+    email="your_email@example.com",
+    password="your_password"
+)
+
+# Login to get token
+token = client.login(
+    username="your_username",
+    password="your_password"
+)
+print(f"Token: {token}")
+```
+
+#### 3. Search Functions
+
+##### Video Search
+```python
+result = client.video_search(
+    query_text="machine learning",
+    embedding_type="text",
+    filename=["MV.mp4"],
+    speaker=["SPEAKER_00"],
+    limit=5
+)
+print(result)
+```
+
+##### Audio Search
+```python
+result = client.audio_search(
+    query_text="machine learning",
+    embedding_type="text",
+    filename=["audio.mp3"],
+    limit=5
+)
+```
+
+##### Document Search
+```python
+result = client.document_search(
+    query_text="financial report",
+    embedding_type="text",
+    filename=["EF25Y01.csv"],
+    source="csv",
+    limit=5
+)
+```
+
+##### Image Search
+```python
+result = client.image_search(
+    query_text="landscape photo",
+    embedding_type="summary",
+    filename=["photo.jpg"],
+    source="jpg",
+    limit=5
+)
+```
+
+##### Unified Search (Across Multiple Collections)
+```python
+result = client.unified_search(
+    query_text="machine learning and artificial intelligence",
+    embedding_type="text",
+    filters={
+        "video": {"filename": ["MV.mp4"]},
+        "document": {"source": "csv"}
+    },
+    limit_per_collection=5,
+    global_limit=20,
+    score_threshold=0.5
+)
+```
+
+#### 4. File Upload
+
+##### Upload Single File
+```python
+result = client.upload_file(
+    file_path="/path/to/your/file.pdf",
+    archive_ttl=30,
+    destroy_ttl=30
+)
+```
+
+##### Batch Upload
+```python
+result = client.upload_files_batch(
+    file_paths=[
+        "/path/to/file1.pdf",
+        "/path/to/file2.pdf",
+        "/path/to/file3.pdf"
+    ],
+    archive_ttl=30,
+    destroy_ttl=30,
+    concurrency=4
+)
+```
+
+##### Upload with Automatic Analysis
+```python
+result = client.upload_file_with_analysis(
+    file_path="/path/to/document.pdf",
+    processing_mode="default",
+    archive_ttl=30,
+    destroy_ttl=30
+)
+```
+
+##### Batch Upload with Analysis
+```python
+result = client.upload_files_batch_with_analysis(
+    file_paths=["/path/to/file1.pdf", "/path/to/file2.pdf"],
+    processing_mode="default",
+    archive_ttl=30,
+    destroy_ttl=30,
+    concurrency=4
+)
+```
+
+#### 5. Asset Management
+
+##### List File Versions
+```python
+versions = client.list_file_versions(
+    asset_path="my_assets",
+    filename="document.pdf"
+)
+```
+
+##### Download File
+```python
+file_content = client.download_asset(
+    asset_path="my_assets",
+    version_id="v1234",
+    return_file_content=True
+)
+
+# Save to local
+with open("downloaded_file.pdf", "wb") as f:
+    f.write(file_content)
+```
+
+##### Archive File
+```python
+result = client.archive_asset(
+    asset_path="my_assets",
+    version_id="v1234"
+)
+```
+
+##### Delete File
+```python
+result = client.delete_asset(
+    asset_path="my_assets",
+    version_id="v1234"
+)
+```
+
+#### 6. Processing Functions
+
+##### Process Uploaded File
+```python
+result = client.process_file(
+    upload_result={
+        "asset_path": "uploads/document.pdf",
+        "version_id": "v1234",
+        "filename": "document.pdf"
+    }
+)
+```
+
+##### Get Cache
+```python
+# Get specific cache
+cached_value = client.get_cached_value(
+    m_type="document",
+    key="my_cache_key"
+)
+
+# Get all cache
+all_cache = client.get_all_cache()
+```
+
+#### 7. Chat Functions
+
+##### Send Message
+```python
+response = client.send_chat(
+    user_id="your_user_id",
+    message="Please summarize the key points of machine learning for me"
+)
+print(response)
+```
+
+##### Chat with Search Results
+```python
+# First perform search
+search_results = client.document_search(
+    query_text="machine learning",
+    limit=5
+)
+
+# Pass search results to chat
+response = client.send_chat(
+    user_id="your_user_id",
+    message="Please summarize the key points based on these search results",
+    search_results=search_results.get("items", [])
+)
+```
+
+##### Manage Chat Memory
+```python
+# Get chat memory
+memory = client.get_chat_memory(user_id="your_user_id")
+
+# Clear chat memory
+client.clear_chat_memory(user_id="your_user_id")
+```
+
+#### 8. Health Check
+
+```python
+health = client.health_check()
+print(health)
+```
+
+### Complete Workflow Example
+
+```python
+from sample_code_python import RaptorAPIClient
+
+# Initialize client
+client = RaptorAPIClient()
+
+# 1. Login
+token = client.login(username="your_username", password="your_password")
+
+# 2. Upload file with automatic analysis
+upload_result = client.upload_file_with_analysis(
+    file_path="/path/to/document.pdf",
+    processing_mode="default"
+)
+
+# 3. Search for relevant content
+search_results = client.document_search(
+    query_text="important information",
+    embedding_type="text",
+    limit=5
+)
+
+# 4. Chat with AI using search results
+chat_response = client.send_chat(
+    user_id="your_user_id",
+    message="Please summarize the important information based on search results",
+    search_results=search_results.get("items", [])
+)
+
+print("AI Response:", chat_response.get("response"))
+```
+
+### Run Sample Program
+
+```bash
+# Run the built-in sample program
+python sample_code_python.py
+```
+
+---
+
+## cURL Usage
+
+### Preparation
+
+1. Ensure `curl` and `jq` (for JSON processing) are installed
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install curl jq
+
+# macOS
+brew install curl jq
+```
+
+2. Set execution permissions
+
+```bash
+chmod +x sample_code_curl.sh
+```
+
+### Basic Usage
+
+#### 1. Manually Execute Individual Commands
+
+##### Register User
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "test_user",
+    "email": "test@example.com",
+    "password": "secure_password"
+  }'
+```
+
+##### Login
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=test_user&password=secure_password"
+```
+
+Extract token:
+```bash
+TOKEN=$(curl -s -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=test_user&password=secure_password" | jq -r '.access_token')
+```
+
+#### 2. Search Functions
+
+##### Video Search
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/search/video_search" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query_text": "machine learning",
+    "embedding_type": "text",
+    "filename": ["MV.mp4"],
+    "limit": 5
+  }'
+```
+
+##### Document Search
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/search/document_search" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query_text": "financial report",
+    "embedding_type": "text",
+    "source": "csv",
+    "limit": 5
+  }'
+```
+
+##### Unified Search
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/search/unified_search" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query_text": "machine learning",
+    "embedding_type": "text",
+    "limit_per_collection": 5,
+    "global_limit": 20
+  }'
+```
+
+#### 3. File Upload
+
+##### Upload Single File
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/asset/fileupload" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -F "primary_file=@/path/to/your/file.pdf" \
+  -F "archive_ttl=30" \
+  -F "destroy_ttl=30"
+```
+
+##### Batch Upload
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/asset/fileupload_batch" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -F "primary_files=@/path/to/file1.pdf" \
+  -F "primary_files=@/path/to/file2.pdf" \
+  -F "concurrency=4"
+```
+
+##### Upload with Analysis
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/asset/fileupload_analysis" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -F "primary_file=@/path/to/document.pdf" \
+  -F "processing_mode=default"
+```
+
+#### 4. Asset Management
+
+##### List Versions
+```bash
+curl -X GET "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/asset/fileversions?asset_path=my_assets&filename=document.pdf" \
+  -H "Authorization: Bearer ${TOKEN}"
+```
+
+##### Download File
+```bash
+curl -X GET "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/asset/filedownload?asset_path=my_assets&version_id=v1234&return_file_content=true" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -o downloaded_file.pdf
+```
+
+##### Archive File
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/asset/filearchive?asset_path=my_assets&version_id=v1234" \
+  -H "Authorization: Bearer ${TOKEN}"
+```
+
+##### Delete File
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/asset/delfile?asset_path=my_assets&version_id=v1234" \
+  -H "Authorization: Bearer ${TOKEN}"
+```
+
+#### 5. Chat Functions
+
+##### Send Message
+```bash
+curl -X POST "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/chat/chat" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "test_user",
+    "message": "Please summarize the key points of machine learning for me"
+  }'
+```
+
+##### Get Chat Memory
+```bash
+curl -X GET "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/chat/memory/test_user" \
+  -H "Authorization: Bearer ${TOKEN}"
+```
+
+##### Clear Chat Memory
+```bash
+curl -X DELETE "http://raptor_open_0_1_api.dhtsolution.com:8012/api/v1/chat/memory/test_user" \
+  -H "Authorization: Bearer ${TOKEN}"
+```
+
+#### 6. Health Check
+
+```bash
+curl -X GET "http://raptor_open_0_1_api.dhtsolution.com:8012/health"
+```
+
+### Execute Complete Script
+
+```bash
+# Edit script, set your token
+nano sample_code_curl.sh
+
+# Execute all examples
+./sample_code_curl.sh
+
+# Or execute specific parts
+bash -x sample_code_curl.sh 2>&1 | grep "=== 2.1"
+```
+
+---
+
+## API Endpoint Overview
+
+### Authentication
+- `POST /api/v1/auth/register` - Register user
+- `POST /api/v1/auth/login` - Login to get JWT token
+
+### Search
+- `POST /api/v1/search/video_search` - Video search
+- `POST /api/v1/search/audio_search` - Audio search
+- `POST /api/v1/search/document_search` - Document search
+- `POST /api/v1/search/image_search` - Image search
+- `POST /api/v1/search/unified_search` - Unified cross-collection search
+
+### File Upload
+- `POST /api/v1/asset/fileupload` - Upload single file
+- `POST /api/v1/asset/fileupload_batch` - Batch upload
+- `POST /api/v1/asset/fileupload_analysis` - Upload with analysis
+- `POST /api/v1/asset/fileupload_analysis_batch` - Batch upload with analysis
+
+### Asset Management
+- `GET /api/v1/asset/fileversions` - List file versions
+- `GET /api/v1/asset/filedownload` - Download asset
+- `POST /api/v1/asset/filearchive` - Archive asset
+- `POST /api/v1/asset/delfile` - Delete asset
+
+### Processing
+- `POST /api/v1/processing/process-file` - Process file
+- `GET /api/v1/processing/processing/cache/{m_type}/{key}` - Get cache value
+- `GET /api/v1/processing/cache/all` - Get all cache
+
+### Chat
+- `POST /api/v1/chat/chat` - Send chat message
+- `GET /api/v1/chat/memory/{user_id}` - Get chat memory
+- `DELETE /api/v1/chat/memory/{user_id}` - Clear chat memory
+
+### Health
+- `GET /` - Root path health check
+- `GET /health` - Health check endpoint
+
+---
+
+## Notes
+
+1. **Authentication**: Most APIs require a JWT token, please login first to obtain a token
+2. **File Paths**: Use correct file paths when uploading files
+3. **Concurrent Upload**: For batch uploads, concurrency parameter ranges from 1-16
+4. **Search Limits**:
+   - Maximum 50 results per collection
+   - Unified search maximum 100 total results
+5. **TTL Settings**: archive_ttl and destroy_ttl are in days
+
+---
+
+## Troubleshooting
+
+### Common Errors
+
+#### 401 Unauthorized
+- Check if token is correct
+- Verify login status
+- Token may have expired, please login again
+
+#### 422 Validation Error
+- Check if request parameters are correct
+- Verify all required fields are provided
+- Check data types are correct
+
+#### 404 Not Found
+- Verify API endpoint path is correct
+- Check if resource exists
+
+#### Connection Error
+- Verify API server is running
+- Check network connection
+- Verify BASE_URL is correct
+
+---
+
+## More Information
+
+- **Complete API Documentation**: http://raptor_open_0_1_api.dhtsolution.com:8012/docs
+- **OpenAPI Specification**: See `openapi.json`
+
+---
+
+## Contributing
+
+If you have questions or suggestions, feel free to submit an issue or pull request.
+
+---
+
 # RAPTOR API Gateway - Sample Code 使用指南
 
 ## 概述

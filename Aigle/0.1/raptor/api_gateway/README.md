@@ -1,5 +1,152 @@
 # RAPTOR API Gateway - Sample Code
 
+## Project Overview
+
+This project provides complete sample code and usage instructions for the RAPTOR API Gateway, helping developers quickly integrate API functionality. The project includes a Python client, cURL script examples, OpenAPI specification documents, and a Flask-based web frontend demonstration application.
+
+RAPTOR API Gateway provides multimedia asset management, file upload processing, intelligent search, chat interaction, and other features, suitable for application scenarios that need to handle videos, audio, documents, and images.
+
+## API URL
+
+- **API Base URL**: http://raptor_open_0_1_api.dhtsolution.com:8012/
+- **API Documentation (Swagger UI)**: http://raptor_open_0_1_api.dhtsolution.com:8012/docs
+
+## Quick Start
+
+1. **Using Python Client**: Check `sample_code_python.py` or refer to `SAMPLE_CODE_GUIDE.md`
+2. **Using cURL Scripts**: Execute the example commands in `sample_code_curl.sh`
+3. **Using Web Frontend**: Navigate to the `web_frontend/` directory and refer to its README to start the Flask application
+
+## File Index
+
+### Core Documents
+
+#### `README.md`
+This document provides a project overview and file index.
+
+#### `SAMPLE_CODE_GUIDE.md`
+Detailed usage guide, including:
+- Complete instructions for both Python and cURL usage methods
+- Usage examples for all API endpoints
+- Detailed tutorials on authentication, file upload, search, asset management, processing, chat, and other features
+- Common issues and notes
+
+#### `openapi.json`
+OpenAPI 3.1.0 specification document containing complete API definitions, endpoints, parameters, response formats, and other information. Can be imported into Postman or other API testing tools.
+
+### Python Examples
+
+#### `sample_code_python.py`
+Complete Python client implementation, including:
+- `RaptorAPIClient` class encapsulating all API endpoints
+- Authentication functionality (registration, login, Token management)
+- File upload (single file, batch, upload-and-analyze)
+- Multimedia search (video, audio, document, image, cross-collection search)
+- Asset management (list versions, download, archive, delete)
+- Data processing (trigger processing, cache queries, system message queries)
+- Chat functionality (send messages, query chat history)
+- Health check
+
+**Usage**:
+```python
+from sample_code_python import RaptorAPIClient
+client = RaptorAPIClient()
+client.register_user("username", "email@example.com", "password")
+client.login("username", "password")
+```
+
+### Shell Script Examples
+
+#### `sample_code_curl.sh`
+Shell script examples using cURL to call all API endpoints, including:
+- Authentication (registration, login)
+- Various file upload methods
+- Call examples for all search endpoints
+- Asset management operations
+- Data processing and chat functionality
+
+**Usage**:
+```bash
+chmod +x sample_code_curl.sh
+# Can be executed directly or copy individual curl commands for use
+./sample_code_curl.sh
+```
+
+### Web Frontend
+
+#### `web_frontend/`
+Flask-based demonstration frontend application providing a graphical interface to operate the RAPTOR API Gateway.
+
+**Main Files**:
+- `app.py` - Flask application main program
+- `requirements.txt` - Python dependency package list
+- `templates/index.html` - Frontend HTML template
+- `static/styles.css` - Stylesheet
+- `README.md` - Web frontend detailed instructions
+
+**Features**:
+- Graphical API operation interface
+- Paginated navigation (search, upload, assets, processing, chat, etc.)
+- Automatic JWT Token management
+- Automatic recording of asset paths and version IDs
+- Support for all API features
+
+**Startup**:
+```bash
+cd web_frontend
+
+# Create environment
+conda create -n raptor_env python=3.10
+conda activate raptor_env
+pip install uv
+uv pip install -r requirements.txt
+python app.py
+```
+
+## Main Features
+
+### Authentication System
+- User registration and login
+- JWT Token authentication mechanism
+
+### File Upload
+- Single file upload
+- Batch upload
+- Upload-and-Analyze
+
+### Intelligent Search
+- Video content search (Video Search)
+- Audio content search (Audio Search)
+- Document content search (Document Search)
+- Image content search (Image Search)
+- Cross-collection search (Cross-Collection Search)
+
+### Asset Management
+- List asset versions
+- Download asset files
+- Archive assets
+- Delete assets
+
+### Data Processing
+- Trigger file processing
+- Cache data queries
+- System message queries
+
+### Chat Functionality
+- Send chat messages
+- Query chat history
+
+### System Health
+- API health check endpoint
+
+## Technical Support
+
+If you have questions or need assistance, please refer to:
+- API Documentation: http://raptor_open_0_1_api.dhtsolution.com:8012/docs
+- Sample Code Usage Guide: `SAMPLE_CODE_GUIDE.md`
+
+---
+
 ## 專案簡介
 
 本專案提供 RAPTOR API Gateway 的完整範例程式碼與使用說明，協助開發者快速整合 API 功能。專案包含 Python 客戶端、cURL 腳本範例、OpenAPI 規格文件，以及一個基於 Flask 的 Web 前端示範應用。

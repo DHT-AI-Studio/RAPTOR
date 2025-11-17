@@ -1,5 +1,56 @@
 # RAPTOR API Gateway Web Frontend
 
+This folder provides a Flask-based demonstration frontend for conveniently calling all RAPTOR API Gateway endpoints through a graphical interface.
+
+## Features
+
+- Register, login, and manage JWT Tokens.
+- Quickly switch between search, upload, asset, processing, chat, and other features through tabbed navigation.
+- Covers video, audio, document, image, and cross-collection search endpoints.
+- Supports single file and batch upload, as well as upload-and-analyze workflows.
+- Automatically retains recent asset paths and version IDs, which can be directly applied to asset management or subsequent processing forms.
+- Complete asset management operations: list versions, download, archive, delete.
+- Trigger file processing, cache queries, and chat features.
+- Built-in health check calls.
+
+## Quick Start
+
+1. It is recommended to install dependencies using a virtual environment:
+
+```bash
+cd Aigle/0.1/raptor/api_gateway/web_frontend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. Start the development server:
+
+```bash
+python app.py
+```
+
+By default, the frontend page will be available at `http://192.168.157.165:8013`.
+
+3. The homepage navigation bar allows switching to various feature tabs; if the remote API URL is different, you can update the Base URL in the "Environment Settings" tab. After logging in, the Token is stored in the browser Session for convenient subsequent operations.
+4. After uploading or listing versions, the system automatically records asset_path / version_id. Navigate to the "Asset Management" or "Data Processing" tabs to use the dropdown menu to fill in forms with one click; you can also clear the history if necessary.
+
+> **Reminder**: Some endpoints require logging in to obtain a Token before calling. The page is marked and provides prompts when not logged in.
+
+## Customization
+
+- Change the default API Base URL through the environment variable `RAPTOR_API_BASE_URL`.
+- Adjust the Flask Session secret key through `RAPTOR_WEB_SECRET`.
+
+## Notes
+
+- The frontend temporarily creates files to reuse the example client's upload logic; files are deleted after the request is completed.
+- When downloading assets with "Also return file content" checked, the page displays the raw byte content as Base64 text; please convert and save as needed.
+
+---
+
+# RAPTOR API Gateway Web Frontend
+
 本資料夾提供一個基於 Flask 的示範前端，方便以圖形界面呼叫 RAPTOR API Gateway 的所有端點。
 
 ## 功能
