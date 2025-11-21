@@ -173,3 +173,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ---
 
+## [0.1.6] - 2025-11-21
+
+### Added
+
+* **File Upload:**
+
+  * Implemented automatic **MD5 checksum generation and storage** for uploaded files.
+  * Each uploaded file now has its MD5 computed and saved to the database for duplicate-file detection.
+* **API Response:**
+
+  * Added a new field `change_status` to relevant upload API responses to indicate whether the file already exists in the database.
+
+### Changed
+
+* **Database Schema:**
+
+  * Updated the database table schema to include a new `checksum` column for storing the file’s MD5 value.
+
+### Fixed
+
+* N/A
+
+---

@@ -99,7 +99,7 @@ class VectorStore:
             point = PointStruct(
                 id=str(uuid.uuid4()),
                 vector=[0.0] * 1024,  # Placeholder vector, replace with actual vector extraction logic
-                payload=metadata.to_dict()
+                payload=metadata.model_dump()
             )
 
             if isinstance(collection_name, list):
@@ -146,7 +146,7 @@ class VectorStore:
                 for collection in collection_name:
                     await self.client.set_payload(
                         collection_name=collection,
-                        payload=metadata.to_dict(),
+                        payload=metadata.model_dump(),
                         points=Filter(
                             must=[
                                 FieldCondition(key="asset_path", match=MatchValue(value=asset_path)),
@@ -158,7 +158,7 @@ class VectorStore:
             elif isinstance(collection_name, str):
                 await self.client.set_payload(
                     collection_name=collection_name,
-                    payload=metadata.to_dict(),
+                    payload=metadata.model_dump(),
                     points=Filter(
                         must=[
                             FieldCondition(key="asset_path", match=MatchValue(value=asset_path)),

@@ -8,7 +8,7 @@ import os
 import logging
 import re
 
-from .models import AssetMetadata
+from .models import AssetMetadata, AssetMetadataResponse, model_to_response
 from .database import Database
 from .vector_store import VectorStore
 from .object_store import ObjectStore
@@ -160,11 +160,14 @@ class AssetManager:
                 primary_data, primary_asset_path, file_info["mime_type"], metadata, branch
             )
             version_id = primary_response.get("version_id")
+            checksum = primary_response.get("checksum")
             latest_metadata = None
         except Exception as e:
             if e.status_code == 400: # File no changed, return latest version
                 latest_metadata = await self.db.get_latest_active_asset(asset_path, branch)
                 version_id = latest_metadata.version_id
+                checksum = latest_metadata.checksum
+                logger.info(f"The primary file {primary_filename} has no change compared to the latest version")
             else:
                 logger.error(f"Failed to upload primary file {primary_filename}: {e}")
                 raise HTTPException(status_code=500, detail="Failed to upload primary file")
@@ -189,13 +192,18 @@ class AssetManager:
                 archive_date=archive_date,
                 destroy_date=destroy_date,
                 branch=branch,
-                status="active"
+                status="active",
+                checksum=checksum
             )
         else:
             latest_associated_filenames = dict(latest_metadata.associated_filenames)
             latest_associated_filenames.update(dict(associated_filenames))
             latest_metadata.associated_filenames = [(k, v) for k, v in latest_associated_filenames.items()]
             metadata = latest_metadata
+        
+        # Check if primary file has changed
+        change_status = await self.db.is_primary_file_changed(checksum, asset_path, branch)
+        metadata.change_status = change_status
 
         # Save to MySQL database
         try:
@@ -344,7 +352,9 @@ class AssetManager:
             await self.db.log_access(username, asset_path, version_id, branch, "retrieve", False, "Asset not found")
             raise HTTPException(status_code=404, detail=f"Asset with asset_path {asset_path} and version_id {version_id} not found")
 
-        results = {"metadata": metadata.to_dict()}
+        # Filter some internal fields
+        metadata = model_to_response(metadata, AssetMetadataResponse)
+        results = {"metadata": metadata.model_dump()}
 
         async def fetch_file(filename: str, version_id: str, return_file_content: bool = False) -> Optional[Dict]:
             path = f'{metadata.asset_path}/{filename}'

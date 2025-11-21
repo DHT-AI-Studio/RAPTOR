@@ -3,3 +3,5 @@ __pycache__/
 test/
 .env
 .pytest_cache/
+test*.ipynb
+data

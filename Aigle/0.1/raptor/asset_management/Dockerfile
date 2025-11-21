@@ -15,4 +15,4 @@ RUN apt-get update && apt-get install -y \
 
 EXPOSE 8000
 
-CMD ["uvicorn", "asset_management.endpoints:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "asset_management.endpoints:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

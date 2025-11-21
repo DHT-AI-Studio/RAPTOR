@@ -6,7 +6,7 @@ import json
 from passlib.context import CryptContext
 import logging
 import os
-from .models import AssetMetadata, User
+from .models import AssetMetadata, User, ChangeStatus
 from .config import settings
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ class Database:
                         archive_date DATETIME,
                         destroy_date DATETIME,
                         status VARCHAR(50),
+                        checksum VARCHAR(255),             
                         PRIMARY KEY (asset_path, version_id, branch)
                     )
                 """)
@@ -94,6 +95,7 @@ class Database:
                     await cursor.execute("""CREATE INDEX idx_asset_key_branch ON commit_history (asset_key, branch)""")
                     await cursor.execute("""CREATE INDEX idx_audit_log ON audit_log (asset_path, version_id)""")
                     await cursor.execute("""CREATE INDEX idx_audit_log_branch ON audit_log (asset_path, version_id, branch)""")
+                    await cursor.execute("""CREATE INDEX idx_checksum_branch ON commit_history (checksum, branch)""")
                     await conn.commit()
                 except Exception as e:
                     if e.args[0] == 1061:  # Duplicate key name
@@ -115,8 +117,8 @@ class Database:
                 await cursor.execute("""
                     INSERT INTO commit_history (
                         asset_path, version_id, primary_filename, asset_key, associated_filenames,
-                        upload_date, archive_date, destroy_date, branch, status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_record
+                        upload_date, archive_date, destroy_date, branch, status, checksum
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_record
                     ON DUPLICATE KEY UPDATE
                         primary_filename = new_record.primary_filename,
                         associated_filenames = new_record.associated_filenames,
@@ -124,7 +126,8 @@ class Database:
                         archive_date = new_record.archive_date,
                         destroy_date = new_record.destroy_date,
                         branch = new_record.branch,
-                        status = new_record.status
+                        status = new_record.status,
+                        checksum = new_record.checksum
                 """, (
                     metadata.asset_path,
                     metadata.version_id,
@@ -135,7 +138,8 @@ class Database:
                     metadata.archive_date,
                     metadata.destroy_date,
                     metadata.branch,
-                    metadata.status
+                    metadata.status,
+                    metadata.checksum
                 ))
                 await conn.commit()
 
@@ -154,7 +158,7 @@ class Database:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute("""
                     SELECT asset_path, version_id, primary_filename, associated_filenames,
-                        upload_date, archive_date, destroy_date, branch, status
+                        upload_date, archive_date, destroy_date, branch, status, checksum
                     FROM commit_history
                     WHERE asset_path = %s AND status = 'active' AND branch = %s
                     ORDER BY upload_date DESC
@@ -173,7 +177,8 @@ class Database:
                     archive_date=row["archive_date"],
                     destroy_date=row["destroy_date"],
                     branch=row["branch"],
-                    status=row["status"]
+                    status=row["status"],
+                    checksum=row["checksum"]
                 )
 
     async def get_asset_by_path_and_version(self, asset_path: str, version_id: str, branch: str) -> Optional[AssetMetadata]:
@@ -192,7 +197,7 @@ class Database:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute("""
                     SELECT asset_path, version_id, primary_filename, associated_filenames,
-                           upload_date, archive_date, destroy_date, branch, status
+                           upload_date, archive_date, destroy_date, branch, status, checksum
                     FROM commit_history
                     WHERE asset_path = %s AND version_id = %s AND branch = %s
                 """, (asset_path, version_id, branch))
@@ -208,7 +213,8 @@ class Database:
                     archive_date=row["archive_date"],
                     destroy_date=row["destroy_date"],
                     branch=row["branch"],
-                    status=row["status"]
+                    status=row["status"],
+                    checksum=row["checksum"]
                 )
 
     async def get_versions_by_key(self, key: str, branch: str) -> List[Dict]:
@@ -496,7 +502,7 @@ class Database:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute("""
                     SELECT asset_path, version_id, primary_filename, associated_filenames,
-                           upload_date, archive_date, destroy_date, branch, status
+                           upload_date, archive_date, destroy_date, branch, status, checksum
                     FROM commit_history
                     WHERE status = %s AND archive_date <= %s
                 """, ("active", current_date))
@@ -511,7 +517,8 @@ class Database:
                         archive_date=row["archive_date"],
                         destroy_date=row["destroy_date"],
                         branch=row["branch"],
-                        status=row["status"]
+                        status=row["status"],
+                        checksum=row["checksum"]
                     ) for row in rows
                 ]
 
@@ -529,7 +536,7 @@ class Database:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute("""
                     SELECT asset_path, version_id, primary_filename, associated_filenames,
-                           upload_date, archive_date, destroy_date, branch, status
+                           upload_date, archive_date, destroy_date, branch, status, checksum
                     FROM commit_history
                     WHERE status = %s AND destroy_date <= %s
                 """, ("archived", current_date))
@@ -544,7 +551,8 @@ class Database:
                         archive_date=row["archive_date"],
                         destroy_date=row["destroy_date"],
                         branch=row["branch"],
-                        status=row["status"]
+                        status=row["status"],
+                        checksum=row["checksum"]
                     ) for row in rows
                 ]
 
@@ -572,6 +580,39 @@ class Database:
                 
                 return row["version_id"]
 
+    async def is_primary_file_changed(self, checksum: str, asset_path: str, branch: str) -> ChangeStatus:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("""
+                    SELECT asset_path, version_id, primary_filename, associated_filenames,
+                        upload_date, archive_date, destroy_date, branch, status, checksum
+                    FROM commit_history
+                    WHERE checksum = %s AND branch = %s AND status = 'active'
+                    LIMIT 1
+                """, (checksum, branch))
+                row = await cursor.fetchone()
+                if not row:
+                    return ChangeStatus(changed=True, message="The primary file is a new file")
+                else:
+                    if row["asset_path"] == asset_path:
+                        return ChangeStatus(
+                            changed=False, 
+                            message=(
+                                "The same primary file already exists in the database"
+                                f" with the asset path: {row['asset_path']}"
+                                f" and version ID: {row['version_id']}"
+                            )
+                        )
+                    else:
+                        return ChangeStatus(
+                            changed=False, 
+                            message=(
+                                "The same primary file already exists in the database"
+                                f" with a different file name {row['primary_filename']}"
+                                f" and asset path: {row['asset_path']}"
+                                f" and version ID: {row['version_id']}"
+                            )
+                        )
 
     async def close(self):
         """

@@ -16,7 +16,7 @@ from .client import AssetManager
 from .database import Database
 from .object_store import ObjectStore
 from .vector_store import VectorStore
-from .models import Token, User, AssetMetadata
+from .models import Token, User, AssetMetadataResponse
 from .config import settings
 
 
@@ -221,12 +221,12 @@ async def change_shared_user(user: User, admin_user: User = Depends(get_current_
     return {"status": "success"}
 
 
-@app.post("/fileupload", summary="Upload a new asset", response_model=AssetMetadata)
+@app.post("/fileupload", summary="Upload a new asset", response_model=AssetMetadataResponse)
 async def upload_asset(
     primary_file: UploadFile = File(...),
-    associated_files: List[UploadFile] = File([]),
-    archive_ttl: Optional[int] = Form(None),
-    destroy_ttl: Optional[int] = Form(None),
+    associated_files: List[UploadFile] = File([], description='If you do not want to upload files, uncheck "Send empty value".'),
+    archive_ttl: Optional[int] = Form(30, description="Archive TTL in days"),
+    destroy_ttl: Optional[int] = Form(30, description="Destroy TTL in days after archive"),
     current_user: dict = Depends(get_current_user)
 ):
     try:
@@ -250,11 +250,11 @@ async def upload_asset(
             destroy_ttl=destroy_ttl
         )
     except Exception as e:
-        logger.error(f"Upload failed: {str(e)}")
+        logger.error(f"Upload failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@app.post("/add-associated-files/{asset_path:path}", summary="Add associated files to an existing asset", response_model=AssetMetadata)
+@app.post("/add-associated-files/{asset_path:path}", summary="Add associated files to an existing asset", response_model=AssetMetadataResponse)
 async def add_associated_files(
     asset_path: str,
     associated_files: List[UploadFile] = File(...),
@@ -288,7 +288,7 @@ async def download_asset(asset_path: str, version_id: str, return_file_content: 
         raise HTTPException(status_code=500, detail=f"Failed to retrieve asset: {str(e)}")
 
 
-@app.post("/filearchive/{asset_path:path}/{version_id}", summary="Archive an asset", response_model=AssetMetadata)
+@app.post("/filearchive/{asset_path:path}/{version_id}", summary="Archive an asset", response_model=AssetMetadataResponse)
 async def archive_asset(asset_path: str, version_id: str, current_user: dict = Depends(get_current_user)):
     try:
         return await manager.archive(current_user.username, current_user.branch, asset_path, version_id)
@@ -297,7 +297,7 @@ async def archive_asset(asset_path: str, version_id: str, current_user: dict = D
         raise HTTPException(status_code=500, detail=f"Failed to archive asset: {str(e)}")
 
 
-@app.post("/delfile/{asset_path:path}/{version_id}", summary="Delete an archived asset", response_model=AssetMetadata)
+@app.post("/delfile/{asset_path:path}/{version_id}", summary="Delete an archived asset", response_model=AssetMetadataResponse)
 async def destroy_asset(asset_path: str, version_id: str, current_user: dict = Depends(get_current_user)):
     try:
         return await manager.destroy(current_user.username, current_user.branch, asset_path, version_id)
