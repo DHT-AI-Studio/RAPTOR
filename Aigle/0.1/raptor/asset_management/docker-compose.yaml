@@ -11,6 +11,8 @@ services:
     restart: on-failure
     networks:
       - asset_management
+    volumes:
+      - ./asset_management:/app/asset_management:ro
     depends_on:
       mysql:
         condition: service_healthy

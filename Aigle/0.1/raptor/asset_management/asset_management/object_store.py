@@ -257,10 +257,11 @@ class ObjectStore:
                 message=f"Upload file {key}",
                 metadata=metadata
             )
+            checksum = commit.object(path=key).stat().checksum
             commit_id = commit.get_commit().id
 
             logger.info(f"Uploaded file {key} with version ID {commit_id} to repository {self.repository}")
-            return {"key": key, "version_id": commit_id}
+            return {"key": key, "version_id": commit_id, "checksum": checksum}
         
         except Exception as e:
             if "commit: no changes" in str(e).lower():
