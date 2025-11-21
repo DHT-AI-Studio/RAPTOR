@@ -26,6 +26,7 @@ services:
       dockerfile: Dockerfile
     image: search_api_base
     command: ["sleep", "infinity"]   # 不啟動，只作為 base image
+
   video_search_api:
     image: search_api_base
     container_name: video_search_api
@@ -41,6 +42,15 @@ services:
     networks:
       - search_network
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: 1 # 使用 1 個 GPU
+              count: all
+              capabilities: [gpu]
+              # device_ids: ['2'] # 指定特定 GPU (可選)
 
   image_search_api:
     image: search_api_base
@@ -57,6 +67,15 @@ services:
     networks:
       - search_network
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: 1 # 使用 1 個 GPU
+              count: all
+              capabilities: [gpu]
+              # device_ids: ['2'] # 指定特定 GPU (可選)
 
   audio_search_api:
     image: search_api_base
@@ -73,6 +92,15 @@ services:
     networks:
       - search_network
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: 1 # 使用 1 個 GPU
+              count: all
+              capabilities: [gpu]
+              # device_ids: ['2'] # 指定特定 GPU (可選)
 
   document_search_api:
     image: search_api_base
@@ -89,6 +117,15 @@ services:
     networks:
       - search_network
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: 1 # 使用 1 個 GPU
+              count: all
+              capabilities: [gpu]
+              # device_ids: ['2'] # 指定特定 GPU (可選)
 
   insert_api:
     image: search_api_base
@@ -102,7 +139,16 @@ services:
     networks:
       - search_network
     restart: unless-stopped
-
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: 1 # 使用 1 個 GPU
+              count: all
+              capabilities: [gpu]
+              # device_ids: ['2'] # 指定特定 GPU (可選)
+              
 volumes:
   qdrant_storage:
 

@@ -5,12 +5,13 @@ from typing import Dict, Any
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct
+from qdrant_client.models import VectorParams, Distance, PointStruct, QueryRequest
 
 app = FastAPI(title="Qdrant Data Inserter API")
 
 client = None
 model = None
+SCORE_THRESHOLD = 0.9
 
 @app.on_event("startup")
 async def startup_event():
@@ -86,7 +87,7 @@ async def health():
 
 @app.post("/insert_json")
 async def insert_json(file: UploadFile = File(...)):
-    """插入 JSON 數據"""
+    """插入 JSON 數據 + 向量相似度去重"""
     try:
         raw_data = await file.read()
         data = json.loads(raw_data.decode("utf-8"))
@@ -107,37 +108,68 @@ async def insert_json(file: UploadFile = File(...)):
         results = {}
         for collection_name, items in grouped_data.items():
             ensure_collection_exists(collection_name)
-            
-            points = []
+
+            # 先為所有 item 產生向量
+            docs = []
             for item in items:
                 payload = item.get("payload", {})
                 content = extract_embedding_content(payload)
-                
                 if not content:
                     continue
-                
+
                 vector = model.encode(content).tolist()
-                point_id = item.get("id", str(uuid.uuid4()))
-                
-                points.append(
-                    PointStruct(
-                        id=point_id,
-                        vector=vector,
-                        payload=payload
-                    )
+                docs.append({
+                    "id": item.get("id", str(uuid.uuid4())),
+                    "vector": vector,
+                    "payload": payload
+                })
+
+            if not docs:
+                continue
+
+            # --- 批次相似度查詢 ---
+            search_requests = [
+                QueryRequest(
+                    query=doc["vector"],
+                    limit=1,
+                    score_threshold=SCORE_THRESHOLD
                 )
-            
-            if points:
-                client.upsert(collection_name=collection_name, points=points)
-                results[collection_name] = len(points)
-                print(f"✅ 插入 {len(points)} 筆數據到 {collection_name}")
-        
+                for doc in docs
+            ]
+
+            search_results = client.query_batch_points(
+                collection_name=collection_name, 
+                requests=search_requests
+            )
+
+            # --- 過濾：只有完全找不到相似項的才存 ---
+            points_to_insert = []
+            for idx, res in enumerate(search_results):
+                if not res.points:  # 無相似向量 → 新資料
+                    doc = docs[idx]
+                    points_to_insert.append(
+                        PointStruct(
+                            id=doc["id"],
+                            vector=doc["vector"],
+                            payload=doc["payload"]
+                        )
+                    )
+
+            # --- 實際 upsert ---
+            if points_to_insert:
+                client.upsert(collection_name=collection_name, points=points_to_insert)
+                results[collection_name] = len(points_to_insert)
+                print(f"✅ 插入 {len(points_to_insert)} 筆數據到 {collection_name}")
+            else:
+                results[collection_name] = 0
+                print(f"⚠️ {collection_name} 無新資料（全部視為重複）")
+
         return {
             "status": "success",
-            "message": "成功插入數據",
+            "message": "成功插入（含相似向量去重）",
             "results": results
         }
-        
+
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"JSON 格式錯誤: {str(e)}")
     except Exception as e:
