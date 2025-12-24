@@ -14,30 +14,33 @@ services:
     volumes:
       - ./asset_management:/app/asset_management:ro
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       seaweedfs-s3:
         condition: service_healthy
-      lakefs:
-        condition: service_healthy
+      lakefs-setup:
+        condition: service_completed_successfully
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  mysql:
-    image: mysql:8.0
-    container_name: mysql
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "5433:5432"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TIMEZONE}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker_compose_settings/postgres:/docker-entrypoint-initdb.d
     restart: on-failure
     networks:
       - asset_management
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -153,17 +156,10 @@ services:
     container_name: seaweedfs-filer
     env_file:
       - .env
-    # command: filer -master=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 -ip=seaweedfs-filer -ip.bind=0.0.0.0  \ 
-    #  -port=8888 -port.grpc=18888 -s3.allowEmptyFolder=false -encryptVolumeData -metricsPort=1241
     entrypoint: ["sh", "/etc/seaweedfs/filer-entrypoint.sh"]
     depends_on:
-      - seaweedfs-master1
-      - seaweedfs-master2
-      - seaweedfs-master3
-      - seaweedfs-volume1
-      - seaweedfs-volume2
-      - seaweedfs-volume3
-      - seaweedfs-volume4
+      postgres:
+        condition: service_healthy
     volumes:
       - seaweedfs_filer:/data/filer
       - ./docker_compose_settings/seaweedfs/filer_generated.toml:/etc/seaweedfs/filer_generated.toml
@@ -189,7 +185,7 @@ services:
     networks:
       - asset_management
     healthcheck:
-      test: ["CMD", "weed", "version"]
+      test: ["CMD-SHELL", "wget --spider http://localhost:8333 2>&1 | grep -q '403 Forbidden' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -201,7 +197,7 @@ services:
     ports:
       - "23646:23646"
     command: admin -masters=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
-     -dataDir=/data/admin -port=23646 # -adminUser=${ADMIN_USERNAME} -adminPassword=${ADMIN_PASSWORD}
+     -dataDir=/data/admin -port=23646 
     depends_on:
       - seaweedfs-filer
     volumes:
@@ -302,16 +298,18 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - LAKEFS_DATABASE_TYPE=local
+      - LAKEFS_DATABASE_TYPE=postgres
+      - LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      # - LAKEFS_DATABASE_TYPE=local
       - LAKEFS_BLOCKSTORE_TYPE=s3
       - LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE=true
       - LAKEFS_BLOCKSTORE_S3_ENDPOINT=${S3_ENDPOINT}
       - LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION=false
       - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${AWS_SECRET_KEY}
-      - LAKEFS_INSTALLATION_USER_NAME=admin
-      - LAKEFS_INSTALLATION_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
-      - LAKEFS_INSTALLATION_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
+      # - LAKEFS_INSTALLATION_USER_NAME=admin
+      # - LAKEFS_INSTALLATION_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
+      # - LAKEFS_INSTALLATION_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
       - LAKECTL_CREDENTIALS_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
       - LAKECTL_CREDENTIALS_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
       - LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_AUTH_ENCRYPT_SECRET_KEY}
@@ -321,7 +319,9 @@ services:
       - TZ=${TIMEZONE}
     depends_on:
       seaweedfs-s3:
-        condition: service_started
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
       - lakefs_data:/home/lakefs
     restart: on-failure
@@ -334,32 +334,55 @@ services:
       retries: 5
       start_period: 20s
 
-  lakefs-gc-cron:
-    build: ./docker_compose_settings/lakefs/gc-runner
-    container_name: lakefs-gc-cron
-    environment:
-      - LAKEFS_ENDPOINT=${LAKEFS_ENDPOINT}
-      - LAKEFS_ACCESS_KEY=${LAKEFS_ACCESS_KEY}
-      - LAKEFS_SECRET_KEY=${LAKEFS_SECRET_KEY}
-      - S3_ENDPOINT=${S3_ENDPOINT}
-      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
-      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
-      - LAKEFS_REPOSITORY=${LAKEFS_REPOSITORY}
-      - GC_CRON_SCHEDULE=${GC_CRON_SCHEDULE}
-      - TZ=${TIMEZONE}
-    command: >
-      /bin/bash -c "chmod +x /usr/local/bin/run-gc.sh && /usr/local/bin/entrypoint.sh"
+  lakefs-setup:
+    image: curlimages/curl:8.17.0
+    container_name: lakefs-setup
     depends_on:
       lakefs:
         condition: service_healthy
-    restart: on-failure
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Starting lakeFS setup..."
+        curl -X POST "http://lakefs:8000/api/v1/setup_lakefs" \
+             -H "accept: application/json" \
+             -H "Content-Type: application/json" \
+             -d '{
+               "username": "admin",
+               "key": {
+                 "access_key_id": "${LAKEFS_ACCESS_KEY}",
+                 "secret_access_key": "${LAKEFS_SECRET_KEY}"
+               }
+             }' && echo "Setup successful or already completed." || echo "Setup skipped."
     networks:
       - asset_management
+
+  # lakefs-gc-cron:
+  #   build: ./docker_compose_settings/lakefs/gc-runner
+  #   container_name: lakefs-gc-cron
+  #   environment:
+  #     - LAKEFS_ENDPOINT=${LAKEFS_ENDPOINT}
+  #     - LAKEFS_ACCESS_KEY=${LAKEFS_ACCESS_KEY}
+  #     - LAKEFS_SECRET_KEY=${LAKEFS_SECRET_KEY}
+  #     - S3_ENDPOINT=${S3_ENDPOINT}
+  #     - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+  #     - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+  #     - LAKEFS_REPOSITORY=${LAKEFS_REPOSITORY}
+  #     - GC_CRON_SCHEDULE=${GC_CRON_SCHEDULE}
+  #     - TZ=${TIMEZONE}
+  #   command: >
+  #     /bin/bash -c "chmod +x /usr/local/bin/run-gc.sh && /usr/local/bin/entrypoint.sh"
+  #   depends_on:
+  #     lakefs:
+  #       condition: service_healthy
+  #   restart: on-failure
+  #   networks:
+  #     - asset_management
 
 volumes:
   app:
   qdrant_data:
-  mysql_data:
+  postgres_data:
   grafana_data:
   lakefs_data:
 
