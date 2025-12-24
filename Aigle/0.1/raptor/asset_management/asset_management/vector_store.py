@@ -216,6 +216,51 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Failed to archive metadata: {str(e)}")
 
+    async def reactivate_metadata(self, asset_path: str, version_id: str, branch: str):
+        """
+        Reactivate an asset's metadata in the vector store.
+
+        Args:
+            asset_path (str): path to the asset
+            version_id (str): version id of the asset
+            branch (str): branch of the asset
+        Raises:
+            ValueError: If the file type is not valid.
+        """
+        file_type = f"{asset_path.split('/', 1)[0]}"
+        if file_type not in self.file_type_to_collection.keys():
+            raise ValueError(f"Invalid file type: {file_type}")
+        
+        collection_name = self.file_type_to_collection[file_type]
+        try:
+            if isinstance(collection_name, list):
+                for collection in collection_name:
+                    await self.client.set_payload(
+                        collection_name=collection,
+                        payload={"status": "active"},
+                        points=Filter(
+                            must=[
+                                FieldCondition(key="asset_path", match=MatchValue(value=asset_path)),
+                                FieldCondition(key="version_id", match=MatchValue(value=version_id)),
+                                # FieldCondition(key="branch", match=MatchValue(value=branch))  # Uncomment if branch condition is needed
+                            ]
+                        )
+                    )
+            elif isinstance(collection_name, str):
+                await self.client.set_payload(
+                    collection_name=collection_name,
+                    payload={"status": "active"},
+                    points=Filter(
+                        must=[
+                            FieldCondition(key="asset_path", match=MatchValue(value=asset_path)),
+                            FieldCondition(key="version_id", match=MatchValue(value=version_id)),
+                            # FieldCondition(key="branch", match=MatchValue(value=branch))  # Uncomment if branch condition is needed
+                        ]
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Failed to reactivate metadata: {str(e)}")
+
     async def delete_metadata(self, asset_path: str, version_id: str, branch: str):
         """
         Delete an asset's metadata in the vector store.
@@ -223,6 +268,7 @@ class VectorStore:
         Args:
             asset_path (str): path to the asset
             version_id (str): version id of the asset
+            branch (str): branch of the asset
 
         Raises:
             ValueError: If the file type is not valid.
@@ -258,3 +304,82 @@ class VectorStore:
                 )
         except Exception as e:
             logger.error(f"Failed to delete metadata: {str(e)}")
+
+    async def clone_point(
+        self, 
+        source_path: str, 
+        source_version: str, 
+        target_path: str, 
+        target_version: str, 
+        branch: str,
+    ):
+        """
+        Clone points in the vector store from source to target.
+        Only changes the asset_path and version_id in the payload,
+        while reusing the vector and other fields from the source point.
+        Args:
+            source_path (str): The asset path of the source point.
+            source_version (str): The version ID of the source point.
+            target_path (str): The asset path of the target point.
+            target_version (str): The version ID of the target point.
+            branch (str): The branch for the target point.
+        """
+        file_type = f"{source_path.split('/', 1)[0]}"
+        collection_name = self.file_type_to_collection.get(file_type)
+        if not collection_name:
+            raise ValueError(f"Invalid file type for path: {source_path}")
+
+        offset = None
+        cloned_count = 0
+
+        while True:
+            # 1. Fetch all points of the source asset in batches (100 per batch)
+            points, next_page_offset = await self.client.scroll(
+                collection_name=collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(key="asset_path", match=MatchValue(value=source_path)),
+                        FieldCondition(key="version_id", match=MatchValue(value=source_version)),
+                        # FieldCondition(key="branch", match=MatchValue(value=branch))  # Uncomment if branch condition is needed
+                    ]
+                ),
+                limit=100, # 100 points per batch
+                offset=offset,
+                with_vectors=True
+            )
+
+            if not points:
+                break
+
+            new_points = []
+            for p in points:
+                # 2. Copy Payload and update key information
+                # Note: Retain original paragraph content (text), paragraph number (chunk_idx), etc.
+                new_payload = dict(p.payload)
+                new_payload.update({
+                    "asset_path": target_path,
+                    "version_id": target_version,
+                    "status": "active",
+                    # "branch": branch,
+                })
+
+                # 3. Create new point (retain original vector)
+                new_points.append(PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=p.vector,
+                    payload=new_payload
+                ))
+
+            # 4. Batch write new points
+            if new_points:
+                await self.client.upsert(
+                    collection_name=collection_name,
+                    points=new_points
+                )
+                cloned_count += len(new_points)
+
+            offset = next_page_offset
+            if offset is None:
+                break
+
+        logger.info(f"Successfully cloned {cloned_count} points from {source_path} to {target_path}")

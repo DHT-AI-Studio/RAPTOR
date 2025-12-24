@@ -1,5 +1,5 @@
 import lakefs
-import lakefs_sdk
+# import lakefs_sdk
 import aioboto3
 import botocore.exceptions
 from typing import Union, BinaryIO, Dict, Optional
@@ -101,24 +101,24 @@ class ObjectStore:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to list repositories: {str(e)}")
 
-    def set_gc_rules(self, repository: str):
-        try:
-            garbage_collection_rules = lakefs_sdk.GarbageCollectionRules(
-                default_retention_days=settings.lakefs_default_retention_days,
-                branches=[
-                    lakefs_sdk.GarbageCollectionRule(
-                        branch_id="main",
-                        retention_days=settings.lakefs_main_branch_retention_days
-                    )
-                ]
-            )
-            self.client.sdk_client.repositories_api.set_gc_rules(
-                repository=repository, 
-                garbage_collection_rules=garbage_collection_rules
-            )
-            logger.debug(f"GC rules set for repository '{repository}'")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to set GC rules: {str(e)}")
+    # def set_gc_rules(self, repository: str):
+    #     try:
+    #         garbage_collection_rules = lakefs_sdk.GarbageCollectionRules(
+    #             default_retention_days=settings.lakefs_default_retention_days,
+    #             branches=[
+    #                 lakefs_sdk.GarbageCollectionRule(
+    #                     branch_id="main",
+    #                     retention_days=settings.lakefs_main_branch_retention_days
+    #                 )
+    #             ]
+    #         )
+    #         self.client.sdk_client.repositories_api.set_gc_rules(
+    #             repository=repository, 
+    #             garbage_collection_rules=garbage_collection_rules
+    #         )
+    #         logger.debug(f"GC rules set for repository '{repository}'")
+    #     except Exception as e:
+    #         raise HTTPException(status_code=500, detail=f"Failed to set GC rules: {str(e)}")
 
     async def create_repository(self, repository_id: str, branch: str, s3_bucket: str):
         """Create lakeFS repository if it does not exist"""
@@ -130,7 +130,12 @@ class ObjectStore:
                 default_branch=branch,
                 exist_ok=True
             )
-            self.set_gc_rules(repository_id)
+
+            # # Set GC rules (deprecated)
+            # # Since the effective period of different assets is different, 
+            # # and there is no fixed effective period, so currently it is directly deleted from s3 storage
+            # self.set_gc_rules(repository_id)
+
             logger.debug(f"Repository '{repository_id}' created successfully")
 
         except Exception as e:
@@ -171,6 +176,12 @@ class ObjectStore:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get branch: {str(e)}")
 
+    def delete_branch(self, repository_id: str, branch: str):
+        try:
+            return lakefs.repository(repository_id=repository_id, client=self.client).branch(branch).delete()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to delete branch: {str(e)}")
+
     async def initialize(self):
         """
         Initialize the object store.
@@ -205,7 +216,7 @@ class ObjectStore:
             self._initialized = False
             logger.info("ObjectStore closed.")
 
-    async def upload_file(self, data: Union[str, BinaryIO, bytes], key: str, content_type: str, metadata: Dict, branch: Optional[str] = None) -> Dict:
+    async def upload_file(self, data: Union[str, BinaryIO, bytes], key: str, content_type: str, branch: Optional[str] = None) -> Dict:
         """
         Upload a file to the LakeFS repository and return the version ID.
 
@@ -255,7 +266,7 @@ class ObjectStore:
             # Commit the upload
             commit = branch_ref.commit(
                 message=f"Upload file {key}",
-                metadata=metadata
+                # metadata=metadata
             )
             checksum = commit.object(path=key).stat().checksum
             commit_id = commit.get_commit().id
@@ -387,7 +398,8 @@ class ObjectStore:
 
     async def delete_associated_files(self, prefix: str, primary_file: str, branch: Optional[str] = None):
         """
-        Delete all old associated files.
+        Delete all old associated files. When a primary file is changed, all other old associated files with the same prefix
+        (except the primary file) will be deleted.
 
         Args:
             key (str): The key of the object in the repository.
@@ -421,3 +433,62 @@ class ObjectStore:
                 pass  # Ignore if file doesn't exist
             else:
                 raise HTTPException(status_code=500, detail=f"Failed to delete associated files: {str(e)}")
+
+    async def _delete_file_from_s3_bucket(self, key: str, bucket: str = settings.s3_bucket) -> Dict:
+        """
+        Delete a file directly from the S3 bucket.
+
+        Args:
+            key (str): The key of the object in the S3 bucket.
+
+        Returns:
+            Dict: A dictionary containing the response from the S3 API.
+
+        Raises:
+            HTTPException: If the repository does not exist or if there is a failure in deleting the file.
+        """
+        s3_client = await self.session.client(
+            "s3",
+            endpoint_url=settings.s3_endpoint,
+            aws_access_key_id=settings.aws_access_key,
+            aws_secret_access_key=settings.aws_secret_key
+        ).__aenter__()
+
+        try:
+            response = await s3_client.delete_object(Bucket=bucket, Key=key)
+            logger.info(f"Deleted file {key} from bucket {bucket} successfully")
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to delete file {key} from S3 bucket: {str(e)}")
+        
+        finally:
+            await s3_client.__aexit__(None, None, None)
+
+        return response
+
+    async def delete_file_v2(self, key: str, version_id: Optional[str] = None, is_head: bool = False, branch: Optional[str] = None):
+        """
+        Delete a file or a specific version from the repository by removing it directly from the S3 bucket.
+
+        Args:
+            key (str): The key of the object in the repository.
+            version_id (Optional[str]): The version ID of the file to delete.
+            branch (Optional[str]): The branch to delete the file from. If not specified,
+                the default branch will be used.
+
+        Returns:
+            Dict: A dictionary containing the response from the S3 API.
+
+        Raises:
+            HTTPException: If the repository does not exist or if there is a failure in deleting the file.
+        """
+        commit_ref = lakefs.repository(repository_id=self.repository, client=self.client).ref(version_id)
+        obj = commit_ref.object(path=key)
+        physical_address = obj.stat().physical_address.replace(f"s3://{settings.s3_bucket}/", "")
+
+        if is_head:
+            # If it's the head version, we should delete it via LakeFS to maintain consistency
+            await self.delete_file(key, version_id=version_id, branch=branch)
+
+        return await self._delete_file_from_s3_bucket(physical_address)
+

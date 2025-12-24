@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Tuple, Any, Dict, Type
+from typing import List, Tuple, Any, Dict, Type, Optional, Union
 from enum import Enum
 from pydantic import BaseModel
 
@@ -10,9 +10,11 @@ class MediaType(Enum):
     DOCUMENT = "document"
     OTHER = "other"
 
-class ChangeStatus(BaseModel):
-    changed: bool = False
+class ExistenceInfo(BaseModel):
+    exists: bool = False
     message: str = ""
+    existing_asset_path: Optional[str] = None
+    existing_version_id: Optional[str] = None
 
 class AssetMetadata(BaseModel):
     asset_path: str
@@ -20,12 +22,13 @@ class AssetMetadata(BaseModel):
     primary_filename: str
     associated_filenames: List[Tuple[str, str]] 
     upload_date: datetime
-    archive_date: datetime
-    destroy_date: datetime
+    archive_date: Optional[Union[datetime, str]] = None
+    destroy_date: Optional[Union[datetime, str]] = None
+    user: str
     branch: str
     status: str
     checksum: str
-    change_status: ChangeStatus = ChangeStatus()
+    existence_info: ExistenceInfo = ExistenceInfo()
 
 class AssetMetadataResponse(BaseModel):
     asset_path: str
@@ -33,10 +36,9 @@ class AssetMetadataResponse(BaseModel):
     primary_filename: str
     associated_filenames: List[Tuple[str, str]] 
     upload_date: datetime
-    archive_date: datetime
-    destroy_date: datetime
+    archive_date: Optional[Union[datetime, str]] = None
+    destroy_date: Optional[Union[datetime, str]] = None
     status: str
-    change_status: ChangeStatus = ChangeStatus()
 
 class Token(BaseModel):
     access_token: str
@@ -45,12 +47,8 @@ class Token(BaseModel):
     branch: str
 
 class User(BaseModel):
-    username: str
-    password: str = ""
-    password_hash: str = ""
-    branch: str = ""
-    permissions: List[str] = ["upload", "download", "list"]
-
+    user_id: str
+    branch_id: str
 
 def model_to_response(
     model_obj: BaseModel, 

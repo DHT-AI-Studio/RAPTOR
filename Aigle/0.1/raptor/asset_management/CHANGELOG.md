@@ -196,3 +196,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 * N/A
 
 ---
+
+## [0.2.0] - 2026-01-14
+
+### Added
+- **Duplicate Detection Matrix (Scenarios 3, 4, and 5)**:
+    - Defined a comprehensive handling mechanism based on "Checksum" and "Asset Path" in `API.md`.
+    - **Scenario 3 (Global Active Hit)**: If identical content is already `active`, the system reuses metadata and updates associated files, avoiding redundant storage.
+    - **Scenario 4 (Archive Lock)**: Prevents overwriting identical content at the same path if it is already `archived` to ensure archival integrity.
+    - **Scenario 5 (Cross-Path Reuse)**: If identical content exists at a different path and is archived, the system utilizes **Qdrant Point Cloning** to reuse analysis results and save processing time.
+- **Flexible Expiration Policies & TTL System**:
+    - Supported relative TTL formats (e.g., `30d`, `2w`, `6m`, `1y`) and various absolute date formats (ISO 8601, `YYYY-MM-DD`, `YYYY/MM/DD`).
+    - Implemented the `parse_date_or_ttl` utility to support cascading calculations for `destroy_date` relative to the `archive_date`.
+- **New API Endpoints**:
+    - `/users/commits`: Supported paginated commit history with keyword search (filename) and date range filtering.
+    - `/file-expiration`: Allowed dynamic updates to archive and destruction dates with automatic reactivation.
+- **Automated Infrastructure**:
+    - **lakefs-setup**: Added a dedicated Docker container to automatically handle LakeFS initialization and API Key configuration on startup.
+    - **Integrated Testing Suite**: Introduced `tests/test_api.py` and `conftest.py`, covering the full lifecycle and deduplication scenario tests.
+
+### Changed
+- **Core Database Migration (MySQL ⮕ PostgreSQL)**:
+    - Replaced the underlying driver from `aiomysql` to `asyncpg`.
+    - Unified the metadata backends of **SeaweedFS Filer** and **LakeFS** to PostgreSQL for improved transactional stability.
+    - Introduced the `pg_trgm` extension and GIN indexes to significantly optimize fuzzy search performance for `asset_path` and `primary_filename`.
+- **Authentication Refactor (JWT ⮕ Gateway Headers)**:
+    - Removed internal JWT issuance and validation. The service now identifies users via `X-User-ID` and `X-Branch-ID` headers injected by an upstream API Gateway.
+    - Simplified the `User` model, delegating password management and permission checks entirely to the Gateway/Identity Provider.
+- **Optimized Destruction Logic (`destroy_v2`)**:
+    - Implemented a mechanism to delete physical objects directly from S3 storage, ensuring actual storage space is reclaimed despite version control immutability.
+- **Vector Database Synchronization**:
+    - Implemented `clone_point` to duplicate vectors and payloads within Qdrant, drastically reducing costs for processing duplicate content.
+    - Added `reactivate_metadata` to sync status changes from the relational database to the vector store.
+
+### Fixed
+- **Timezone Consistency**: Enforced `Asia/Taipei` (UTC+8) across all operations, fixing issues where some scenarios previously defaulted back to UTC.
+- **Upload Integrity Verification**: Integrated MD5 checksum matching in the upload workflow to ensure consistency between client files and storage provider data.
+- **Status Sync Issues**: Fixed a bug where asset statuses (active/archived) were inconsistent between the SQL database and Qdrant points during manual archiving or auto-reactivation.
+
+### Removed
+- **Deprecated Dependencies**: Removed `passlib` (encryption), `python_jose` (JWT), `aiomysql` (MySQL), and `cryptography`.
+- **Deprecated Endpoints**: Removed `/token`, `/shared-users`, and the legacy `/users` POST endpoint.
+- **Legacy Infrastructure**: Completely removed the MySQL service from `docker-compose.yaml`.
+
+---
