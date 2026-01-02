@@ -1,5 +1,4 @@
 from .cache_manager import CacheManager
-from .cache_manager_dist_lock import CacheManager as CacheManagerDistLock
 
 # global_cache_manager = None
 

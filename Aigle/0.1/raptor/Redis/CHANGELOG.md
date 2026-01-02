@@ -111,3 +111,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 * N/A
 
 ---
+
+## [0.4.0] - 2026-01-02
+
+### Added
+- **Integrated Distributed Locking.**
+    - Merged the distributed lock logic directly into the main `CacheManager` class. Users can now toggle this feature via the `use_distributed_lock` parameter without switching classes.
+- **Model Instance Injection.**
+    - Added the `embedding_model_instance` parameter to `CacheManager` and `SemanticRedisCache`, allowing the reuse of pre-initialized `SentenceTransformer` objects to save memory.
+- **Resource Management Lifecycle.**
+    - Introduced `close()` and `aclose()` methods to gracefully shut down Redis connection pools and background cleanup tasks.
+- **Lock Watchdog (Auto-Extension).**
+    - Distributed locks now feature an automatic extension mechanism (Watchdog) to prevent locks from expiring during long-running cache-miss functions.
+- **Namespace Isolation for Semantic Caching.**
+    - Implemented a hashing mechanism that separates cache entries based on non-query arguments, preventing "Apple" in a `fruit` category from hitting an "Apple" entry in a `tech` category.
+- **Dynamic Semantic Query Mapping.**
+    - Introduced the `query_param_name` parameter to the `@cache` decorator and `CacheManager`. This allows users to designate any function argument as the source for semantic embedding, rather than being restricted to the name `"query"`.
+    - Integrated `inspect.signature` for robust argument binding. The system now accurately identifies the designated query value whether it is passed as a positional or keyword argument.
+    
+### Changed
+- **Unified Cache Manager Logic.**
+    - Simplified the codebase by removing the separate `CacheManagerDistLock` class and unifying sync/async wrapper logic.
+- **Robust Semantic Index Management.**
+    - `SemanticRedisCache` now automatically detects vector dimension mismatches (e.g., when switching models) and recreates the RediSearch index if necessary.
+- **Enhanced Background Cleanup.**
+    - The background task now cleans up both `hit_counter` and `local_locks` for expired keys, preventing memory bloat in long-running processes.
+- **Improved Metadata Handling.**
+    - Key generation now filters out non-serializable parameters to prevent `pickle` errors during metadata hashing.
+
+### Fixed
+- **Resource Leaks.**
+    - Fixed potential memory leaks by using `weakref.WeakValueDictionary` for tracking in-progress tasks.
+- **Thread Safety.**
+    - Refactored internal locking mechanisms to ensure consistent behavior between synchronous and asynchronous environments.
+
+---
