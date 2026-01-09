@@ -16,11 +16,10 @@ The VIE Redis Cache System is a comprehensive caching solution designed for the 
 
 ```
 cache_manager/
-├── base_cache.py               # Redis client wrapper with sync/async support
+├── base_cache.py               # Redis client wrapper with sync/async & Cluster support
 ├── cache_manager.py            # Core logic for function caching and management
-├── cache_manager_dist_lock.py  # CacheManager variant using Redis-based distributed locks
-├── distributed_lock.py         # Redis distributed lock implementations (sync/async)
-├── semantic_redis_cache.py     # Semantic similarity-based caching implementation
+├── distributed_lock.py         # Redis distributed lock with Watchdog (auto-extend)
+├── semantic_redis_cache.py     # Semantic similarity implementation (RediSearch)
 ├── utils.py                    # Utility functions like hash_query
 └── __init__.py                 # Package initialization
 ```
@@ -29,28 +28,56 @@ cache_manager/
 
 ## 🔧 Features
 
-- ✅ Decorator-based caching for any function
-- ✅ Supports both synchronous and asynchronous functions
+- ✅ Decorator-based caching for any function (Sync/Async)
 - ✅ Auto TTL adjustment based on popularity (`(hit_counter * multiplier + 1) * default_ttl`)
 - ✅ Prevents cache breakdown using in-progress task tracking and locks
 - ✅ Clear specific caches by name or by passing the decorated function
 - ✅ Supports Redis Cluster and standalone Redis
-- ✅ Auto cleanup of expired locks and counters
-- ✅ Distributed Lock Support for multi-instance coordination
+- ✅ Auto cleanup of expired locks and counters via background task
+- ✅ **Distributed Lock Support**: Integrated coordination for multi-instance environments
 
 ### 🧠 Semantic Caching Add-ons
 
-- ✅ BAAI/bge-m3 model integration for semantic similarity matching
+- ✅ **Hybrid Embedding Engines**: Supports Local, Ollama, or Pre-initialized instances
 - ✅ Vector index management via RediSearch
-- ✅ Hybrid key generation: combines traditional hashing with semantic vector search
+- ✅ Namespace Isolation: Ensures query context (arguments) remains separated during vector search
 - ✅ Configurable similarity threshold (default 0.8)
 
 ---
 
-## 📦 Installation
+## 🚀 Embedding Engine Configuration
 
-```bash
-pip install -r requirements.txt
+The system provides three flexible ways to handle embeddings for semantic caching.
+
+### 1. Local SentenceTransformer (Default)
+Runs the model locally using the `sentence-transformers` library.
+```python
+cm = CacheManager(
+    semantic=True,
+    embedding_model_name="BAAI/bge-m3" # Model downloaded from HuggingFace
+)
+```
+
+### 2. Remote Ollama SDK
+Offloads embedding generation to an Ollama server.
+```python
+cm = CacheManager(
+    semantic=True,
+    ollama_url="http://localhost:11434",
+    embedding_model_name="bge-m3" # Model name inside Ollama
+)
+```
+
+### 3. Instance Injection (`embedding_model_instance`)
+If you already have a `SentenceTransformer` object initialized, pass it directly to share memory.
+```python
+from sentence_transformers import SentenceTransformer
+my_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+cm = CacheManager(
+    semantic=True,
+    embedding_model_instance=my_model # Overrides model_name and ollama_url
+)
 ```
 
 ---
@@ -65,175 +92,115 @@ from cache_manager import CacheManager
 cm = CacheManager(
     host="localhost",
     port=6379,
-    db=0,
-    password=None,
-    max_connections=100,
-    ttl=3600,               # Default TTL
-    ttl_multiplier=0.1,     # Extend TTL dynamically based on popularity
-    is_cluster=False,
-    cleanup_interval=3600   # Clean up expired locks every hour
+    use_distributed_lock=True, # Enable multi-instance coordination
+    ttl_multiplier=0.1         # Enable dynamic TTL extension
 )
 ```
 
 ### 2. Use the `@cm.cache()` Decorator
 
-You can use the `@cm.cache()` decorator to easily enable caching for any function — both **synchronous** and **asynchronous**.
-
-### ✅ Automatic Cache Name (No Arguments)
-
-If you simply use `@cm.cache` without specifying a name:
-
+#### ✅ Automatic Cache Name
 ```python
 @cm.cache
 def get_user_info(user_id: int) -> dict:
-    print(f"[DB] Fetching user {user_id}")
-    return {
-        "id": user_id,
-        "name": f"User {user_id}",
-        "email": f"user{user_id}@example.com"
-    }
-```
-
-The cache manager will automatically generate a name based on:
-
-```python
-f"{func.__module__}.{func.__qualname__}"
-```
-
-This ensures that each decorated function gets its own isolated cache space.
-
-> 🔍 Example generated name:
-> `__main__.get_user_info` or `my_module.users.get_user_info`
-
-### 🧩 Custom Cache Name
-
-You can also specify a custom name explicitly:
-
-```python
-@cm.cache("user_profile")
-def get_user_info(user_id: int) -> dict:
     ...
 ```
 
-This is useful if you want to group multiple functions under the same cache name or make it easier to reference later (e.g., for clearing).
-
-### 🔄 Supported Usage
-
-#### ✅ Synchronous Function Example
-
+#### ✅ Custom Configuration & Semantic Caching
 ```python
-@cm.cache("get_user_info")
-def get_user_info(user_id: int) -> dict:
-    print(f"[DB] Fetching user {user_id}")
-    return {
-        "id": user_id,
-        "name": f"User {user_id}",
-        "email": f"user{user_id}@example.com"
-    }
-
-print(get_user_info(123))  # First call (no cache)
-print(get_user_info(123))  # From cache
-```
-
-#### ✅ Asynchronous Function Example
-
-```python
-import asyncio
-
-@cm.cache("async_get_data")
-async def async_get_data(query: str) -> str:
-    print(f"[ASYNC DB] Fetching data for '{query}'")
-    await asyncio.sleep(1)
-    return f"Result for '{query}'"
-
-async def main():
-    print(await async_get_data("test"))  # First call
-    print(await async_get_data("test"))  # From cache
-
-await main()
-```
-
----
-
-## 🔍 Semantic Caching Usage
-
-To enable semantic caching, add `semantic=True` to your decorator:
-
-```python
-@cm.cache(semantic=True)
-def search_products(query: str) -> List[Product]:
-    print(f"[DB] Searching for products matching '{query}'")
-    # Your actual database query logic here
-    ...
-
-# These similar queries will hit the same cache entry
-search_products("red shoes size 9")
-search_products("shoes red color size nine")
-```
-
-> ⚠️ **Important**: When using semantic caching, the decorated function must have a `query` parameter (either as a positional argument or keyword argument). This is used to extract the text for semantic similarity comparison.
-
-You can also specify a custom name and similarity threshold:
-
-```python
-@cm.cache("product_search", semantic=True, similarity_threshold=0.85)
-def search_products(query: str) -> List[Product]:
-    ...
-```
-
----
-
-## ⚙️ Distributed Lock Support
-
-### 🔐 `CacheManagerDistLock` — Redis-based Distributed Locking
-
-For multi-instance or containerized deployments, use **`CacheManagerDistLock`**, which employs **Redis distributed locks** to coordinate cache operations across nodes.
-
-```python
-from cache_manager import CacheManagerDistLock
-
-cmdl = CacheManagerDistLock(
-    host="localhost",
-    port=6379,
-    ttl=3600,
+@cm.cache(
+    name="product_search", 
+    semantic=True, 
+    similarity_threshold=0.85,
+    ttl=600
 )
+async def search_products(query: str, category: str) -> list:
+    ...
 ```
 
-* Internally uses **`RedisLock`**/**`AsyncRedisLock`** (from `distributed_lock.py`).
-* Ensures that only **one instance** recomputes a missing cache entry at a time.
-* Prevents **cache breakdown** even across distributed environments.
-* API usage is **identical to `CacheManager`**, so existing decorators work seamlessly.
+#### ✅ Semantic Caching with Custom Query Parameter
+By default, the system looks for an argument named `query`. If your parameter is named differently (e.g., `text` or `description`), use `query_param_name`.
 
 ```python
-@cmdl.cache("user_profile")
-async def fetch_user(user_id: int):
+@cm.cache(
+    semantic=True, 
+    query_param_name="content",  # Map 'content' to the embedding engine
+    similarity_threshold=0.85
+)
+async def analyze_text(content: str, language: str = "en"):
+    # If a semantically similar 'content' exists for the same 'language', 
+    # the cached result is returned.
     ...
+```
+
+---
+
+## 🗑️ Clearing Cache
+
+You can clear the cache for a specific function at any time. This will delete all related keys in Redis (using scan patterns), reset hit counters, and clear local locks.
+
+### 1. Via Function Object
+The most recommended way; it automatically resolves the cache name.
+```python
+@cm.cache
+def fetch_data(id: int):
+    ...
+
+# Clear all cache entries for this specific function
+cm.clear_cache(fetch_data)
+```
+
+### 2. Via Cache Name
+If you defined a custom name in the decorator:
+```python
+@cm.cache(name="my_custom_cache")
+def fetch_data(id: int):
+    ...
+
+# Clear by the specific name string
+cm.clear_cache("my_custom_cache")
 ```
 
 ---
 
 ## ⚙️ Configuration Options
 
-| Parameter                | Default         | Description                               |
-| ------------------------ | --------------- | ----------------------------------------- |
-| `host`                 | `"localhost"` | Redis server host                         |
-| `port`                 | `6379`        | Redis server port                         |
-| `db`                   | `0`           | Redis database index                      |
-| `password`             | `None`        | Redis authentication password             |
-| `max_connections`      | `100`         | Max connections in pool                   |
-| `ttl`                  | `3600`        | Default time-to-live in seconds           |
-| `ttl_multiplier`       | `0.1`         | Multiplier for dynamic TTL extension      |
-| `is_cluster`           | `False`       | Whether to use Redis Cluster              |
-| `cleanup_interval`     | `3600`        | Interval (seconds) for background cleanup |
-| `semantic`             | `False`       | Enable semantic caching                   |
-| `embedding_model`           | `"BAAI/bge-m3"` | SentenceTransformer or Ollama model name            |
-| `ollama_url`           | `None`        | Ollama server URL (If None, SentenceTransformer will be used)                         |
-| `similarity_threshold` | `0.8`         | Minimum similarity score for match (0-1)  |
+### Global Instance-Only Parameters
+These parameters can only be set during `CacheManager` initialization and control the global behavior of the manager:
+
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `cleanup_interval` | `3600` | Frequency (seconds) of background task to prune expired locks/counters. |
+| `ttl_multiplier` | `None` | Multiplier for dynamic TTL extension based on hit popularity. |
+
+### Default & Overridable Parameters
+These can be set at initialization as defaults or overridden per-function in the `@cm.cache()` decorator:
+
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `host` | `"localhost"` | Redis server host. |
+| `port` | `6379` | Redis server port. |
+| `db` | `0` | Redis database index. |
+| `password` | `None` | Redis password. |
+| `max_connections` | `100` | Max connections in the Redis pool. |
+| `max_workers` | `4` | Concurrency limit (Threads for Sync / Semaphore for Async). |
+| `ttl` | `3600` | Default time-to-live in seconds. |
+| `is_cluster` | `False` | Whether to use Redis Cluster. |
+| `semantic` | `False` | Enable semantic similarity matching. |
+| `query_param_name` | `"query"` | The name of the function argument used for vector embedding. |
+| `query_prefix` | `None` | Prefix added to the text during search (e.g., "query: " for E5 models). |
+| `passage_prefix` | `None` | Prefix added to the text during storage (e.g., "passage: " for E5 models). |
+| `embedding_model_instance`| `None` | An existing `SentenceTransformer` object instance. |
+| `embedding_model_name`| `"BAAI/bge-m3"`| Model name for Local Transformer or Ollama. |
+| `ollama_url` | `None` | URL of your Ollama server. |
+| `similarity_threshold`| `0.8` | Threshold for vector similarity (0.0 to 1.0). |
+| `use_distributed_lock`| `False` | Use Redis-based distributed locks. |
 
 ---
 
 ## 🔄 Data Flow Summary
-### 1. Standard Cache Flow
+
+### 1. Standard Cache Flow (with Concurrency Control)
 
 ```mermaid
 sequenceDiagram
@@ -298,33 +265,30 @@ sequenceDiagram
 
 ---
 
-## 🗑️ How Cache Keys Are Generated
+## 🗑️ Cache Key & Namespace Logic
 
-Each cache key is generated using SHA256 hashing of the name (module name + function name) + arguments:
+The system intelligently splits function arguments into two parts:
 
-```python
-key = f"{name}:{hash_query(key_data)}"
-```
-
-Where `hash_query` uses `pickle.dumps(data)` before hashing.
-
-For semantic caching, vector embeddings are stored in a separate namespace with prefix `sem_cache:` and managed through RediSearch vector indexes.
+1.  **Exact Key**: A SHA256 hash of `(cache_name + all_kwargs)`. Used for traditional exact-match lookup.
+2.  **Semantic Metadata**:
+    *   **Query**: The value of the argument specified by `query_param_name`. This string is converted into a vector embedding.
+    *   **Namespace**: A hash of the cache name and all arguments **except** the query parameter.
+    *   **Logic**: This ensures that searching for "Apple" in `category="Fruit"` does not return a cached result for "Apple" in `category="Tech"`.
 
 ---
 
-## Future Enhancements
+## 🧹 Resource Management
 
-### Planned Features
+Always close the manager to release connection pools and stop background threads:
 
-* [ ] **Cache Warming**: Pre-populate frequently accessed data
-* [ ] **Cache Analytics**: Advanced hit rate and performance analytics
-* [ ] **Multi-tier Caching**: L1 (memory) + L2 (Redis) caching
-* [ ] **Cache Invalidation**: Smart invalidation strategies
-* [x] **Distributed Locking**: Enhanced concurrency control (implemented in `distributed_lock.py`)
+```python
+# Sync cleanup
+cm.close()
 
-### Integration Opportunities
+# Async cleanup
+await cm.aclose()
+```
 
-* [ ] **Message Queues**: Redis Streams for async processing
-* [ ] **Search Integration**: Enhanced semantic search capabilities
-* [ ] **ML Pipeline**: Integration with ML model caching
-* [ ] **API Gateway**: Centralized caching for microservices
+### Distributed Locking Details
+*   **Watchdog**: When using `use_distributed_lock`, a background thread automatically extends the lock TTL to prevent premature release during long tasks.
+*   **Safety**: Uses a unique token (UUID) to ensure instances only release locks they own.
