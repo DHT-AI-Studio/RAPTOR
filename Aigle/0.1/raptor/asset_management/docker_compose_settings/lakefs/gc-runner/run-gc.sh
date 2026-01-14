@@ -33,6 +33,8 @@ if [[ ! -x "$SPARK_SUBMIT" ]]; then
 fi
 
 "$SPARK_SUBMIT" \
+    --driver-memory 4g \
+    --executor-memory 4g \
     --conf "spark.hadoop.lakefs.api.url=${LAKEFS_ENDPOINT}/api/v1" \
     --conf "spark.hadoop.lakefs.api.access_key=${LAKEFS_ACCESS_KEY}" \
     --conf "spark.hadoop.lakefs.api.secret_key=${LAKEFS_SECRET_KEY}" \
@@ -42,6 +44,13 @@ fi
     --conf "spark.hadoop.fs.s3a.connection.ssl.enabled=false" \
     --conf "spark.hadoop.fs.s3a.path.style.access=true" \
     --conf "spark.hadoop.com.amazonaws.services.s3a.enableV4=true" \
+    --conf "spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version=2" \
+    --conf "spark.hadoop.fs.s3a.directory.marker.retention=authoritative" \
+    --conf "spark.hadoop.fs.s3a.change.detection.mode=none" \
+    --conf "spark.hadoop.fs.s3a.change.detection.policy=none" \
+    --conf "spark.hadoop.fs.s3a.committer.name=magic" \
+    --conf "spark.hadoop.fs.s3a.committer.magic.enabled=true" \
+    --conf "spark.hadoop.mapreduce.outputcommitter.factory.scheme.s3a=org.apache.hadoop.fs.s3a.commit.S3ACommitterFactory" \
     --packages org.apache.hadoop:hadoop-aws:3.3.4 \
     --class io.treeverse.gc.GarbageCollection \
     http://treeverse-clients-us-east.s3-website-us-east-1.amazonaws.com/lakefs-spark-client/0.15.0/lakefs-spark-client-assembly-0.15.0.jar \
