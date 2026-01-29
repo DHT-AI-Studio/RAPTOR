@@ -1,0 +1,39 @@
+
+services:
+  test_server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uv run mcp-server/test_server.py
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./mcp-server:/app/mcp-server
+      - ./test:/app/test # Your test files should be mounted to /app/test, so that the mcp server can access them.
+    environment:
+      - BASE_URL=http://192.168.157.123:8000 # You can replace this with your asset management API base URL or leave it as is.
+    networks:
+      - mcp-network
+    restart: unless-stopped
+
+  test_server_fastmcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uv run mcp-server/test_server_fastmcp.py
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./mcp-server:/app/mcp-server
+      - ./test:/app/test # Your test files should be mounted to /app/test, so that the mcp server can access them.
+    environment:
+      - BASE_URL=http://192.168.157.123:8000 # You can replace this with your asset management API base URL or leave it as is.
+    networks:
+      - mcp-network
+    restart: unless-stopped
+
+networks:
+  mcp-network:
+    driver: bridge
+    name: mcp-network
+

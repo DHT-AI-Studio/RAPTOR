@@ -1,0 +1,11 @@
+__pycache__
+*/__pycache__
+# ignore temporary files and data directories
+tmp
+data
+.env
+.env.backup
+.env.dev
+/devs
+kafka
+/tests

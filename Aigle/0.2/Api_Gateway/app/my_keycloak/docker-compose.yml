@@ -1,0 +1,82 @@
+# docker-compose.yaml
+
+version: '3.8'
+
+services:
+  keycloak-db:
+    image: mysql:8.0
+    container_name: keycloak-db
+    environment:
+      #MYSQL_DATABASE: keycloak
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      #YSQL_USER: keycloak
+      MYSQL_USER: ${MYSQL_USER} 
+      #MYSQL_PASSWORD: keycloak_password
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      #MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - keycloak-db-data:/var/lib/mysql
+    ports:
+      - "3308:3306"
+    networks:
+      - keycloak-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    #image: quay.io/keycloak/keycloak:26.0.4
+    image: quay.io/keycloak/keycloak:26.4.7
+    #image: quay.io/keycloak/keycloak
+    container_name: keycloak
+    command: 
+      - start-dev 
+      - --import-realm
+    environment:
+      KC_DB: mysql
+      KC_DB_URL: jdbc:mysql://keycloak-db:3306/${MYSQL_DATABASE}
+      #KC_DB_USERNAME: keycloak
+      KC_DB_USERNAME: ${MYSQL_USER}
+      #KC_DB_PASSWORD: keycloak_password
+      KC_DB_PASSWORD: ${MYSQL_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      #KEYCLOAK_ADMIN: admin
+      #KEYCLOAK_ADMIN: ${MASTER_ADMIN_USER} # old version paramater
+      #KEYCLOAK_ADMIN_PASSWORD: admin_password
+      #KEYCLOAK_ADMIN_PASSWORD: ${MASTER_ADMIN_PASSWORD} # old version paramater
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
+      KC_HTTP_ENABLED: "true"
+      PERMANENT_MASTER_ADMIN_USER: ${PERMANENT_MASTER_ADMIN_USER}
+      PERMANENT_ADMIN_PASSWORD: ${PERMANENT_ADMIN_PASSWORD}
+    volumes:
+      # 將本地 realm 匯入資料夾掛載到容器
+      - ./realm-import:/opt/keycloak/data/import
+      - ./create-permanent-admin.sh:/opt/keycloak/bin/create-permanent-admin.sh
+    ports:
+      - "8080:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - keycloak-network
+    healthcheck:
+      # test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f ${KEYCLOAK_URL}/health || exit 1"]
+      
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+volumes:
+  keycloak-db-data:
+
+networks:
+  keycloak-network:
+    driver: bridge

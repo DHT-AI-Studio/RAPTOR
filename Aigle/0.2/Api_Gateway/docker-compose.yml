@@ -1,0 +1,127 @@
+# version: "3.9"
+
+services:
+  # # ============================================================================
+  # # PostgreSQL Database for Gateway Users
+  # # ============================================================================
+  # postgres:
+  #   image: postgres:16
+  #   container_name: vie-postgres
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: admin
+  #     POSTGRES_PASSWORD: admin123
+  #     POSTGRES_DB: mydb
+  #   ports:
+  #     - "5439:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./PostgreSQL/init.sql:/docker-entrypoint-initdb.d/init.sql
+  #   networks:
+  #     - vie-api-gateway
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U admin -d mydb"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
+  #   labels:
+  #     - "com.example.description=PostgreSQL database for VIE API Gateway"
+
+  # # ============================================================================
+  # # PgAdmin for Database Management
+  # # ============================================================================
+  # pgadmin:
+  #   image: dpage/pgadmin4:8
+  #   container_name: vie-pgadmin
+  #   restart: always
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@dhtsolution.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin123
+  #   ports:
+  #     - "5480:80"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   volumes:
+  #     - pgadmin_data:/var/lib/pgadmin
+  #   networks:
+  #     - vie-api-gateway
+  #   labels:
+  #     - "com.example.description=PgAdmin for managing PostgreSQL"
+
+  # ============================================================================
+  # FastAPI Gateway Application
+  # ============================================================================
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vie-api-gateway
+    restart: always
+    ports:
+      - "8012:8012"
+    extra_hosts:
+      - "host.docker.internal:192.168.157.165"
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
+    environment:
+      # Logging
+      GATEWAY_LOG_LEVEL: INFO
+      TZ: "Asia/Taipei"
+
+      # Services configuration
+      GATEWAY_SERVICES_CONFIG_PATH: services.yaml
+
+      # JWT Settings
+      # GATEWAY_JWT_SECRET_KEY: "my-super-secret-key-12345-change-in-production"
+      # GATEWAY_JWT_ALGORITHM: HS256
+
+      # Service URLs and Timeouts
+      GATEWAY_REQUEST_TIMEOUT: 60.0
+      GATEWAY_OBJECT_STORAGE_URL: "http://192.168.157.165:8086"
+
+      # Kafka Settings - 使用宿主機 IP (192.168.157.165)
+      GATEWAY_KAFKA_BOOTSTRAP_SERVERS: '["192.168.157.165:19002", "192.168.157.165:19003", "192.168.157.165:19004"]'
+      GATEWAY_KAFKA_TOPICS: '{"document": "document-processing-requests", "image": "image-processing-requests", "video": "video-processing-requests", "audio": "audio-processing-requests"}'
+
+      # # PostgreSQL Gateway User Database (using Docker service name as hostname)
+      # GATEWAY_GATEWAY_DB_HOST: postgres
+      # GATEWAY_GATEWAY_DB_PORT: 5432
+      # GATEWAY_GATEWAY_DB_USER: admin
+      # GATEWAY_GATEWAY_DB_PASSWORD: admin123
+      # GATEWAY_GATEWAY_DB_NAME: mydb
+      # GATEWAY_GATEWAY_DB_POOL_MIN_SIZE: 1
+      # GATEWAY_GATEWAY_DB_POOL_MAX_SIZE: 10
+
+      # Redis Cache Settings - 使用宿主機 IP
+      GATEWAY_REDIS_HOST: "192.168.157.165"
+      GATEWAY_REDIS_PORT: 6391
+      GATEWAY_REDIS_DB: 0
+
+      # Qdrant Vector Database Settings - 使用宿主機 IP
+      GATEWAY_QDRANT_HOST: "192.168.157.165"
+      GATEWAY_QDRANT_PORT: 6333
+
+    volumes:
+      - ./app:/app/app
+      - ./services.yaml:/app/services.yaml
+      - ./data:/app/data
+    networks:
+      - vie-api-gateway
+    labels:
+      - "com.example.description=VIE FastAPI Gateway Application"
+
+# volumes:
+#   postgres_data:
+#     driver: local
+#   pgadmin_data:
+#     driver: local
+
+networks:
+  vie-api-gateway:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16

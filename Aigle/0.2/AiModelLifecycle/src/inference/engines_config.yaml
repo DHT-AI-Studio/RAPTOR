@@ -1,0 +1,152 @@
+# 引擎和管道配置檔案
+# 這個檔案定義了自訂的引擎類型、管道和它們的設定
+
+# 基礎引擎配置
+base_engines:
+  # 標準引擎（已內建在 factory.py 中）
+  huggingface:
+    class: "HuggingFaceEngine"
+    module: "src.inference.engines.hf_engine"
+    aliases: ["transformers", "hf"]
+    description: "Hugging Face Transformers 引擎"
+  
+  ollama:
+    class: "OllamaEngine"
+    module: "src.inference.engines.ollama_engine"
+    aliases: []
+    description: "Ollama 本地大語言模型引擎"
+
+  # paddleOCR:
+  #   class: "PaddleOCREngine"
+  #   module: "src.inference.engines.paddle_ocr_engine"
+  #   aliases: ["paddleocr"]
+  #   description: "PaddleOCR 光學字符識別引擎"
+  
+  # whisperX:
+  #   class: "WhisperXEngine"
+  #   module: "src.inference.engines.whisperx_engine"
+  #   aliases: ["whisperx"]
+  #   description: "WhisperX 自動語音識別引擎"
+
+  # panns:
+  #   class: "PANNSAudioEngine"
+  #   module: "src.inference.engines.panns_engine"
+  #   aliases: ["panns"]
+  #   description: "PANNs 音頻事件檢測引擎"
+
+  # 自訂引擎範例（取消註解並修改以添加新引擎）
+  # vllm:
+  #   class: "VLLMEngine"
+  #   module: "src.inference.engines.vllm_engine"
+  #   aliases: ["vllm_engine"]
+  #   description: "vLLM 高性能推理引擎"
+  #
+  # tensorrt:
+  #   class: "TensorRTEngine"
+  #   module: "src.inference.engines.tensorrt_engine"
+  #   aliases: ["trt", "tensorrt_llm"]
+  #   description: "NVIDIA TensorRT 加速引擎"
+
+# 標準管道配置
+pipelines:
+  vlm:
+    class: "VLMPipeline"
+    module: "src.inference.pipelines.vlm"
+    underlying_engine: "huggingface"
+    description: "視覺語言模型 Pipeline，支援圖像和文本輸入"
+  
+  custom_vlm_pipeline:  # 向後兼容
+    class: "VLMPipeline"
+    module: "src.inference.pipelines.vlm"
+    underlying_engine: "huggingface"
+    description: "自訂 VLM Pipeline（向後兼容）"
+  
+  # 自訂管道範例（取消註解並修改以添加新管道）
+  # asr:
+  #   class: "ASRPipeline"
+  #   module: "src.inference.pipelines.asr"
+  #   underlying_engine: "huggingface"
+  #   description: "自動語音識別 Pipeline"
+  #
+  # tts:
+  #   class: "TTSPipeline"
+  #   module: "src.inference.pipelines.tts"
+  #   underlying_engine: "huggingface"
+  #   description: "文本轉語音 Pipeline"
+  #
+  # custom_chat:
+  #   class: "CustomChatPipeline"
+  #   module: "src.inference.pipelines.custom_chat"
+  #   underlying_engine: "ollama"
+  #   description: "自訂聊天對話 Pipeline"
+
+# 固定管道配置
+fixed_pipelines:
+  fixed_text_generation:
+    class: "FixedTextGenerationPipeline"
+    module: "src.inference.pipelines.fixed_base"
+    underlying_engine: "huggingface"
+    description: "固定文本生成Pipeline，專用於指定模型的文本生成任務"
+  
+  fixed_vlm:
+    class: "FixedVLMPipeline"
+    module: "src.inference.pipelines.fixed_base"
+    underlying_engine: "huggingface"
+    description: "固定視覺語言模型Pipeline，專用於指定模型的圖像描述任務"
+  
+  fixed_ollama_chat:
+    class: "FixedTextGenerationPipeline"  # 重用文本生成pipeline
+    module: "src.inference.pipelines.fixed_base"
+    underlying_engine: "ollama"
+    description: "固定Ollama聊天Pipeline，專用於指定Ollama模型的對話任務"
+
+  # 自訂固定管道範例（取消註解並修改以添加新固定管道）
+  # fixed_code_generation:
+  #   class: "FixedCodeGenerationPipeline"
+  #   module: "src.inference.pipelines.fixed_code"
+  #   underlying_engine: "huggingface"
+  #   description: "固定程式碼生成Pipeline，專用於程式碼生成任務"
+  #
+  # fixed_multimodal:
+  #   class: "FixedMultimodalPipeline"
+  #   module: "src.inference.pipelines.fixed_multimodal"
+  #   underlying_engine: "huggingface"
+  #   description: "固定多模態Pipeline，支援多種輸入類型"
+
+# 引擎預設配置
+engine_defaults:
+  huggingface:
+    device_map: "auto"
+    torch_dtype: "auto"
+    trust_remote_code: true
+  
+  ollama:
+    base_url: "http://localhost:11434"
+    timeout: 30
+  
+  # 自訂引擎預設配置範例
+  # vllm:
+  #   tensor_parallel_size: 1
+  #   gpu_memory_utilization: 0.9
+  #   max_model_len: 4096
+  #
+  # tensorrt:
+  #   max_batch_size: 8
+  #   max_input_len: 2048
+  #   max_output_len: 1024
+
+# 管道預設配置
+pipeline_defaults:
+  vlm:
+    max_new_tokens: 512
+    temperature: 0.7
+    do_sample: true
+  
+  # 自訂管道預設配置範例
+  # asr:
+  #   return_timestamps: true
+  #   language: "zh"
+  #
+  # tts:
+  #   voice: "default"
+  #   speed: 1.0

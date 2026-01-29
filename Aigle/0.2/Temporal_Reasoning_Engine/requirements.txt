@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+torch
+transformers
+qwen-vl-utils
+accelerate
+bitsandbytes
+streamlit
+requests
+python-multipart

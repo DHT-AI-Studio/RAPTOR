@@ -1,0 +1,83 @@
+# LangChain Core (use compatible versions)
+langchain==0.3.13
+langchain-core==0.3.28
+langchain-community==0.3.13
+langchain-text-splitters==0.3.4
+
+# LangChain Model Integrations
+langchain-openai==0.2.14
+
+
+# LangGraph
+langgraph==0.2.62
+
+# Core FastAPI and Web Framework
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+httpx==0.27.0
+pydantic==2.7.4
+pydantic-settings==2.5.2
+
+# Security and Authentication
+PyJWT[crypto]==2.8.0
+passlib[bcrypt]==1.7.4
+argon2-cffi==23.1.0
+
+# Logging and Monitoring
+python-json-logger==2.0.7
+
+# Configuration
+PyYAML==6.0.2
+
+# Message Queue
+aiokafka==0.10.0
+
+# Caching
+redis==5.0.4
+
+# Database
+asyncpg==0.29.0
+
+# Rate Limiting and Circuit Breaker
+slowapi==0.1.9
+aiobreaker==1.0.0
+
+# OpenTelemetry for Tracing
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-exporter-jaeger==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+opentelemetry-instrumentation-httpx==0.42b0
+opentelemetry-instrumentation-sqlalchemy==0.42b0
+
+
+# Vector Database Clients
+qdrant-client==1.12.1
+chromadb==0.6.3
+pinecone-client==5.0.1
+
+# Additional LangChain Dependencies
+tiktoken==0.8.0
+faiss-cpu==1.9.0.post1
+
+# Additional useful libraries
+numpy>=1.24.0,<2.0.0
+sentence-transformers==3.3.1
+
+# keycloak local package
+# -e ./keycloak
+# -r ./keycloak/requirements.txt
+requests==2.32.5
+python-jose==3.5.0
+python-multipart==0.0.20
+dotenv==0.9.9
+pathlib==1.0.1
+
+# Temporal Reasoning Engine
+qwen-vl-utils
+accelerate
+bitsandbytes
+streamlit
+requests
+python-multipart
+torchvision

@@ -1,0 +1,8 @@
+# .gitignore
+.env
+.env.*
+!.env.example
+app/config/email.json
+# Python 項目
+__pycache__/
+*.pyc

@@ -1,0 +1,13 @@
+# requirements-ML.txt
+# Vector / ML / AI 大型套件
+tiktoken==0.8.0
+faiss-cpu==1.9.0.post1
+numpy>=1.24.0,<2.0.0
+sentence-transformers==3.3.1
+torchvision
+accelerate
+bitsandbytes
+qwen-vl-utils
+qdrant-client==1.12.1
+chromadb==0.6.3
+pinecone-client==5.0.1

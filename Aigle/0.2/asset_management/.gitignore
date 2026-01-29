@@ -1,0 +1,7 @@
+__pycache__/
+.ipynb_checkpoints/
+test/
+.env
+.pytest_cache/
+test*.ipynb
+data

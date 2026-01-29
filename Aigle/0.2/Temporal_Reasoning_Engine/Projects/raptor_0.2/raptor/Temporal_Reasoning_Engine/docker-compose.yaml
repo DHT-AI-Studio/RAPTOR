@@ -1,0 +1,48 @@
+# services:
+#   vision-service:
+#       build: ./
+#       container_name: raptor_vision_service
+#       ports:
+#         - "8000:8000"  
+#         # - "8501:8501" 
+#       # volumes:
+#       #   - ./vision_service:/app
+#       #   - ~/.cache/huggingface:/root/.cache/huggingface # 掛載模型快取，避免重複下載
+#       volumes:
+#       - ./vision_service:/app/vision_service
+#       - ~/.cache/huggingface:/root/.cache/huggingface
+#       deploy:
+#         resources:
+#           reservations:
+#             devices:
+#               - driver: nvidia
+#                 count: 1
+#                 capabilities: [gpu]
+#       networks:
+#         - asset_management
+#       restart: unless-stopped
+      
+# networks:
+#   asset_management:
+#     driver: bridge
+
+services:
+  vision-service:
+    build: .
+    container_name: raptor_vision_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./vision_service:/app/vision_service
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+    restart: unless-stopped
+    networks:
+      - asset_management
+
+networks:
+  asset_management:
+    driver: bridge
+

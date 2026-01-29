@@ -1,0 +1,11 @@
+requests==2.32.5
+# fastapi==0.121.2
+fastapi
+python-jose==3.5.0
+# uvicorn==0.38.0
+uvicorn
+python-multipart==0.0.20
+# PyJWT==2.10.1
+PyJWT
+dotenv==0.9.9
+pathlib==1.0.1
