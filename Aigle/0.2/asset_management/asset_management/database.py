@@ -1,624 +1,454 @@
-import aiomysql
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
-from typing import List, Dict, Optional
+import asyncpg
 import json
-from passlib.context import CryptContext
 import logging
+import math
 import os
-from .models import AssetMetadata, User, ChangeStatus
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Tuple
+from zoneinfo import ZoneInfo
+
+from .models import AssetMetadata, AssetMetadataResponse, ExistenceInfo, model_to_response
 from .config import settings
 
 logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.pool = None
 
     async def init_db(self):
         """
-        Initializes the database schema.
-
-        This method creates the necessary tables in the MySQL database,
-        including the commit history, users, access control, audit log, and
-        file metadata tables.
-
-        This method is idempotent, and can be safely called multiple times.
+        initialize the database schema if not exists
         """
-        self.pool = await aiomysql.create_pool(
-            host=settings.mysql_host,
-            port=settings.mysql_port,
-            user=settings.mysql_user,
-            password=settings.mysql_password,
-            db=settings.mysql_database,
-            minsize=1,
-            maxsize=10
+        self.pool = await asyncpg.create_pool(
+            host=settings.postgres_host,
+            port=settings.postgres_port,
+            user=settings.postgres_user,
+            password=settings.postgres_password,
+            database=settings.postgres_db,
+            min_size=1,
+            max_size=10
         )
+        
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("SET sql_notes = 0;") # Disable warnings
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS commit_history (
-                        asset_path VARCHAR(255),
-                        version_id VARCHAR(255),
-                        branch VARCHAR(255),
-                        primary_filename VARCHAR(255),
-                        asset_key VARCHAR(255),
-                        associated_filenames JSON,
-                        upload_date DATETIME,
-                        archive_date DATETIME,
-                        destroy_date DATETIME,
-                        status VARCHAR(50),
-                        checksum VARCHAR(255),             
-                        PRIMARY KEY (asset_path, version_id, branch)
-                    )
-                """)
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        username VARCHAR(255) PRIMARY KEY,
-                        password_hash VARCHAR(255),
-                        branch VARCHAR(255),
-                        permissions JSON,
-                        created_at DATETIME
-                    )
-                """)
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS audit_log (
-                        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                        username VARCHAR(255),
-                        asset_path VARCHAR(255),
-                        version_id VARCHAR(255),
-                        branch VARCHAR(255),
-                        operation VARCHAR(50),
-                        timestamp DATETIME,
-                        success BOOLEAN,
-                        details TEXT
-                    )
-                """)
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS filemeta (
-                        dirhash   BIGINT NOT NULL       COMMENT 'first 64 bits of MD5 hash value of directory field',
-                        name      VARCHAR(766) NOT NULL COMMENT 'directory or file name',
-                        directory TEXT NOT NULL         COMMENT 'full path to parent directory',
-                        meta      LONGBLOB,
-                        PRIMARY KEY (`dirhash`, `name`)
-                    ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-                """)
-                try:
-                    await cursor.execute("""CREATE INDEX idx_archive_date ON commit_history (archive_date)""")
-                    await cursor.execute("""CREATE INDEX idx_destroy_date ON commit_history (destroy_date)""")
-                    await cursor.execute("""CREATE INDEX idx_status ON commit_history (status)""")
-                    await cursor.execute("""CREATE INDEX idx_asset_key ON commit_history (asset_key)""")
-                    await cursor.execute("""CREATE INDEX idx_asset_path_branch ON commit_history (asset_path, branch)""")
-                    await cursor.execute("""CREATE INDEX idx_asset_path_version_id_branch ON commit_history (asset_path, version_id, branch)""")
-                    await cursor.execute("""CREATE INDEX idx_asset_key_branch ON commit_history (asset_key, branch)""")
-                    await cursor.execute("""CREATE INDEX idx_audit_log ON audit_log (asset_path, version_id)""")
-                    await cursor.execute("""CREATE INDEX idx_audit_log_branch ON audit_log (asset_path, version_id, branch)""")
-                    await cursor.execute("""CREATE INDEX idx_checksum_branch ON commit_history (checksum, branch)""")
-                    await conn.commit()
-                except Exception as e:
-                    if e.args[0] == 1061:  # Duplicate key name
-                        pass
-                    else:
-                        raise
+            queries = [
+                """
+                CREATE TABLE IF NOT EXISTS commit_history (
+                    asset_path VARCHAR(255),
+                    version_id VARCHAR(255),
+                    branch VARCHAR(255),
+                    updated_by VARCHAR(255),
+                    primary_filename VARCHAR(255),
+                    asset_key VARCHAR(255),
+                    associated_filenames JSONB,
+                    upload_date TIMESTAMPTZ,
+                    archive_date TIMESTAMPTZ,
+                    destroy_date TIMESTAMPTZ,
+                    status VARCHAR(50),
+                    checksum VARCHAR(255),             
+                    PRIMARY KEY (asset_path, version_id, branch)
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    username VARCHAR(255),
+                    asset_path VARCHAR(255),
+                    version_id VARCHAR(255),
+                    branch VARCHAR(255),
+                    operation VARCHAR(50),
+                    timestamp TIMESTAMPTZ,
+                    success BOOLEAN,
+                    details TEXT
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS filemeta (
+                    dirhash   BIGINT NOT NULL,
+                    name      VARCHAR(1024) NOT NULL,
+                    directory VARCHAR(1024),
+                    meta      BYTEA,
+                    PRIMARY KEY (dirhash, name)
+                )
+                """
+            ]
+            
+            for query in queries:
+                await conn.execute(query)
+
+            # Create indexes for performance optimization
+            index_queries = [
+                "CREATE INDEX IF NOT EXISTS idx_archive_date ON commit_history (archive_date)",
+                "CREATE INDEX IF NOT EXISTS idx_destroy_date ON commit_history (destroy_date)",
+                "CREATE INDEX IF NOT EXISTS idx_updated_by ON commit_history (updated_by)",
+                "CREATE INDEX IF NOT EXISTS idx_status ON commit_history (status)",
+                "CREATE INDEX IF NOT EXISTS idx_asset_key ON commit_history (asset_key)",
+                "CREATE INDEX IF NOT EXISTS idx_asset_path_branch ON commit_history (asset_path, branch)",
+                "CREATE INDEX IF NOT EXISTS idx_asset_path_version_id_branch ON commit_history (asset_path, version_id, branch)",
+                "CREATE INDEX IF NOT EXISTS idx_asset_key_branch ON commit_history (asset_key, branch)",
+                "CREATE INDEX IF NOT EXISTS idx_audit_log ON audit_log (asset_path, version_id)",
+                "CREATE INDEX IF NOT EXISTS idx_audit_log_branch ON audit_log (asset_path, version_id, branch)",
+                "CREATE INDEX IF NOT EXISTS idx_checksum_branch ON commit_history (checksum, branch)",
+                "CREATE INDEX IF NOT EXISTS idx_upload_date ON commit_history (upload_date)",
+                "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
+                "CREATE INDEX IF NOT EXISTS trgm_idx_asset_path ON commit_history USING gin (asset_path gin_trgm_ops)",
+                "CREATE INDEX IF NOT EXISTS trgm_idx_primary_filename ON commit_history USING gin (primary_filename gin_trgm_ops)"
+            ]
+
+            for idx_query in index_queries:
+                await conn.execute(idx_query)
                            
-                logger.info("Database schema initialized")
+            logger.info("PostgreSQL schema initialized")
 
     async def save_metadata(self, metadata: AssetMetadata):
-        """
-        Save the given AssetMetadata to the database.
-
-        Args:
-            metadata: the AssetMetadata to save.
-        """
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("""
-                    INSERT INTO commit_history (
-                        asset_path, version_id, primary_filename, asset_key, associated_filenames,
-                        upload_date, archive_date, destroy_date, branch, status, checksum
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_record
-                    ON DUPLICATE KEY UPDATE
-                        primary_filename = new_record.primary_filename,
-                        associated_filenames = new_record.associated_filenames,
-                        upload_date = new_record.upload_date,
-                        archive_date = new_record.archive_date,
-                        destroy_date = new_record.destroy_date,
-                        branch = new_record.branch,
-                        status = new_record.status,
-                        checksum = new_record.checksum
-                """, (
-                    metadata.asset_path,
-                    metadata.version_id,
-                    metadata.primary_filename,
-                    metadata.asset_path + '/' + metadata.primary_filename,
-                    json.dumps(metadata.associated_filenames),
-                    metadata.upload_date,
-                    metadata.archive_date,
-                    metadata.destroy_date,
-                    metadata.branch,
-                    metadata.status,
-                    metadata.checksum
-                ))
-                await conn.commit()
+            query = """
+                INSERT INTO commit_history (
+                    asset_path, version_id, primary_filename, asset_key, associated_filenames,
+                    upload_date, archive_date, destroy_date, updated_by, branch, status, checksum
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ON CONFLICT (asset_path, version_id, branch) DO UPDATE SET
+                    primary_filename = EXCLUDED.primary_filename,
+                    associated_filenames = EXCLUDED.associated_filenames,
+                    upload_date = EXCLUDED.upload_date,
+                    archive_date = EXCLUDED.archive_date,
+                    destroy_date = EXCLUDED.destroy_date,
+                    updated_by = EXCLUDED.updated_by,
+                    status = EXCLUDED.status,
+                    checksum = EXCLUDED.checksum
+            """
+            await conn.execute(query,
+                metadata.asset_path,
+                metadata.version_id,
+                metadata.primary_filename,
+                f"{metadata.asset_path}/{metadata.primary_filename}",
+                json.dumps(metadata.associated_filenames),
+                metadata.upload_date,
+                metadata.archive_date if isinstance(metadata.archive_date, datetime) else None,
+                metadata.destroy_date if isinstance(metadata.destroy_date, datetime) else None,
+                metadata.user,
+                metadata.branch,
+                metadata.status,
+                metadata.checksum
+            )
 
-    async def get_latest_active_asset(self, asset_path: str, branch: str) -> Optional[AssetMetadata]:
-        """
-        Retrieve the latest active version of an asset by its asset_path.
-        
-        Args:
-            asset_path (str): The path of the asset to search for.
-            branch (str): The branch of the asset.
-        
-        Returns:
-            Optional[AssetMetadata]: The metadata of the latest active version, or None if not found.
-        """
+    async def _row_to_metadata(self, row) -> AssetMetadata:
+        """Convert asyncpg.Record to AssetMetadata"""
+        if not row:
+            return None
+
+        assoc_files = row["associated_filenames"]
+        if isinstance(assoc_files, str):
+            assoc_files = json.loads(assoc_files)
+
+        clean_assoc_files = []
+        if assoc_files and isinstance(assoc_files, list):
+            for item in assoc_files:
+                if isinstance(item, list) and len(item) == 2:
+                    if item[1] is not None:
+                        clean_assoc_files.append(item)
+
+        return AssetMetadata(
+            asset_path=row["asset_path"],
+            version_id=row["version_id"],
+            primary_filename=row["primary_filename"],
+            associated_filenames=clean_assoc_files or [],
+            upload_date=row["upload_date"].astimezone(ZoneInfo(settings.timezone)),
+            # archive_date=row["archive_date"].astimezone(ZoneInfo(settings.timezone)) if row["archive_date"] else "No expiration date",
+            # destroy_date=row["destroy_date"].astimezone(ZoneInfo(settings.timezone)) if row["destroy_date"] else "No expiration date",
+            archive_date=row["archive_date"].astimezone(ZoneInfo(settings.timezone)) if row["archive_date"] else None,
+            destroy_date=row["destroy_date"].astimezone(ZoneInfo(settings.timezone)) if row["destroy_date"] else None,
+            user=row["updated_by"],
+            branch=row["branch"],
+            status=row["status"],
+            checksum=row["checksum"]
+        )
+
+    async def get_latest_asset(self, asset_path: str, branch: str) -> Optional[AssetMetadata]:
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT asset_path, version_id, primary_filename, associated_filenames,
-                        upload_date, archive_date, destroy_date, branch, status, checksum
-                    FROM commit_history
-                    WHERE asset_path = %s AND status = 'active' AND branch = %s
-                    ORDER BY upload_date DESC
-                    LIMIT 1
-                """, (asset_path, branch))
-                row = await cursor.fetchone()
-                if not row:
-                    return None
-                
-                return AssetMetadata(
-                    asset_path=row["asset_path"],
-                    version_id=row["version_id"],
-                    primary_filename=row["primary_filename"],
-                    associated_filenames=json.loads(row["associated_filenames"]) if row["associated_filenames"] else [],
-                    upload_date=row["upload_date"],
-                    archive_date=row["archive_date"],
-                    destroy_date=row["destroy_date"],
-                    branch=row["branch"],
-                    status=row["status"],
-                    checksum=row["checksum"]
-                )
+            row = await conn.fetchrow("""
+                SELECT * FROM commit_history
+                WHERE asset_path = $1 AND branch = $2
+                ORDER BY upload_date DESC
+                LIMIT 1
+            """, asset_path, branch)
+            return await self._row_to_metadata(row)
+
+    async def check_path_existence(self, asset_path: str, checksum: str, branch: str) -> Optional[AssetMetadata]:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT * FROM commit_history
+                WHERE asset_path = $1 AND checksum = $2 AND branch = $3
+                ORDER BY (CASE WHEN status = 'archived' THEN 1 ELSE 2 END) ASC, upload_date DESC
+                LIMIT 1
+            """, asset_path, checksum, branch)
+            return await self._row_to_metadata(row)
+
+    async def get_reusable_content(self, checksum: str, branch: str, status: str) -> Optional[AssetMetadata]:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT * FROM commit_history
+                WHERE checksum = $1 AND branch = $2 AND status = $3
+                ORDER BY upload_date DESC LIMIT 1
+            """, checksum, branch, status)
+            return await self._row_to_metadata(row)
 
     async def get_asset_by_path_and_version(self, asset_path: str, version_id: str, branch: str) -> Optional[AssetMetadata]:
-        """
-        Retrieve the AssetMetadata with the given asset_path and version_id from the database.
-
-        Args:
-            asset_path (str): the asset path to retrieve.
-            version_id (str): the version ID to retrieve.
-            branch (str): the branch of the asset
-
-        Returns:
-            the AssetMetadata with the given asset_path and version_id, or None if not found.
-        """
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT asset_path, version_id, primary_filename, associated_filenames,
-                           upload_date, archive_date, destroy_date, branch, status, checksum
-                    FROM commit_history
-                    WHERE asset_path = %s AND version_id = %s AND branch = %s
-                """, (asset_path, version_id, branch))
-                row = await cursor.fetchone()
-                if not row:
-                    return None
-                return AssetMetadata(
-                    asset_path=row["asset_path"],
-                    version_id=row["version_id"],
-                    primary_filename=row["primary_filename"],
-                    associated_filenames=json.loads(row["associated_filenames"]) if row["associated_filenames"] else [],
-                    upload_date=row["upload_date"],
-                    archive_date=row["archive_date"],
-                    destroy_date=row["destroy_date"],
-                    branch=row["branch"],
-                    status=row["status"],
-                    checksum=row["checksum"]
-                )
+            row = await conn.fetchrow("""
+                SELECT * FROM commit_history
+                WHERE asset_path = $1 AND version_id = $2 AND branch = $3
+            """, asset_path, version_id, branch)
+            return await self._row_to_metadata(row)
 
     async def get_versions_by_key(self, key: str, branch: str) -> List[Dict]:
-        """
-        Retrieve the versions of the active asset with the given key from the database.
-
-        Args:
-            key (str): the key of the asset to retrieve.
-            branch (str): the branch of the asset
-
-        Returns:
-            a list of dictionaries containing information about each version of the asset.
-            Each dictionary contains the keys "asset_path", "version_id", "primary_filename", and "last_modified".
-        """
         key = os.path.normpath(key).replace('\\', '/')
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT asset_path, version_id, primary_filename, upload_date, asset_key
-                    FROM commit_history
-                    WHERE asset_key = %s AND branch = %s AND status = 'active'
-                    ORDER BY upload_date DESC
-                """, (key, branch))
-                rows = await cursor.fetchall()
-                return [
-                    {
-                        "asset_path": row["asset_path"],
-                        "version_id": row["version_id"],
-                        "primary_filename": row["primary_filename"],
-                        "last_modified": row["upload_date"].isoformat()
-                    } for row in rows
-                ]
+            rows = await conn.fetch("""
+                SELECT asset_path, version_id, primary_filename, upload_date, status
+                FROM commit_history
+                WHERE asset_key = $1 AND branch = $2
+                ORDER BY upload_date DESC
+            """, key, branch)
+            return [
+                {
+                    "asset_path": row["asset_path"],
+                    "version_id": row["version_id"],
+                    "primary_filename": row["primary_filename"],
+                    "upload_date": row["upload_date"].astimezone(ZoneInfo(settings.timezone)),
+                    "status": row["status"]
+                } for row in rows
+            ]
 
     async def update_status(self, asset_path: str, version_id: str, status: str, branch: str):
-        """
-        Update the status of the asset with the given asset_path and version_id in the database.
-
-        Args:
-            asset_path (str): path of the asset to update.
-            version_id (str): version_id of the asset to update.
-            status (str): new status of the asset.
-            branch (str): branch of the asset
-        """
-        if branch:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute("""
-                        UPDATE commit_history SET status = %s
-                        WHERE asset_path = %s AND version_id = %s AND branch = %s
-                    """, (status, asset_path, version_id, branch))
-                    await conn.commit()
-        else:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute("""
-                        UPDATE commit_history SET status = %s
-                        WHERE asset_path = %s AND version_id = %s
-                    """, (status, asset_path, version_id))
-                    await conn.commit()
+        async with self.pool.acquire() as conn:
+            if branch:
+                await conn.execute("""
+                    UPDATE commit_history SET status = $1
+                    WHERE asset_path = $2 AND version_id = $3 AND branch = $4
+                """, status, asset_path, version_id, branch)
+            else:
+                await conn.execute("""
+                    UPDATE commit_history SET status = $1
+                    WHERE asset_path = $2 AND version_id = $3
+                """, status, asset_path, version_id)
 
     async def delete_metadata(self, asset_path: str, version_id: str, branch: str):
-        """
-        Delete the metadata of the asset with the given asset_path and version_id from the database.
-
-        Args:
-            asset_path (str): path of the asset to delete.
-            version_id (str): version_id of the asset to delete.
-            branch (str): branch of the asset
-        """
-        if branch:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # Delete the commit_history
-                    await cursor.execute("""
-                        DELETE FROM commit_history WHERE asset_path = %s AND version_id = %s AND branch = %s
-                    """, (asset_path, version_id, branch))
-                    # Delete the audit_log
-                    await cursor.execute("""
-                        DELETE FROM audit_log WHERE asset_path = %s AND version_id = %s AND branch = %s
-                    """, (asset_path, version_id, branch))
-                    await conn.commit()
-        else:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # Delete the commit_history
-                    await cursor.execute("""
-                        DELETE FROM commit_history WHERE asset_path = %s AND version_id = %s
-                    """, (asset_path, version_id))
-                    # Delete the audit_log
-                    await cursor.execute("""
-                        DELETE FROM audit_log WHERE asset_path = %s AND version_id = %s
-                    """, (asset_path, version_id))
-                    await conn.commit()
-
-    async def get_user_by_name(self, username: str) -> Optional[Dict]:
-        """
-        Retrieve the user information of the specified user from the database.
-
-        Args:
-            username: The username of the user whose information is to be retrieved.
-
-        Returns:
-            A dictionary containing the user's username, password hash, and roles. Returns None if no user is found.
-        """
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT username, password_hash, branch, permissions FROM users WHERE username = %s
-                """, (username,))
-                row = await cursor.fetchone()
-                if not row:
-                    return None
-                
-                return User(
-                    username=row["username"],
-                    password_hash=row["password_hash"],
-                    branch=row["branch"],
-                    permissions=json.loads(row["permissions"]) if row["permissions"] else []
-                )
-
-    async def create_user(self, username: str, password: str, branch: str, permissions: List[str]):
-        """
-        Create a new user in the database and assign a specific branch and permissions to the user.
-
-        Args:
-            username: The username of the user to create.
-            password: The plaintext password of the user.
-            branch: The branch of the user can access.
-            permissions: The permissions of the user can use.
-
-        Raises:
-            Exception if the username already exists.
-        """
-        available_permissions = ["upload", "download", "list", "archive", "destroy", "admin"]
-        for permission in permissions:
-            if permission not in available_permissions:
-                raise Exception(f"Invalid permission: {permission}. Available permissions: {available_permissions}")
-            
-        permission = json.dumps(permissions)
-        password_hash = self.pwd_context.hash(password)
-
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                try:
-                    await cursor.execute("""
-                        INSERT INTO users (username, password_hash, branch, permissions, created_at)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (username, password_hash, branch, permission, datetime.now(tz=ZoneInfo(settings.timezone))))
-                    await conn.commit()
-                except aiomysql.IntegrityError as e:
-                    # 1062 = Duplicate entry
-                    if e.args[0] == 1062:
-                        raise Exception(f"User '{username}' already exists. Please use a different username.") from e
-                    else:
-                        raise
-
-    async def create_admin_user(self, username: str, password: str):
-        """
-        Create a new user in the database and assign a new branch to the user.
-
-        Args:
-            username: The username of the user to create.
-            password: The plaintext password of the user.
-
-        Raises:
-            Exception if the username already exists.
-        """
-        branch = f"{username}_space" # Create a new branch for the user
-        permission = ["admin"]
-
-        # Create the admin user
-        await self.create_user(username, password, branch, permission)
-
-    async def delete_user_by_name(self, username: str):
-        """
-        Delete the specified user with the given username from the database.
-
-        Args:
-            username (str): The username of the user to delete.
-        """
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("""
-                    DELETE FROM users WHERE username = %s
-                """, (username,))
-                await conn.commit()
-
-    async def change_shared_user_permission(self, username: str, permissions: list[str]):
-        """
-        Change the permission of a shared user.
-
-        Args:
-            username (str): The username of the user to change.
-            permissions (list[str]): The new permission to set for the user.
-        """
-        available_permissions = ["upload", "download", "list", "archive", "destroy"]
-        for permission in permissions:
-            if permission == "admin":
-                raise Exception("Shared users cannot have admin permissions. Available permissions: upload, download, list, archive, destroy")
-            if permission not in available_permissions:
-                raise Exception(f"Invalid permission: {permission}. Available permissions: {available_permissions}")
-
-        permissions = json.dumps(permissions)
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("""
-                    UPDATE users SET permissions = %s WHERE username = %s
-                """, (permissions, username))
-                await conn.commit()
-
-    async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """
-        Verify the given plaintext password matches the given hashed password.
-
-        Args:
-            plain_password: The plaintext password to verify.
-            hashed_password: The hashed password to compare against.
-
-        Returns:
-            True if the plaintext password matches the hashed password, False otherwise.
-        """
-        return self.pwd_context.verify(plain_password, hashed_password)
+            if branch:
+                await conn.execute("DELETE FROM commit_history WHERE asset_path = $1 AND version_id = $2 AND branch = $3", 
+                                   asset_path, version_id, branch)
+            else:
+                await conn.execute("DELETE FROM commit_history WHERE asset_path = $1 AND version_id = $2", 
+                                   asset_path, version_id)
 
     async def log_access(self, username: str, asset_path: str, version_id: str, branch: str, operation: str, success: bool, details: str = None):
-        """
-        Log access to the given asset in the audit_log table.
-
-        Args:
-            username (str): The username of the user who accessed the asset.
-            asset_path (str): The path of the asset that was accessed.
-            version_id (str): The version_id of the asset that was accessed.
-            branch (str): The branch of the asset that was accessed.
-            operation (str): A string describing the operation that was performed (e.g. read, write, delete).
-            success (bool): A boolean indicating whether the operation was successful.
-            details (str): An optional string containing additional details about the operation.
-
-        This function will insert a new record into the audit_log table.
-        """
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("""
-                    INSERT INTO audit_log (username, asset_path, version_id, branch, operation, timestamp, success, details)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (username, asset_path, version_id, branch, operation, datetime.now(tz=ZoneInfo(settings.timezone)), success, details))
-                await conn.commit()
+            await conn.execute("""
+                INSERT INTO audit_log (username, asset_path, version_id, branch, operation, timestamp, success, details)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """, username, asset_path, version_id, branch, operation, 
+               datetime.now(tz=ZoneInfo(settings.timezone)), success, details)
 
     async def cleanup_old_logs(self, current_date: datetime, days: int):
-        """
-        Delete audit logs older than the specified number of days using Python time.
-
-        Args:
-            current_date: Current datetime for cutoff calculation.
-            days: Number of days to keep logs. Logs older than this will be deleted.
-        """
         cutoff = current_date - timedelta(days=days)
-
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                batch_size = 10000
-                deleted = 1
-                total_deleted = 0
-                while deleted:
-                    await cursor.execute("""
-                        DELETE FROM audit_log
-                        WHERE timestamp < %s
-                        LIMIT %s
-                    """, (cutoff, batch_size))
-                    deleted = cursor.rowcount
-                    total_deleted += deleted
-                    await conn.commit()
-
-                logger.info(f"Deleted {total_deleted} audit logs older than {days} days")
+            result = await conn.execute("DELETE FROM audit_log WHERE timestamp < $1", cutoff)
+            logger.info(f"Cleanup logs: {result}")
 
     async def get_assets_to_archive(self, current_date: datetime) -> List[AssetMetadata]:
-        """
-        Retrieve a list of AssetMetadata objects for assets that are ready to be archived.
-        
-        Args:
-            current_date: The current date and time.
-        
-        Returns:
-            A list of AssetMetadata objects for assets that are ready to be archived. The list is empty if no assets are ready.
-        """
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT asset_path, version_id, primary_filename, associated_filenames,
-                           upload_date, archive_date, destroy_date, branch, status, checksum
-                    FROM commit_history
-                    WHERE status = %s AND archive_date <= %s
-                """, ("active", current_date))
-                rows = await cursor.fetchall()
-                return [
-                    AssetMetadata(
-                        asset_path=row["asset_path"],
-                        version_id=row["version_id"],
-                        primary_filename=row["primary_filename"],
-                        associated_filenames=json.loads(row["associated_filenames"]) if row["associated_filenames"] else [],
-                        upload_date=row["upload_date"],
-                        archive_date=row["archive_date"],
-                        destroy_date=row["destroy_date"],
-                        branch=row["branch"],
-                        status=row["status"],
-                        checksum=row["checksum"]
-                    ) for row in rows
-                ]
+            rows = await conn.fetch("""
+                SELECT * FROM commit_history
+                WHERE status = $1
+                AND archive_date IS NOT NULL 
+                AND archive_date <= $2
+            """, "active", current_date)
+            return [await self._row_to_metadata(row) for row in rows]
 
     async def get_assets_to_destroy(self, current_date: datetime) -> List[AssetMetadata]:
-        """
-        Retrieve a list of AssetMetadata objects for assets that are ready to be destroyed.
-        
-        Args:
-            current_date: The current date and time.
-        
-        Returns:
-            A list of AssetMetadata objects for assets that are ready to be destroyed. The list is empty if no assets are ready.
-        """
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT asset_path, version_id, primary_filename, associated_filenames,
-                           upload_date, archive_date, destroy_date, branch, status, checksum
-                    FROM commit_history
-                    WHERE status = %s AND destroy_date <= %s
-                """, ("archived", current_date))
-                rows = await cursor.fetchall()
-                return [
-                    AssetMetadata(
-                        asset_path=row["asset_path"],
-                        version_id=row["version_id"],
-                        primary_filename=row["primary_filename"],
-                        associated_filenames=json.loads(row["associated_filenames"]) if row["associated_filenames"] else [],
-                        upload_date=row["upload_date"],
-                        archive_date=row["archive_date"],
-                        destroy_date=row["destroy_date"],
-                        branch=row["branch"],
-                        status=row["status"],
-                        checksum=row["checksum"]
-                    ) for row in rows
-                ]
+            rows = await conn.fetch("""
+                SELECT * FROM commit_history
+                WHERE status = $1
+                AND destroy_date IS NOT NULL
+                AND destroy_date <= $2
+            """, "archived", current_date)
+            return [await self._row_to_metadata(row) for row in rows]
 
-    async def get_head_version(self, asset_path: str, branch: str) -> str:
+    async def get_head_version(self, asset_path: str, branch: str) -> Optional[str]:
+        async with self.pool.acquire() as conn:
+            val = await conn.fetchval("""
+                SELECT version_id FROM commit_history
+                WHERE asset_path = $1 AND branch = $2
+                ORDER BY upload_date DESC
+                LIMIT 1
+            """, asset_path, branch)
+            return val
+
+    async def check_file_existence(self, checksum: str, asset_path: str, branch: str) -> ExistenceInfo:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT asset_path, version_id, primary_filename FROM commit_history
+                WHERE checksum = $1 AND branch = $2
+                ORDER BY upload_date DESC
+                LIMIT 1
+            """, checksum, branch)
+            
+            if not row:
+                return ExistenceInfo(exists=False, message="The primary file is a new file")
+            
+            if row["asset_path"] == asset_path:
+                return ExistenceInfo(
+                    exists=True, 
+                    message=f"Exists with path: {row['asset_path']} and ID: {row['version_id']}", 
+                    existing_asset_path=row["asset_path"], 
+                    existing_version_id=row["version_id"]
+                )
+            return ExistenceInfo(
+                exists=True, 
+                message=f"Exists with different name {row['primary_filename']} at {row['asset_path']}", 
+                existing_asset_path=row["asset_path"], 
+                existing_version_id=row["version_id"]
+            )
+
+    async def update_asset_by_checksum(
+        self,
+        checksum: str,
+        branch: str,
+        new_user: str,
+        new_archive_date: datetime, 
+        new_destroy_date: datetime
+    ) -> AssetMetadata:
         """
-        Retrieve the latest version of an asset by its asset_path.
-        
-        Args:
-            asset_path (str): The path of the asset to search for.
+        Update the earliest uploaded asset with the same checksum.
+        Parameters:
+            checksum (str): The checksum of the asset to update.
             branch (str): The branch of the asset.
+            new_user (str): The new username to set.
+            new_archive_date (datetime): The new archive date to set.
+            new_destroy_date (datetime): The new destroy date to set.
         Returns:
-            Optional[AssetMetadata]: The metadata of the latest active version, or None if not found.
+            AssetMetadataResponse: The updated asset metadata.
+        Raises:
+            HTTPException: If no asset is found with the given checksum.
         """
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT version_id FROM commit_history
-                    WHERE asset_path = %s AND branch = %s
-                    ORDER BY upload_date DESC
-                    LIMIT 1
-                """, (asset_path, branch))
-                row = await cursor.fetchone()
-                if not row:
-                    return None
-                
-                return row["version_id"]
+            row = await conn.fetchrow("""
+                SELECT * FROM commit_history
+                WHERE checksum = $1 AND branch = $2
+                ORDER BY upload_date ASC
+                LIMIT 1
+            """, checksum, branch)
 
-    async def is_primary_file_changed(self, checksum: str, asset_path: str, branch: str) -> ChangeStatus:
+            if not row:
+                return None
+
+            await conn.execute("""
+                UPDATE commit_history
+                SET archive_date = $1,
+                    destroy_date = $2,
+                    status = 'active'
+                WHERE asset_path = $3 AND version_id = $4
+            """, new_archive_date, new_destroy_date, row["asset_path"], row["version_id"])
+
+            logger.info(f"Updated asset {row['asset_path']}/{row['version_id']} by user {new_user}")
+
+            updated_metadata = await self._row_to_metadata(row)
+            updated_metadata.archive_date = new_archive_date
+            updated_metadata.destroy_date = new_destroy_date
+            updated_metadata.status = 'active'
+            return updated_metadata
+
+    async def get_user_commits(
+        self, 
+        username: str, 
+        branch: Optional[str] = None, 
+        keyword: Optional[str] = None, 
+        start_date: Optional[datetime] = None, 
+        end_date: Optional[datetime] = None, 
+        page: int = 1, 
+        page_size: int = 20
+    ):
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute("""
-                    SELECT asset_path, version_id, primary_filename, associated_filenames,
-                        upload_date, archive_date, destroy_date, branch, status, checksum
-                    FROM commit_history
-                    WHERE checksum = %s AND branch = %s AND status = 'active'
-                    LIMIT 1
-                """, (checksum, branch))
-                row = await cursor.fetchone()
-                if not row:
-                    return ChangeStatus(changed=True, message="The primary file is a new file")
-                else:
-                    if row["asset_path"] == asset_path:
-                        return ChangeStatus(
-                            changed=False, 
-                            message=(
-                                "The same primary file already exists in the database"
-                                f" with the asset path: {row['asset_path']}"
-                                f" and version ID: {row['version_id']}"
-                            )
-                        )
-                    else:
-                        return ChangeStatus(
-                            changed=False, 
-                            message=(
-                                "The same primary file already exists in the database"
-                                f" with a different file name {row['primary_filename']}"
-                                f" and asset path: {row['asset_path']}"
-                                f" and version ID: {row['version_id']}"
-                            )
-                        )
+            # 1. construct WHERE clauses
+            where_clauses = ["updated_by = $1"]
+            params = [username]
+
+            if branch:
+                params.append(branch)
+                where_clauses.append(f"branch = ${len(params)}")
+            
+            if keyword:
+                params.append(f"%{keyword}%")
+                # where_clauses.append(f"(asset_path ILIKE ${len(params)} OR primary_filename ILIKE ${len(params)})")
+                where_clauses.append(f"(primary_filename ILIKE ${len(params)})")
+
+            # 2. Add date range filters (for upload_date)
+            if start_date:
+                params.append(start_date)
+                where_clauses.append(f"upload_date >= ${len(params)}")
+            
+            if end_date:
+                params.append(end_date)
+                where_clauses.append(f"upload_date <= ${len(params)}")
+
+            where_str = " WHERE " + " AND ".join(where_clauses)
+
+            # 3. Get total count
+            count_query = f"SELECT COUNT(*) FROM commit_history {where_str}"
+            total_count = await conn.fetchval(count_query, *params) or 0
+            
+            total_pages = math.ceil(total_count / page_size) if total_count > 0 else 0
+            page = max(1, min(page, total_pages)) if total_pages > 0 else 1
+
+            # 4. Get commits
+            limit = page_size
+            offset = (page - 1) * page_size
+
+            # Copy parameter list and add limit/offset
+            query_params = list(params)
+            query_params.extend([limit, offset])
+            
+            query = f"""
+                SELECT * FROM commit_history 
+                {where_str} 
+                ORDER BY upload_date DESC 
+                LIMIT ${len(query_params)-1} OFFSET ${len(query_params)}
+            """
+            
+            rows = await conn.fetch(query, *query_params)
+            commits = [await self._row_to_metadata(row) for row in rows]
+            commits = [model_to_response(c, AssetMetadataResponse) for c in commits]
+            
+            return {
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "page": page,
+                "page_size": page_size,
+                "commits": commits
+            }
+
+    async def update_asset_expiration(
+        self, 
+        asset_path: str, 
+        version_id: str, 
+        branch: str, 
+        new_archive_date: datetime, 
+        new_destroy_date: datetime,
+        target_status: str
+    ) -> bool:
+        async with self.pool.acquire() as conn:
+            result = await conn.execute("""
+                UPDATE commit_history 
+                SET archive_date = $1, 
+                    destroy_date = $2, 
+                    status = $3
+                WHERE asset_path = $4 AND version_id = $5 AND branch = $6
+            """, new_archive_date, new_destroy_date, target_status, asset_path, version_id, branch)
+            return result == "UPDATE 1"
 
     async def close(self):
-        """
-        Close the database connection pool.
-        """
         if self.pool:
-            self.pool.close()
-            await self.pool.wait_closed()
-            logger.info("Database connection pool closed")
+            await self.pool.close()
+            logger.info("PostgreSQL connection pool closed")

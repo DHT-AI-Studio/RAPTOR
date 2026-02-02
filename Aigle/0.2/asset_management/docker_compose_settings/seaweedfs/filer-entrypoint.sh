@@ -3,12 +3,11 @@ set -e
 
 # Substitute placeholders in filer.toml 
 sed \
-  -e "s|\${MYSQL_HOST}|${MYSQL_HOST}|g" \
-  -e "s|\${MYSQL_PORT}|${MYSQL_PORT}|g" \
-  -e "s|\${MYSQL_USER}|${MYSQL_USER}|g" \
-  -e "s|\${MYSQL_PASSWORD}|${MYSQL_PASSWORD}|g" \
-  -e "s|\${MYSQL_DATABASE}|${MYSQL_DATABASE}|g" \
-  -e "s|\${S3_BUCKET}|${S3_BUCKET}|g" \
+  -e "s|\${POSTGRES_HOST}|${POSTGRES_HOST}|g" \
+  -e "s|\${POSTGRES_PORT}|${POSTGRES_PORT}|g" \
+  -e "s|\${POSTGRES_USER}|${POSTGRES_USER}|g" \
+  -e "s|\${POSTGRES_PASSWORD}|${POSTGRES_PASSWORD}|g" \
+  -e "s|\${POSTGRES_DB}|${POSTGRES_DB}|g" \
   /etc/seaweedfs/filer_generated.toml > /etc/seaweedfs/filer.toml
 
 # Run filer

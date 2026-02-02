@@ -3,8 +3,12 @@ from typing import Union, BinaryIO, Optional
 import logging
 import io
 import os
+import re
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from fastapi import HTTPException
 from .models import MediaType
-
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -198,3 +202,98 @@ def detect_file_type(file: Union[str, BinaryIO, bytes], filename: Optional[str] 
         raise ValueError(f"Failed to detect file type: {str(e)}")
     
 
+def parse_absolute_datetime(
+    value: str,
+    tz: str
+) -> datetime:
+    """
+    Parse an absolute datetime string.
+    Supported formats:
+    - YYYY-MM-DD
+    - YYYY/M/D
+    - ISO datetime (YYYY-MM-DDTHH:MM:SS)
+    """
+    value = value.strip()
+
+    try:
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+            dt = datetime.strptime(value, "%Y-%m-%d")
+        elif re.match(r"^\d{4}/\d{1,2}/\d{1,2}$", value):
+            dt = datetime.strptime(value, "%Y/%m/%d")
+        else:
+            dt = datetime.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid datetime format: {value}"
+        )
+
+    return dt.replace(tzinfo=ZoneInfo(tz))
+
+
+def parse_ttl(
+    value: Union[int, str],
+    base_date: datetime
+) -> datetime:
+    """
+    Parse TTL value relative to base_date.
+    """
+    if isinstance(value, int):
+        return base_date + timedelta(days=value)
+
+    if isinstance(value, str) and value.isdigit():
+        return base_date + timedelta(days=int(value))
+
+    match = re.match(r"^(\d+)([dwmy])$", value.lower())
+    if not match:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid TTL format: {value}"
+        )
+
+    amount = int(match.group(1))
+    unit = match.group(2)
+
+    if unit == "d":
+        return base_date + timedelta(days=amount)
+    if unit == "w":
+        return base_date + timedelta(weeks=amount)
+    if unit == "m":
+        return base_date + timedelta(days=amount * 30)
+    if unit == "y":
+        return base_date + timedelta(days=amount * 365)
+
+
+def parse_date_or_ttl(
+    input_val: Optional[Union[str, int]],
+    base_date: Optional[datetime] = None,
+    tz: Optional[str] = None
+) -> datetime:
+    """
+    Parse absolute date or TTL.
+    """
+    tz = tz or "Asia/Taipei"
+
+    if base_date is None:
+        base_date = datetime.now(tz=ZoneInfo(tz))
+    elif base_date.tzinfo is None:
+        base_date = base_date.replace(tzinfo=ZoneInfo(tz))
+
+    if input_val is None:
+        return base_date
+    
+    if isinstance(input_val, str):
+        input_val = input_val.strip()
+        if input_val == "":
+            raise HTTPException(400, "Date value cannot be empty")
+
+        # absolute date first
+        if re.search(r"[/-]|T", input_val):
+            return parse_absolute_datetime(input_val, tz)
+
+    # fallback to TTL
+    return parse_ttl(input_val, base_date)
+
+
+def calculate_md5_bytes(data: bytes) -> str:
+    return hashlib.md5(data).hexdigest()

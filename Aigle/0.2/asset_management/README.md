@@ -1,12 +1,14 @@
-# 🚀 Asset Management Service
+# 🚀 Asset Management Service (v0.2.0)
 
 ---
 
 ## Overview
 
-This project is an **Asset Management Service** designed to handle the storage, retrieval, and management of digital assets with versioning, access control, and lifecycle management (upload, archive, destroy). It uses a microservices architecture with FastAPI, MySQL, Qdrant, lakeFS, and SeaweedFS for object storage, all orchestrated using Docker Compose.
+This project is an **Asset Management Service** designed to handle the storage, retrieval, and management of digital assets with versioning, access control, and lifecycle management (upload, archive, destroy). It uses a microservices architecture with FastAPI, **PostgreSQL**, Qdrant, lakeFS, and SeaweedFS for object storage, all orchestrated using Docker Compose.
 
 The system includes a full observability stack (Prometheus, Grafana, Alertmanager, Node Exporter) for monitoring and alerting, ensuring high reliability and operational visibility.
+
+In version 0.2.0, the service has been refactored to support **API Gateway authentication** (resolving users via headers) and **flexible expiration policies** using relative TTL (e.g., `30d`, `1y`).
 
 ---
 
@@ -14,12 +16,12 @@ The system includes a full observability stack (Prometheus, Grafana, Alertmanage
 
 * **Multi-Format Asset Storage**: Upload images, videos, documents, audio, and other files with automatic MIME type detection.
 * **Versioning & Replication**: Full file versioning is supported by lakeFS, with high availability provided by a 3-master, 4-volume SeaweedFS cluster using 011 replication.
-* **Metadata & Access Control**: Store structured metadata and enforce role-based access control (RBAC) in MySQL.
+* **Metadata & Access Control**: Store structured metadata and enforce role-based access control (RBAC) in PostgreSQL.
 * **Vector Search**: Store and query asset metadata using Qdrant for vector-based search capabilities.
 * **Authentication & Authorization**: JWT-based authentication with role-based access control (RBAC) for managing permissions (read, archive, destroy, list).
 * **Automated Lifecycle Management**: Automatically archive and destroy assets based on configurable TTL (time-to-live) settings using APScheduler.
 * **RESTful API**: Expose endpoints for uploading, downloading, archiving, destroying, and managing access policies for assets.
-* **Scalable Architecture**: Deployed using Docker Compose with services for the application, MySQL, Qdrant, and SeaweedFS (master, volume, filer, and S3).
+* **Scalable Architecture**: Deployed using Docker Compose with services for the application, PostgreSQL, Qdrant, and SeaweedFS (master, volume, filer, and S3).
 * **Production-Grade Monitoring**: Full observability with Prometheus metrics, Grafana dashboards, and Alertmanager alerts.
 * **Centralized Backup**: Continuous backup of SeaweedFS filer metadata to the `./backup` directory.
 
@@ -41,7 +43,7 @@ flowchart LR
   end
 
   subgraph Persistence
-    DB[(MySQL<br/>commit_history, users, audit_log)]
+    DB[(PostgreSQL<br/>commit_history, users, audit_log)]
     QS[(Qdrant<br/>collections: documents, audios, videos, images)]
   end
 
@@ -80,7 +82,7 @@ flowchart LR
 ├── asset_management/           # Core application code
 │   ├── client.py               # High-level asset operations
 │   ├── config.py               # Configuration via Pydantic
-│   ├── database.py             # Async MySQL interactions
+│   ├── database.py             # Async PostgreSQL interactions
 │   ├── endpoints.py            # FastAPI routes and scheduler
 │   ├── __init__.py
 │   ├── models.py               # Data models
@@ -103,6 +105,7 @@ flowchart LR
     ├── prometheus/             # prometheus.yml, alert_rules.yml
     ├── lakefs/gc-runner        # Dockerfile, entrypoint.sh, run-gc.sh
     ├── alertmanager/           # alertmanager.yml
+    ├── postgres/               # filer_schema.sql
     └── grafana/provisioning/   # Datasources and dashboards
 ```
 
@@ -256,12 +259,9 @@ The application uses environment variables defined in the `.env` file, managed b
 | `AWS_ACCESS_KEY` / `AWS_SECRET_KEY`                                        | Access key and secret key for authenticating with the S3-compatible SeaweedFS service.                                                                                        |
 | `VOLUME_SIZE_LIMIT_MB`                                                     | Maximum storage capacity (in MB) for each SeaweedFS volume. Example: 512                                                                          |
 | `MAX_NUMBER_OF_VOLUMES`                                                    | Maximum number of volumes allowed per SeaweedFS volume server. Example: 100.                                                                                                  |
-| `MYSQL_HOST` / `MYSQL_PORT`                                                | Hostname and port for the MySQL database service. Within Docker network, host is typically `mysql`.                                                                           |
-| `MYSQL_ROOT_PASSWORD` / `MYSQL_USER` / `MYSQL_PASSWORD` / `MYSQL_DATABASE` | MySQL root password, application user, user password, and database name used by the application.                                                                              |
+| `POSTGRES_HOST` / `POSTGRES_PORT`                                                | Hostname and port for the PostgreSQL database service. Within Docker network, host is typically `postgres`.                                                                           |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | PostgreSQL application user, user password, and database name used by the application.                                                                              |
 | `QDRANT_HOST` / `QDRANT_PORT`                                              | Hostname and port for the Qdrant vector database. Within Docker network, host is typically `qdrant`.                                                                          |
-| `JWT_SECRET_KEY`                                                           | Secret key used to sign and verify JWT tokens. Must be strong and unique.                                                                                                     |
-| `JWT_ALGORITHM`                                                            | Cryptographic algorithm used for JWT. Typically `HS256`.                                                                                                                      |
-| `ACCESS_TOKEN_EXPIRE_MINUTES`                                              | Lifespan of JWT access tokens in minutes. Example: 30.                                                                                                                        |
 | `TIMEZONE`                                        | Used to unify time definition across services. Example: Asia/Taipei                                                           |
 | `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD`                    | Username and password for Grafana dashboard login.                                                                                                                            |
 | `LAKEFS_ENDPOINT`                                                          | Internal endpoint for the application to connect to lakeFS within Docker network.                                                                                             |
@@ -269,9 +269,6 @@ The application uses environment variables defined in the `.env` file, managed b
 | `LAKEFS_AUTH_ENCRYPT_SECRET_KEY`                                           | Encryption key used by lakeFS for authentication-related operations.                                                                                                          |
 | `LAKEFS_REPOSITORY`                                                        | Name of the repository in lakeFS used by the application. Example: `asset-management`.                                                                                        |
 | `LAKEFS_PRE_SIGNED_EXPIRY`                                                 | Default expiry duration for lakeFS presigned URLs. Example: `20m` for 20 minutes.                                                                                             |
-| `LAKEFS_DEFAULT_RETENTION_DAYS`                                            | Default retention period (in days) applied to objects across all branches unless overridden.                                                                                  |
-| `LAKEFS_MAIN_BRANCH_RETENTION_DAYS`                                        | Retention period (in days) specifically for the `main` branch.                                                                                                                |
-| `GC_CRON_SCHEDULE`                                                         | Cron expression defining garbage collector schedule. Example: `"0 2 * * *"` runs daily at 2:00 AM.                                                                            |
 | `NFS_SERVER`                                                               | Hostname or IP of the NFS server for mounting shared directories.                                                                                                             |
 | `NFS_EXPORT`                                                               | Exported path on the NFS server. Example: `/raptor`.                                                                                                                          |
 | `BASE_DIR`                                                                 | Base directory under the NFS export where application data will be stored. Example: `seaweedfs`.                                                                              |
@@ -325,325 +322,7 @@ This table lists the port usage for each service in the `asset_management`.
 
 ## 📘 API Endpoints
 
-<details>
-<summary>User Management Data Flow Diagram (click to expand)</summary>
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant API as FastAPI Endpoints
-  participant Auth as JWT
-  participant DB as MySQL
-
-  rect rgb(235, 245, 255)
-  Note over User,API: Create Personal Account
-  User->>API: POST /users (username, password)
-  API->>DB: Store username & hashed password
-  DB-->>API: Success
-  API-->>User: Account created
-  end
-
-  rect rgb(235, 255, 235)
-  Note over User,DB: Create Shared User
-  User->>API: POST /shared-users (JWT, shared user details, permissions)
-  API->>Auth: Verify token
-  Auth-->>API: Valid admin user
-  API->>DB: Store shared user metadata (under admin's branch)
-  DB-->>API: Success
-  API-->>User: Shared user created
-  end
-
-  rect rgb(255, 245, 235)
-  Note over User,DB: Delete Shared User
-  User->>API: DELETE /shared-users (JWT, shared username)
-  API->>Auth: Verify token
-  Auth-->>API: Valid admin user
-  API->>DB: Delete shared user metadata
-  DB-->>API: Success
-  API-->>User: Shared user deleted
-  end
-
-  rect rgb(255, 255, 225)
-  Note over User,DB: Change Shared User Permissions
-  User->>API: PUT /shared-users (JWT, shared username, new permissions)
-  API->>Auth: Verify token
-  Auth-->>API: Valid admin user
-  API->>DB: Update shared user permissions
-  DB-->>API: Success
-  API-->>User: Shared user permissions updated
-  end
-```
-
-</details>
-
-<details>
-<summary>File Management Data Flow Diagram (click to expand)</summary>
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant API as FastAPI Endpoints
-  participant Auth as JWT
-  participant AM as AssetManager
-  participant DB as MySQL
-  participant OS as LakeFS/S3
-  participant VS as Qdrant
-
-  %% Authentication
-  rect rgb(235, 245, 255)
-  Note over User,API: Authenticate
-  User->>API: POST /token (username, password)
-  API->>DB: get_user_by_name, verify_password
-  DB-->>API: user record
-  API->>Auth: create_access_token
-  API-->>User: JWT access_token
-  end
-
-  %% Upload Primary + Associated
-  rect rgb(235, 255, 235)
-  Note over User,OS: Upload Primary + Associated
-  User->>API: POST /fileupload (JWT, files)
-  API->>Auth: Verify token
-  Auth-->>API: Valid user
-  API->>AM: upload_files
-  AM->>DB: get_user_by_name (permission check)
-  AM->>OS: upload primary (commit)
-  OS-->>AM: version_id
-  AM->>OS: upload associated (parallel commits)
-  OS-->>AM: assoc version_ids
-  AM->>DB: save_metadata (commit_history)
-  %% AM->>VS: save_or_update_metadata (opt)
-  DB-->>AM: OK
-  %% VS-->>AM: OK (opt)
-  AM-->>API: AssetMetadata
-  API-->>User: AssetMetadata
-  end
-
-  %% Add Associated Files
-  rect rgb(240, 250, 225)
-  Note over User,OS: Add Associated Files
-  User->>API: POST /add-associated-files/{asset_path} (JWT, new associated files, primary_version_id)
-  API->>Auth: Verify token
-  Auth-->>API: Valid user
-  API->>AM: add_associated_files
-  AM->>DB: get_user_by_name (permission check)
-  alt primary_version_id is provided
-      AM->>DB: get_asset_by_path_and_version
-  else primary_version_id is None
-      AM->>DB: get_latest_active_asset
-  end
-  DB-->>AM: Existing AssetMetadata (Must be 'active')
-  AM->>OS: Store additional associated files (parallel commits)
-  OS-->>AM: New version_ids for associated files
-  AM->>DB: Update metadata (commit_history)
-  %% AM->>VS: update_metadata (opt)
-  DB-->>AM: Success
-  %% VS-->>AM: Success (opt)
-  AM-->>API: Updated AssetMetadata
-  API-->>User: updated AssetMetadata
-  end
-
-  %% Retrieve
-  rect rgb(255, 245, 235)
-  Note over User,OS: Retrieve Asset
-  User->>API: GET /filedownload/{asset_path}/{version_id}
-  API->>Auth: Verify token
-  Auth-->>API: Valid user
-  API->>AM: retrieve_asset
-  AM->>DB: get_user_by_name (permission check)
-  AM->>DB: get_asset_by_path_and_version
-  DB-->>AM: metadata
-  AM->>OS: get_file + presigned URLs
-  OS-->>AM: content_type, URLs, (content opt)
-  AM-->>API: metadata + URLs (+content)
-  API-->>User: response
-  end
-  
-  %% List Versions
-  rect rgb(225, 255, 255)
-  Note over User,OS: List Main File Versions
-  User->>API: GET /fileversions (JWT, asset_path, filename)
-  API->>Auth: Verify token
-  Auth-->>API: Valid user
-  API->>AM: list_file_versions
-  AM->>DB: get_user_by_name (permission check)
-  AM->>DB: get_versions_by_key
-  DB-->>AM: versions list
-  AM->>OS: Get presigned URLs for each version
-  OS-->>AM: URLs
-  AM-->>API: versions list + URLs
-  API-->>User: versions list + URLs
-  end
-
-  %% Lifecycle: Archive & Delete
-  rect rgb(255, 255, 225)
-  Note over User,VS: Lifecycle: Archive
-  User->>API: POST /filearchive/{asset_path}/{version_id}
-  API->>Auth: Verify token
-  Auth-->>API: Valid user
-  API->>AM: archive
-  AM->>DB: update_status archived
-  AM->>VS: archive_metadata
-  DB-->>API: Success
-  VS-->>API: Success
-  API-->>User: updated metadata
-  end 
-
-  rect rgb(255, 225, 225)
-  Note over User,VS: Lifecycle: Delete
-  User->>API: POST /delfile/{asset_path}/{version_id}
-  API->>Auth: Verify token
-  Auth-->>API: Valid user
-  API->>AM: destroy
-  AM->>DB: get_head_version
-  DB-->>AM: HEAD version
-  alt target is HEAD
-    AM->>OS: delete primary & associated (commit)
-    OS-->>AM: Success
-  else not HEAD
-    AM->>OS: skip physical delete
-  end
-  AM->>DB: delete_metadata (+audit)
-  AM->>VS: delete_metadata
-  DB-->>AM: Success
-  VS-->>AM: Success
-  AM-->>API: Success
-  API-->>User: confirmation
-  end
-```
-
-</details>
-
-
-
-| Method | Endpoint                                                            | Description                                                                                                | Input                                                            | Output                                                         |
-| ------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------- |
-| POST   | `/token`                                                            | Authenticate and obtain JWT token                                                                          | `username`, `password`                                           | JWT token (`access_token`, `token_type`, `username`, `branch`) |
-| POST   | `/users`                                                            | Create a new user (no JWT required)                                                                             | `username`, `password`                                           | `{status: "success", username}`                                |
-| POST   | `/shared-users`                                                     | Create a shared user under your branch                                                                     | `username`, `password`, `permissions` (cannot include `admin`)   | `{status: "success", username}`                                |
-| DELETE   | `/shared-users`                                              | Delete a shared user                                                                                       | `username`                                                       | `{status: "success"}`                                          |
-| PUT   | `/shared-users`                                              | Change permissions of a shared user                                                                        | `username`, `permissions`                                        | `{status: "success"}`                                          |
-| POST   | `/fileupload`                                                       | Upload primary file + associated files                                                                     | `primary_file`, `associated_files`, `archive_ttl`, `destroy_ttl` | Asset metadata                                                 |
-| POST   | `/add-associated-files/{asset_path}`                                | Add associated files to existing asset                                                                     | `associated_files`, optional `primary_version_id`                | Updated Asset metadata                                         |
-| GET    | `/filedownload/{asset_path}/{version_id}?return_file_content=False` | Retrieve asset by path and version. If `return_file_content=True`, the response includes the file content. | —                                                                | Asset metadata + presigned url + file content (optional)                       |
-| POST   | `/filearchive/{asset_path}/{version_id}`                            | Archive an asset                                                                                           | —                                                                | Updated Asset metadata                                         |
-| POST   | `/delfile/{asset_path}/{version_id}`                                | Destroy an archived asset                                                                                  | —                                                                | Deleted Asset metadata                                         |
-| GET    | `/fileversions/{asset_path}/{filename}`                             | List all versions of a file                                                                                | —                                                                | List of version metadata                                       |
-
-
-<details>
-<summary>🔌 API Usage Examples (click to expand)</summary>
-
-### Create Admin User (no JWT required)
-
-```bash
-curl -X POST "http://localhost:8000/users" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin_password"}'
-```
----
-
-### Authenticate
-
-```bash
-curl -X POST "http://localhost:8000/token" -d "username=admin&password=admin_password"
-```
-
-Save the returned `access_token` for subsequent requests:
-
-```bash
-export access_token="your_access_token_here"
-```
-
----
-
-### Shared User Management
-
-#### Create Shared User
-
-```bash
-curl -X POST "http://localhost:8000/shared-users" \
-  -H "Authorization: Bearer ${access_token}" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "username": "shared_user",
-        "password": "shared_password",
-        "permissions": ["upload","download","list"]
-      }'
-```
-
-#### Change Shared User Permissions
-
-```bash
-curl -X PUT "http://localhost:8000/shared-users" \
-  -H "Authorization: Bearer ${access_token}" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "username": "shared_user",
-        "permissions": ["upload","download","list","archive"]
-      }'
-```
-
-#### Delete Shared User
-
-```bash
-curl -X DELETE "http://localhost:8000/shared-users" \
-  -H "Authorization: Bearer ${access_token}" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"shared_user"}'
-```
-
----
-
-### **File / Asset Management**
-
-#### Upload a File
-
-```bash
-curl -X POST "http://localhost:8000/fileupload" \
-  -H "Authorization: Bearer ${access_token}" \
-  -F "primary_file=@test/test.jpg" \
-  -F "archive_ttl=30" \
-  -F "destroy_ttl=60"
-```
-
-#### Add Associated Files
-
-```bash
-curl -X POST "http://localhost:8000/add-associated-files/image/jpg/test" \
-  -H "Authorization: Bearer ${access_token}" \
-  -F "associated_files=@test/test.json" \
-  -F "primary_version_id=9ef0d7a74ce9d8ece8b103bba8096f05fb50c4e35c7d92b77ae57b78ef898e01"
-```
-
-#### Retrieve an Asset
-
-```bash
-curl -X GET "http://localhost:8000/filedownload/image/jpg/test/9ef0d7a74ce9d8ece8b103bba8096f05fb50c4e35c7d92b77ae57b78ef898e01?return_file_content=False" \
-  -H "Authorization: Bearer ${access_token}"
-```
-
-#### List Versions of a File
-
-```bash
-curl -X GET "http://localhost:8000/fileversions/image/jpg/test/test.jpg" \
-  -H "Authorization: Bearer ${access_token}"
-```
-
-#### Archive an Asset
-
-```bash
-curl -X POST "http://localhost:8000/filearchive/image/jpg/test/9ef0d7a74ce9d8ece8b103bba8096f05fb50c4e35c7d92b77ae57b78ef898e01" \
-  -H "Authorization: Bearer ${access_token}"
-```
-
-#### Delete / Destroy an Asset
-
-```bash
-curl -X POST "http://localhost:8000/delfile/image/jpg/test/9ef0d7a74ce9d8ece8b103bba8096f05fb50c4e35c7d92b77ae57b78ef898e01" \
-  -H "Authorization: Bearer ${access_token}"
-```
-</details>
+All API endpoint definitions, request/response formats, and examples are documented in **[API.md](./API.md)**.
 
 ---
 
@@ -673,6 +352,5 @@ curl -X POST "http://localhost:8000/delfile/image/jpg/test/9ef0d7a74ce9d8ece8b10
   The current setup supports **email-based notifications by default**.
   If you wish to integrate with **other receivers** (e.g., Slack, PagerDuty, etc.), you must manually update the configuration file at: `docker_compose_settings/alertmanager/alertmanager.yml`
 
-* **Placeholder Vectors**: The current implementation uses `[0.0] * 1024` as a placeholder vector in `vector_store.py`. Replace this with actual embeddings (e.g., from Sentence Transformers) to enable semantic search functionality.
 * **Networking**: All services communicate over the isolated `asset_management` Docker bridge network, ensuring secure internal communication.
-* **Testing**: Use the `test_api.ipynb` Jupyter notebook to explore and test all API endpoints interactively. It includes examples for upload, download, authentication, and lifecycle management.
+* **Testing**: Use the [`test_api.py`](./tests/test_api.py) to explore and test all API endpoints. It includes examples for upload, download, authentication, and lifecycle management.

@@ -1,6 +1,6 @@
 # Running Tests
 
-This document outlines the steps required to run the tests for the `asset_management` module.
+This document outlines the steps required to run the tests for the `asset_management` API.
 
 ## Prerequisites
 
@@ -24,17 +24,23 @@ pip install -r requirements.txt
    If `pytest` is not installed in your environment, you can install it manually with the following command:
 
 ```bash
-pip install pytest
+pip install pytest pytest-asyncio pytest-mock python-dotenv
 ```
+
+4. **Modify the settings in [conftest.py](./conftest.py)**
+   To ensure that the test data can be cleaned up after the tests, please modify the settings in `conftest.py` to use the correct host and port.
+
 
 ## Running the Tests
 
 Make sure you are in the root directory of the `asset_management` module, not inside the `tests` folder.
 
+Also, please ensure that the API is running normally before running the tests.
+
 Once the environment is activated and dependencies are installed, you can run the tests using the following command:
 
 ```bash
-PYTHONPATH=. pytest tests/
+PYTHONPATH=. pytest tests/ -s
 ```
 
 This command will run all the tests in the `tests` folder.

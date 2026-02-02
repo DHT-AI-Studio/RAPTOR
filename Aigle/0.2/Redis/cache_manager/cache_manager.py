@@ -1,9 +1,11 @@
 import functools
 import inspect
 import logging
+import asyncio
+import threading
+import weakref
 from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor
-import weakref
 from typing import (
     Callable,
     Dict,
@@ -13,22 +15,16 @@ from typing import (
     TypeVar,
     Coroutine,
 )
+
 from .base_cache import BaseCache
 from .semantic_redis_cache import SemanticRedisCache
 from .utils import hash_query
-import asyncio
-import threading
+from .distributed_lock import RedisLock, AsyncRedisLock
 
 
 logger = logging.getLogger(__name__)
 T = TypeVar('T')
 R = TypeVar('R')
-
-
-def _create_lock(func_type: str):
-    if func_type == 'sync':
-        return threading.Lock
-    return asyncio.Lock
 
 
 class CacheManager:
@@ -45,9 +41,14 @@ class CacheManager:
         is_cluster: bool = False,
         cleanup_interval: int = 3600,
         semantic: bool = False,
-        embedding_model: str = "BAAI/bge-m3",
+        query_param_name: str = "query",
+        query_prefix: Optional[str] = None,
+        passage_prefix: Optional[str] = None,
+        embedding_model_instance: Optional[Any] = None,
+        embedding_model_name: str = "BAAI/bge-m3",
         ollama_url: Optional[str] = None,
-        similarity_threshold: float = 0.8
+        similarity_threshold: float = 0.8,
+        use_distributed_lock: bool = False
     ):
         self.caches: Dict[str, Dict] = {}
         self._cache_pools: Dict[tuple, BaseCache] = {}
@@ -61,9 +62,14 @@ class CacheManager:
             'ttl': ttl,
             'is_cluster': is_cluster,
             'semantic': semantic,
-            'embedding_model': embedding_model,
+            'query_param_name': query_param_name,
+            'query_prefix': query_prefix,
+            'passage_prefix': passage_prefix,
+            'embedding_model_instance': embedding_model_instance,
+            'embedding_model_name': embedding_model_name,
             'ollama_url': ollama_url,
-            'similarity_threshold': similarity_threshold
+            'similarity_threshold': similarity_threshold,
+            'use_distributed_lock': use_distributed_lock
         }
         self.ttl_multiplier = ttl_multiplier
         self._cleanup_interval = cleanup_interval
@@ -133,7 +139,7 @@ class CacheManager:
                         for key, exists in zip(keys_to_check, exists_checks):
                             if isinstance(exists, Exception) or not exists:
                                 cache_entry['hit_counter'].pop(key, None)
-                                cache_entry['locks'].pop(key, None)
+                                cache_entry['local_locks'].pop(key, None)
                                 expired_keys.append(key)
                         
                         if await self._is_cache_empty(cache_name, cache):
@@ -177,10 +183,13 @@ class CacheManager:
         if cache_key not in self._cache_pools:
             if kwargs.get("semantic", False):
                 self._cache_pools[cache_key] = SemanticRedisCache(
-                    base_cache=BaseCache(**kwargs), 
-                    model_name=kwargs.get("embedding_model", "BAAI/bge-m3"),
+                    base_cache=BaseCache(**kwargs),
+                    model_instance=kwargs.get("embedding_model_instance", None), 
+                    model_name=kwargs.get("embedding_model_name", "BAAI/bge-m3"),
                     ollama_url=kwargs.get("ollama_url", None),
-                    similarity_threshold=kwargs.get("similarity_threshold", 0.8)
+                    similarity_threshold=kwargs.get("similarity_threshold", 0.8),
+                    query_prefix=kwargs.get("query_prefix", None),
+                    passage_prefix=kwargs.get("passage_prefix", None)
                 )
             else:
                 self._cache_pools[cache_key] = BaseCache(**kwargs)
@@ -191,25 +200,53 @@ class CacheManager:
                 "hit_counter": defaultdict(int),
                 "ttl": kwargs.get("ttl", self.default_config['ttl']),
                 "in_progress_tasks": weakref.WeakValueDictionary(),
-                "locks": defaultdict(_create_lock(func_type)),
+                "local_locks": defaultdict(threading.Lock if func_type == 'sync' else asyncio.Lock),
                 "concurrent_executor": (
                     ThreadPoolExecutor(max_workers=kwargs.get("max_workers", self.default_config['max_workers']))
                     if func_type == "sync"
                     else asyncio.Semaphore(kwargs.get("max_workers", self.default_config['max_workers']))
                 ),
                 "func_type": func_type,
-                "semantic": kwargs.get("semantic", False)
+                "semantic": kwargs.get("semantic", False),
+                "query_param_name": kwargs.get("query_param_name", "query"),
+                "use_distributed_lock": kwargs.get("use_distributed_lock", False)
             }
 
-    def _make_key(self, name: str, *args, **kwargs) -> str:
-        safe_kwargs = {
-            k: v for k, v in kwargs.items()
-            if not callable(v) and not hasattr(v, '__dict__')
-        }        
-        key_data = {"name": name, "args": args, "kwargs": sorted(safe_kwargs.items())}
-        return f"{name}:{hash_query(key_data)}"
+    def _get_cache_metadata(self, name: str, func: Callable, args: tuple, kwargs: dict) -> tuple[str, str, str]:
+        """
+        Generate Exact Key, Query, and Namespace for caching
+        """
+        entry = self.caches.get(name)
+        query_param_name = entry.get('query_param_name', 'query') if entry else 'query'
+        
+        # 1. Extract function parameters
+        sig = inspect.signature(func)
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
 
-    def _process_cache_hit(self, cache_name: str, key: str, value: Any, query: Optional[str] = None) -> Any:
+        all_params = bound_args.arguments
+        all_params.update({"cache_name": name})
+        query_value = str(all_params.get(query_param_name, ""))
+
+        # Filter out non-serializable parameters
+        def _filter_params(params_dict):
+            return {
+                k: v for k, v in params_dict.items()
+                if not callable(v) and not hasattr(v, '__dict__')
+            }
+
+        # 2. Generate Exact Key
+        filtered_all = _filter_params(all_params)
+        exact_key = f"{name}:{hash_query(filtered_all)}"
+
+        # 3. Generate Namespace (excluding query parameter)
+        ns_params = {k: v for k, v in all_params.items() if k != query_param_name}
+        filtered_ns = _filter_params(ns_params)
+        namespace = hash_query(filtered_ns)
+
+        return exact_key, query_value, namespace
+
+    def _process_cache_hit(self, cache_name: str, key: str, value: Any, query: Optional[str] = None, namespace: Optional[str] = None) -> Any:
         entry = self.caches.get(cache_name)
         if entry is None:
             raise KeyError(f"Cache {cache_name} not found")
@@ -221,17 +258,33 @@ class CacheManager:
             cache = entry['cache']
             try:
                 if entry['func_type'] == 'sync':
-                    cache.set(key, value, ttl=dynamic_ttl, query=query)
+                    if entry['semantic']:
+                        cache.set(key, value, ttl=dynamic_ttl, query=query, namespace=namespace)
+                    else:
+                        cache.set(key, value, ttl=dynamic_ttl)
                 else:
                     try:
                         loop = asyncio.get_running_loop()
-                        loop.create_task(cache.aset(key, value, ttl=dynamic_ttl, query=query))
+                        if entry['semantic']:
+                            loop.create_task(cache.aset(key, value, ttl=dynamic_ttl, query=query, namespace=namespace))
+                        else:
+                            loop.create_task(cache.aset(key, value, ttl=dynamic_ttl))
                     except RuntimeError:
                         pass
             except Exception as e:
                 logger.warning(f"Failed to update TTL for {key}: {e}")
 
         return value
+
+    def _get_sync_lock(self, entry, base_cache, lock_key):
+        if entry['use_distributed_lock']:
+            return RedisLock(base_cache, key=lock_key).context(blocking=True, auto_extend=True)
+        return entry['local_locks'][lock_key]
+
+    def _get_async_lock(self, entry, base_cache, lock_key):
+        if entry['use_distributed_lock']:
+            return AsyncRedisLock(base_cache, key=lock_key).context(blocking=True, auto_extend=True)
+        return entry['local_locks'][lock_key]
 
     def _make_decorator(self, cache_name: str, func_type: str, **default_options):
         if cache_name not in self.caches:
@@ -241,28 +294,27 @@ class CacheManager:
         cache = entry['cache']
         ttl = entry['ttl']
         semantic = entry['semantic']
+        base_cache = cache.base_cache if hasattr(cache, 'base_cache') else cache
 
         def decorator(func: Callable[..., Union[T, Coroutine[Any, Any, T]]]) -> Callable[..., Union[T, Coroutine[Any, Any, T]]]:
             @functools.wraps(func)
             def sync_wrapper(*args, **kwargs) -> T:
-                key = self._make_key(cache_name, *args, **kwargs)
-                query = str(kwargs.get("query", args[0] if args else ""))
-
+                key, query, namespace = self._get_cache_metadata(cache_name, func, args, kwargs)
                 with entry['concurrent_executor']:
                     try:
                         if semantic:
-                            value = cache.get(key, query)
+                            value = cache.get(key, query, namespace)
                         else:
                             value = cache.get(key)
 
                         if value is not None:
                             logger.debug(f"[CACHE HIT] cache_name: {cache_name} key: {key}")
-                            return self._process_cache_hit(cache_name, key, value, query)
+                            return self._process_cache_hit(cache_name, key, value, query, namespace)
                     except Exception as e:
                         logger.error(f"Cache get error for {key}: {e}")
 
                 logger.debug(f"[CACHE MISS] cache_name: {cache_name} key: {key}")
-                
+
                 if key in entry['in_progress_tasks']:
                     logger.debug(f"[CACHE IN PROGRESS] cache_name: {cache_name} key: {key}")
                     try:
@@ -270,17 +322,17 @@ class CacheManager:
                     except Exception as e:
                         logger.warning(f"In-progress task error for {key}: {e}")
                 
-                lock = entry['locks'][key]
-                with lock:
+                lock_ctx = self._get_sync_lock(entry, base_cache, f"lock:{key}")
+                with lock_ctx:
                     try:
                         if semantic:
-                            value = cache.get(key, query)
+                            value = cache.get(key, query, namespace)
                         else:
                             value = cache.get(key)
 
                         if value is not None:
                             logger.debug(f"[CACHE HIT] cache_name: {cache_name} key: {key}")
-                            return self._process_cache_hit(cache_name, key, value, query)
+                            return self._process_cache_hit(cache_name, key, value, query, namespace)
                     except Exception as e:
                         logger.error(f"Cache get error for post-lock {key}: {e}")
                     
@@ -297,7 +349,7 @@ class CacheManager:
                         result = func(*args, **kwargs)
                         future.set_result(result)
                         if semantic:
-                            cache.set(key, result, ttl=ttl, query=query)
+                            cache.set(key, result, ttl=ttl, query=query, namespace=namespace)
                         else:
                             cache.set(key, result, ttl=ttl)
                         return result
@@ -309,17 +361,16 @@ class CacheManager:
 
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs) -> T:
-                key = self._make_key(cache_name, *args, **kwargs)
-                query = str(kwargs.get("query", args[0] if args else ""))
+                key, query, namespace = self._get_cache_metadata(cache_name, func, args, kwargs)
                 async with entry['concurrent_executor']:
                     try:
                         if semantic:
-                            value = await cache.aget(key, query)
+                            value = await cache.aget(key, query, namespace)
                         else:
                             value = await cache.aget(key)
                         if value is not None:
                             logger.debug(f"[CACHE HIT] cache_name: {cache_name} key: {key}")
-                            return self._process_cache_hit(cache_name, key, value, query)
+                            return self._process_cache_hit(cache_name, key, value, query, namespace)
                     except Exception as e:
                         logger.error(f"Cache get error for {key}: {e}")
 
@@ -332,16 +383,16 @@ class CacheManager:
                     except Exception as e:
                         logger.warning(f"In-progress task error for {key}: {e}")
 
-                lock = entry['locks'][key]
-                async with lock:
+                lock_ctx = self._get_async_lock(entry, base_cache, f"lock:{key}")
+                async with lock_ctx:
                     try:
                         if semantic:
-                            value = await cache.aget(key, query)
+                            value = await cache.aget(key, query, namespace)
                         else:
                             value = await cache.aget(key)
                         if value is not None:
                             logger.debug(f"[CACHE HIT] cache_name: {cache_name} key: {key}")
-                            return self._process_cache_hit(cache_name, key, value, query)
+                            return self._process_cache_hit(cache_name, key, value, query, namespace)
                     except Exception as e:
                         logger.error(f"Cache get error for post-lock {key}: {e}")
 
@@ -358,7 +409,7 @@ class CacheManager:
                     try:
                         result = await asyncio.wait_for(func(*args, **kwargs), timeout=60)
                         if semantic:
-                            await cache.aset(key, result, ttl=ttl, query=query)
+                            await cache.aset(key, result, ttl=ttl, query=query, namespace=namespace)
                         else:
                             await cache.aset(key, result, ttl=ttl)
                         future.set_result(result)
@@ -425,7 +476,7 @@ class CacheManager:
 
             entry['hit_counter'].clear()
             entry['in_progress_tasks'].clear()
-            entry['locks'].clear()
+            entry['local_locks'].clear()
             return True
         
         except Exception as e:
