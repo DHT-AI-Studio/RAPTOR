@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Rapid AI-Powered Text and Object Recognition</strong><br>
+  <strong>Robust AI-Powered Toolkit for Operational Robots</strong><br>
   Open-Source Content Insight Engine for Enterprise AI Applications
 </p>
 
@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
   </a>
   <a href="https://github.com/DHT-AI-Studio/RAPTOR/releases">
-    <img src="https://img.shields.io/badge/version-Aigle%200.1%20(Beta)-orange.svg" alt="Version">
+    <img src="https://img.shields.io/badge/version-Aigle%200.2%20(Community%20Beta)-orange.svg" alt="Version">
   </a>
   <img src="https://img.shields.io/badge/status-Beta-yellow.svg" alt="Status">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python">
@@ -42,11 +42,11 @@
 
 ## 🚀 Current Release
 
-**Aigle 0.1** - First Community Beta Release
+**Aigle 0.2** - Community Beta (February 2026)
 
-This is the initial open-source release of the RAPTOR framework, codenamed "Aigle". We're excited to share this with the community and look forward to your feedback and contributions.
+This release continues the open-source RAPTOR framework, codenamed "Aigle". We're excited to share this with the community and look forward to your feedback and contributions.
 
-### 🧪 Aigle 0.1 - Evaluation and Testing API
+### 🧪 Aigle 0.2 - Evaluation and Testing API
 
 To help developers get started with the RAPTOR framework quickly and easily, we've deployed a **test run API** on DHT's development infrastructure. This evaluation API allows developers to:
 
@@ -58,7 +58,7 @@ To help developers get started with the RAPTOR framework quickly and easily, we'
 This is an excellent way to explore RAPTOR's features, build proof-of-concepts, and validate your use cases before deploying your own infrastructure.
 
 **🔗 Access the Evaluation API:**  
-[http://raptor_open_0_1_api.dhtsolution.com:8012/](http://raptor_open_0_1_api.dhtsolution.com:8012/)
+[http://raptor_open_0_2_api.dhtsolution.com:8012/](http://raptor_open_0_2_api.dhtsolution.com:8012/)
 
 For detailed API documentation, usage examples, and access instructions, please visit the link above.
 
@@ -78,7 +78,7 @@ For detailed API documentation, usage examples, and access instructions, please 
 
 ## 🎯 About RAPTOR
 
-**RAPTOR (Rapid AI-Powered Text and Object Recognition)** is a Content Insight Engine that represents a paradigm shift in digital asset management, transforming passive media storage into an intelligent knowledge platform. By leveraging cutting-edge AI technologies including large language models, vector search, and semantic understanding, RAPTOR enables organizations to unlock the full value of their media assets through automated analysis, intelligent search, and actionable insights.
+**RAPTOR (Robust AI-Powered Toolkit for Operational Robots)** is a Content Insight Engine that represents a paradigm shift in digital asset management, transforming passive media storage into an intelligent knowledge platform. By leveraging cutting-edge AI technologies including large language models, vector search, and semantic understanding, RAPTOR enables organizations to unlock the full value of their media assets through automated analysis, intelligent search, and actionable insights.
 
 ### Business Value Proposition
 
@@ -98,9 +98,9 @@ For detailed API documentation, usage examples, and access instructions, please 
 
 ## ✨ Features
 
-### Version Aigle 0.1
+### Version Aigle 0.2
 
-This first community release includes:
+This community release includes:
 
 #### Core Capabilities
 
@@ -109,6 +109,7 @@ This first community release includes:
 - **AI-Powered Metadata Generation**: Automated tagging and content classification
 - **LLM Orchestration**: Flexible integration with multiple language models
 - **Vector Database Integration**: High-performance similarity search and retrieval
+- **Model fine-tuning & training**: Fine-tuning workflows, training pipelines, and evaluation for domain-specific models
 
 #### Intelligence Features
 
@@ -572,12 +573,7 @@ Meet the talented developers behind RAPTOR:
 
 The following features are planned for upcoming releases to transform RAPTOR into a production-ready, enterprise-grade platform:
 
-### **1. API Gateway & Integration (v0.2 - Q4 2025)**
-
-- **API Gateway**: Production-ready gateway with rate limiting and API documentation portal
-- **Webhook System**: Event-driven integration capability with webhook event system
-
-### **2. Advanced Video Understanding (v0.3 - Q4 2025)**
+### **1. Advanced Video Understanding (v0.3 - Q1 2026)**
 
 - Implement temporal reasoning models for event sequences
 - Add action recognition and activity detection
@@ -585,7 +581,34 @@ The following features are planned for upcoming releases to transform RAPTOR int
 - Create timeline-based navigation interface
 - *Note: Docker Compose deployment won't scale to production needs*
 
-### **3. AI LLM Interface - MCP Integration (v0.3 - Q4 2025)**
+### **2. Content Moderation & Compliance (v0.4 - Q2 2026)**
+
+- Train content moderation models (NSFW, violence, hate speech)
+- Implement automated flagging system
+- Build GDPR/CCPA compliance workflows
+- Create comprehensive audit reporting
+
+### **3. Graph database & GraphRAG (v0.3)**
+
+- Graph-native storage and retrieval augmented generation on graph structure
+
+### **4. Agents & interoperability (v0.3)**
+
+- Multi-agent workflows, agent-to-agent coordination, **JSON-RPC** communication, and self-learning / self-tuning agent behavior
+
+### **5. Temporal model & temporal knowledge graph (v0.3)**
+
+- Time-aware models and knowledge graphs for evolving facts and sequences
+
+### **6. BM25 RAG & BM25 search (v0.3)**
+
+- Hybrid and keyword-first retrieval with BM25 alongside semantic RAG
+
+### **7. Contextual embedding (v0.3)**
+
+- Embeddings that preserve richer context for retrieval and downstream reasoning
+
+### **8. AI LLM Interface - MCP Integration (v0.45 - Q1 2026)**
 
 Implement **Model Context Protocol (MCP)** interfaces for core services:
 
@@ -598,32 +621,11 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - Model Management
 - MCP Prompts
 
-### **4. Custom Model Training Pipeline (v0.4 - Q1 2026)**
+### **9. Real-time audio processing (v0.4)**
 
-- Build fine-tuning workflows for domain-specific models
-- **Optimized Training**: Automated pipelines with DeepSpeed optimization, model evaluation framework, customer data isolation
-- **Federated Learning**: Privacy-preserving distributed training where data stays local, only model updates transferred
+- Low-latency audio ingestion, analysis, and pipeline integration
 
-### **5. Admin Dashboard (v0.4 - Q1 2026)**
-
-- Integrate Prometheus/Grafana metrics for real-time monitoring console
-- Create user management UI with role-based access control
-- Permission management and audit logging
-
-### **6. OAuth2/OpenID Connect Integration (v0.4 - Q1 2026)**
-
-- Migrate from basic JWT to OAuth2/OIDC standards
-- Enterprise SSO support (Azure AD, Google Workspace, Okta)
-- Multi-factor authentication
-
-### **7. Content Moderation & Compliance (v0.5 - Q1 2026)**
-
-- Train content moderation models (NSFW, violence, hate speech)
-- Implement automated flagging system
-- Build GDPR/CCPA compliance workflows
-- Create comprehensive audit reporting
-
-### **8. Kubernetes Production Deployment (v1.0 - March 2026)**
+### **10. Kubernetes Production Deployment (v1.0 - July 2026)**
 
 - Production-ready Kubernetes deployment with Helm charts
 - Automated horizontal and vertical scaling
@@ -631,7 +633,7 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - Multi-environment support (dev/staging/prod)
 - *Critical: Docker Compose is not suitable for production scale*
 
-### **9. Centralized Logging & Observability (v1.0 - March 2026)**
+### **11. Centralized Logging & Observability (v1.0 - July 2026)**
 
 - Deploy ELK Stack (Elasticsearch, Logstash, Kibana)
 - Configure log shipping from all 25+ services
@@ -641,17 +643,16 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 
 ### Release Timeline
 
-| Version  | Target     | Focus               | Key Features                               |
-| -------- | ---------- | ------------------- | ------------------------------------------ |
-| **v0.2** | Q4 2025    | API & Integration   | API Gateway, Webhooks                      |
-| **v0.3** | Q4 2025    | AI Enhancement      | Video Understanding, MCP Interface         |
-| **v0.4** | Q1 2026    | Enterprise Features | Training Pipeline, Admin Dashboard, OAuth2 |
-| **v0.5** | Q1 2026    | Compliance          | Content Moderation, GDPR/CCPA              |
-| **v1.0** | March 2026 | Production Ready    | Kubernetes, ELK Stack, 99.9% SLA           |
+| Version    | Target    | Focus                       | Key Features                                                                            |
+| ---------- | --------- | --------------------------- | --------------------------------------------------------------------------------------- |
+| **v0.3**   | Q1 2026   | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings |
+| **v0.4**   | Q2 2026   | Media & compliance          | Real-time audio processing, content moderation, GDPR/CCPA                              |
+| **v0.45**  | Q1 2026   | LLM interoperability        | MCP integration across all core services                                                |
+| **v1.0**   | July 2026 | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
 
-**Current Status**: Aigle 0.1 (Community Beta) - October 2025 ✅  
-**Next Milestone**: v0.2 with API Gateway (Q4 2025)  
-**Production Target**: v1.0 by March 2026
+**Current Status**: Aigle 0.2 (Community Beta) - February 2026 ✅  
+**Next Milestone**: v0.3 (Q1 2026)  
+**Production Target**: v1.0 by July 2026
 
 ---
 
