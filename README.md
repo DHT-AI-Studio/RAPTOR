@@ -647,7 +647,7 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 | ---------- | --------- | --------------------------- | --------------------------------------------------------------------------------------- |
 | **v0.3**   | Q1 2026   | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings |
 | **v0.4**   | Q2 2026   | Media & compliance          | Real-time audio processing, content moderation, GDPR/CCPA                              |
-| **v0.45**  | Q1 2026   | LLM interoperability        | MCP integration across all core services                                                |
+| **v0.5**  | Q1 2026   | LLM interoperability        | MCP integration across all core services                                                |
 | **v1.0**   | July 2026 | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
 
 **Current Status**: Aigle 0.2 (Community Beta) - February 2026 ✅  
