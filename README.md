@@ -608,7 +608,7 @@ The following features are planned for upcoming releases to transform RAPTOR int
 
 - Embeddings that preserve richer context for retrieval and downstream reasoning
 
-### **8. AI LLM Interface - MCP Integration (v0.45 - Q1 2026)**
+### **8. AI LLM Interface - MCP Integration (v0.4 - Q1 2026)**
 
 Implement **Model Context Protocol (MCP)** interfaces for core services:
 
