@@ -1,0 +1,53 @@
+# Chat Service Module
+# Aigle Platform v0.2
+# Text-to-text LLM processing service for chatbot, translation, summarization, and text generation
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  # ============================================
+  # Chat Service
+  # Provides unified API for text-to-text LLM processing
+  # Supports: Chatbot, Translation, Summarization, Text Generation
+  # ============================================
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/chat-service:0.3
+    container_name: raptor-chat-service
+    hostname: raptor-chat-service
+    environment:
+      TZ: ${TIMEZONE:-Asia/Taipei}
+      PYTHONWARNINGS: "ignore"
+      # LLM (Ollama OpenAI-compat)
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://192.168.157.135:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen3.5:9b}
+      TEMPERATURE: ${TEMPERATURE:-0.7}
+      # Hybrid Search (module 17)
+      HYBRID_SEARCH_URL: ${HYBRID_SEARCH_URL:-http://raptor-hybridsearch-api:8000}
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      # Chat memory
+      MEMORY_CONTEXT_WINDOW: ${MEMORY_CONTEXT_WINDOW:-5}
+      MEMORY_TTL: ${MEMORY_TTL:-3600}
+      # HTTP
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-60.0}
+    ports:
+      - "${CHAT_SERVICE_PORT:-8021}:8021"
+    networks:
+      - raptor
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8021/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

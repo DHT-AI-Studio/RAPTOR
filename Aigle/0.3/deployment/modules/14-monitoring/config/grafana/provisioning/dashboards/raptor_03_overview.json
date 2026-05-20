@@ -1,0 +1,104 @@
+{
+  "title": "Raptor 0.3 Overview",
+  "uid": "raptor-03-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "API Latency p50 / p95 / p99 by Endpoint",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, handler))",
+          "legendFormat": "p50 {{handler}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, handler))",
+          "legendFormat": "p95 {{handler}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, handler))",
+          "legendFormat": "p99 {{handler}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Kafka Consumer Lag per Group",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(kafka_consumer_group_lag) by (group, topic)",
+          "legendFormat": "{{group}} / {{topic}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "GPU Utilisation %",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 6 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "minVizValue": 0, "maxVizValue": 100 },
+      "targets": [
+        {
+          "expr": "avg(nvidia_smi_utilization_gpu_ratio) * 100",
+          "legendFormat": "GPU Util %"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "GPU Memory Used %",
+      "type": "gauge",
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 6 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "minVizValue": 0, "maxVizValue": 100 },
+      "targets": [
+        {
+          "expr": "(sum(nvidia_smi_memory_used_bytes) / sum(nvidia_smi_memory_total_bytes)) * 100",
+          "legendFormat": "GPU Mem %"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Qdrant Cache Hit Rate",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(qdrant_search_cache_hits_total[5m]) / (rate(qdrant_search_cache_hits_total[5m]) + rate(qdrant_search_cache_misses_total[5m]))",
+          "legendFormat": "Hit Rate"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Neo4j Query Time (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(neo4j_bolt_accumulated_processing_time_bucket[5m])) * 1000",
+          "legendFormat": "p95 query time ms"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Request Rate (rps) — all services",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (service)",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    }
+  ]
+}

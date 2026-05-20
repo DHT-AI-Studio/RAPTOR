@@ -1,0 +1,347 @@
+# Redis Cluster Module
+# Aigle Platform v0.2
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  redis1:
+    image: redis:8.0.2
+    container_name: raptor-redis1
+    hostname: raptor-redis1
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+      --port ${REDIS_CLUSTER_PORT_1:-7000}
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --masterauth ${REDIS_PASSWORD}
+      --cluster-announce-ip ${HOST_IP}
+      --cluster-announce-port ${REDIS_CLUSTER_PORT_1:-7000}
+      --cluster-announce-bus-port ${REDIS_CLUSTER_BUS_PORT_1:-17000}
+    ports:
+      - "${REDIS_CLUSTER_PORT_1:-7000}:${REDIS_CLUSTER_PORT_1:-7000}"
+      - "${REDIS_CLUSTER_BUS_PORT_1:-17000}:${REDIS_CLUSTER_BUS_PORT_1:-17000}"
+    volumes:
+      - redis1-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        aliases:
+            - "redis1"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "${REDIS_CLUSTER_PORT_1:-7000}", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.5'
+
+  redis2:
+    image: redis:8.0.2
+    container_name: raptor-redis2
+    hostname: raptor-redis2
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+      --port ${REDIS_CLUSTER_PORT_2:-7001}
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --masterauth ${REDIS_PASSWORD}
+      --cluster-announce-ip ${HOST_IP}
+      --cluster-announce-port ${REDIS_CLUSTER_PORT_2:-7001}
+      --cluster-announce-bus-port ${REDIS_CLUSTER_BUS_PORT_2:-17001}
+    ports:
+      - "${REDIS_CLUSTER_PORT_2:-7001}:${REDIS_CLUSTER_PORT_2:-7001}"
+      - "${REDIS_CLUSTER_BUS_PORT_2:-17001}:${REDIS_CLUSTER_BUS_PORT_2:-17001}"
+    volumes:
+      - redis2-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        aliases:
+            - "redis2"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "${REDIS_CLUSTER_PORT_2:-7001}", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.5'
+
+  redis3:
+    image: redis:8.0.2
+    container_name: raptor-redis3
+    hostname: raptor-redis3
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+      --port ${REDIS_CLUSTER_PORT_3:-7002}
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --masterauth ${REDIS_PASSWORD}
+      --cluster-announce-ip ${HOST_IP}
+      --cluster-announce-port ${REDIS_CLUSTER_PORT_3:-7002}
+      --cluster-announce-bus-port ${REDIS_CLUSTER_BUS_PORT_3:-17002}
+    ports:
+      - "${REDIS_CLUSTER_PORT_3:-7002}:${REDIS_CLUSTER_PORT_3:-7002}"
+      - "${REDIS_CLUSTER_BUS_PORT_3:-17002}:${REDIS_CLUSTER_BUS_PORT_3:-17002}"
+    volumes:
+      - redis3-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        # ${REDIS_CLUSTER_IP_3:+ipv4_address: ${REDIS_CLUSTER_IP_3}}
+        aliases:
+            - "redis3"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "${REDIS_CLUSTER_PORT_3:-7002}", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.5'
+
+  redis4:
+    image: redis:8.0.2
+    container_name: raptor-redis4
+    hostname: raptor-redis4
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+      --port ${REDIS_CLUSTER_PORT_4:-7003}
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --masterauth ${REDIS_PASSWORD}
+      --cluster-announce-ip ${HOST_IP}
+      --cluster-announce-port ${REDIS_CLUSTER_PORT_4:-7003}
+      --cluster-announce-bus-port ${REDIS_CLUSTER_BUS_PORT_4:-17003}
+    ports:
+      - "${REDIS_CLUSTER_PORT_4:-7003}:${REDIS_CLUSTER_PORT_4:-7003}"
+      - "${REDIS_CLUSTER_BUS_PORT_4:-17003}:${REDIS_CLUSTER_BUS_PORT_4:-17003}"
+    volumes:
+      - redis4-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        # ${REDIS_CLUSTER_IP_4:+ipv4_address: ${REDIS_CLUSTER_IP_4}}
+        aliases:
+            - "redis4"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "${REDIS_CLUSTER_PORT_4:-7003}", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.5'
+
+  redis5:
+    image: redis:8.0.2
+    container_name: raptor-redis5
+    hostname: raptor-redis5
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+      --port ${REDIS_CLUSTER_PORT_5:-7004}
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --masterauth ${REDIS_PASSWORD}
+      --cluster-announce-ip ${HOST_IP}
+      --cluster-announce-port ${REDIS_CLUSTER_PORT_5:-7004}
+      --cluster-announce-bus-port ${REDIS_CLUSTER_BUS_PORT_5:-17004}
+    ports:
+      - "${REDIS_CLUSTER_PORT_5:-7004}:${REDIS_CLUSTER_PORT_5:-7004}"
+      - "${REDIS_CLUSTER_BUS_PORT_5:-17004}:${REDIS_CLUSTER_BUS_PORT_5:-17004}"
+    volumes:
+      - redis5-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        # ${REDIS_CLUSTER_IP_5:+ipv4_address: ${REDIS_CLUSTER_IP_5}}
+        aliases:
+            - "redis5"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "${REDIS_CLUSTER_PORT_5:-7004}", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.5'
+
+  redis6:
+    image: redis:8.0.2
+    container_name: raptor-redis6
+    hostname: raptor-redis6
+    command: >
+      redis-server
+      /usr/local/etc/redis/redis.conf
+      --port ${REDIS_CLUSTER_PORT_6:-7005}
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --masterauth ${REDIS_PASSWORD}
+      --cluster-announce-ip ${HOST_IP}
+      --cluster-announce-port ${REDIS_CLUSTER_PORT_6:-7005}
+      --cluster-announce-bus-port ${REDIS_CLUSTER_BUS_PORT_6:-17005}
+    ports:
+      - "${REDIS_CLUSTER_PORT_6:-7005}:${REDIS_CLUSTER_PORT_6:-7005}"
+      - "${REDIS_CLUSTER_BUS_PORT_6:-17005}:${REDIS_CLUSTER_BUS_PORT_6:-17005}"
+    volumes:
+      - redis6-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        # ${REDIS_CLUSTER_IP_6:+ipv4_address: ${REDIS_CLUSTER_IP_6}}
+        aliases:
+            - "redis6"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "-p", "${REDIS_CLUSTER_PORT_6:-7005}", "cluster", "info"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.5'
+
+  redis-cluster-init:
+    image: redis:8.0.2
+    container_name: raptor-redis-cluster-init
+    network_mode: host
+    depends_on:
+      redis1:
+        condition: service_healthy
+      redis2:
+        condition: service_healthy
+      redis3:
+        condition: service_healthy
+      redis4:
+        condition: service_healthy
+      redis5:
+        condition: service_healthy
+      redis6:
+        condition: service_healthy
+    entrypoint: [
+      "/bin/sh", "-c",
+      "echo 'yes' | redis-cli -a ${REDIS_PASSWORD} --cluster create ${HOST_IP}:${REDIS_CLUSTER_PORT_1:-7000} ${HOST_IP}:${REDIS_CLUSTER_PORT_2:-7001} ${HOST_IP}:${REDIS_CLUSTER_PORT_3:-7002} ${HOST_IP}:${REDIS_CLUSTER_PORT_4:-7003} ${HOST_IP}:${REDIS_CLUSTER_PORT_5:-7004} ${HOST_IP}:${REDIS_CLUSTER_PORT_6:-7005} --cluster-replicas 1"
+    ]
+    restart: "no"
+
+  redisinsight:
+    image: redislabs/redisinsight:2.70
+    container_name: raptor-redisinsight
+    hostname: raptor-redisinsight
+    ports:
+      - "${REDISINSIGHT_PORT:-5540}:5540"
+    volumes:
+      - redisinsight-data:/data
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        # ${REDISINSIGHT_IP:+ipv4_address: ${REDISINSIGHT_IP}}
+        aliases:
+            - "raptor-redisinsight"  # 定義別名
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.25'
+
+  redis-standalone:
+    image: redis:7.4-alpine
+    container_name: raptor-redis-standalone
+    hostname: raptor-redis-standalone
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "${REDIS_STANDALONE_PORT:-6379}:6379"
+    volumes:
+      - redis-standalone-data:/data
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        # ${REDIS_STANDALONE_IP:+ipv4_address: ${REDIS_STANDALONE_IP}}
+        aliases:
+            - "raptor-redis-standalone"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.25'
+
+volumes:
+  redis1-data:
+  redis2-data:
+  redis3-data:
+  redis4-data:
+  redis5-data:
+  redis6-data:
+  redisinsight-data:
+  redis-standalone-data:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

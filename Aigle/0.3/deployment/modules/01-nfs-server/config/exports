@@ -1,0 +1,17 @@
+# NFS Exports Configuration
+# This file defines what directories are exported via NFS
+# Format: <directory> <host>(<options>)
+
+# Main export directory for SeaweedFS and other services
+# Allows read-write access to all clients in the network
+/nfs-share  *(rw,sync,no_subtree_check,no_root_squash,fsid=0)
+
+# Alternative: Restrict to specific network (more secure)
+# /nfs-share  172.30.0.0/16(rw,sync,no_subtree_check,no_root_squash,fsid=0)
+
+# Note:
+# - rw: read-write access
+# - sync: synchronous writes (safer, slightly slower)
+# - no_subtree_check: improves performance
+# - no_root_squash: allows root access (needed for Docker containers)
+# - fsid=0: required for NFSv4 root export

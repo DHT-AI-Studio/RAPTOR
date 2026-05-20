@@ -1,0 +1,4 @@
+numpy==2.3.1
+redis==6.2.0
+sentence_transformers==5.0.0
+ollama==0.6.0

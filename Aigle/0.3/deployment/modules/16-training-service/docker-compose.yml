@@ -1,0 +1,67 @@
+services:
+  # Training Service (GPU-enabled)
+  training-service:
+    build: .
+    image: raptor/training-service:0.3
+    container_name: raptor-training-service
+    restart: unless-stopped
+    ports:
+      - "${FASTAPI_PORT}:${FASTAPI_PORT}"
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    command: uvicorn src.main:app --host 0.0.0.0 --port ${FASTAPI_PORT} --reload --reload-dir src
+    # Marks container "unhealthy" when CUDA/NVML goes stale after extended uptime.
+    # A host-side cron job watches for unhealthy status and restarts the container.
+    # See: deployment/modules/14-training-service/nvidia-training-watchdog.cron
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import torch; exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 120s
+    volumes:
+      - ./src:/app/src
+      # - ./tmp:/app/tmp
+      # - ./data:/app/data
+      - tmp:/app/tmp
+      - data:/app/data
+      - ./logs:/app/logs
+      - ./checkpoints:/app/checkpoints
+      # Mount nvidia-persistenced socket so subprocesses can re-init NVML after days of uptime
+      - /var/run/nvidia-persistenced:/var/run/nvidia-persistenced
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      raptor:
+        aliases:
+          - "raptor-training-service"
+
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
+
+
+volumes:
+  tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_AIML_TMP_PATH}"
+
+  data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_AIML_DATA_PATH}"

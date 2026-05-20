@@ -1,0 +1,195 @@
+# Monitoring & Observability Module
+# Aigle Platform v0.2
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: raptor-prometheus
+    hostname: raptor-prometheus
+    user: "0"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "${PORT_PROMETHEUS:-9090}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1'
+
+  # Grafana - Visualization & Dashboards
+  grafana:
+    image: grafana/grafana:12.0.2
+    container_name: raptor-grafana
+    hostname: raptor-grafana
+    ports:
+      - "${PORT_GRAFANA:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./config/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://raptor-grafana:3000
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    depends_on:
+      - prometheus
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.5'
+
+  # Alertmanager - Alert Routing
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: raptor-alertmanager
+    hostname: raptor-alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "${PORT_ALERTMANAGER:-9093}:9093"
+    volumes:
+      - alertmanager-data:/alertmanager
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.25'
+
+  # Node Exporter - Host Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: raptor-node-exporter
+    hostname: raptor-node-exporter
+    user: root
+    privileged: true
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "${PORT_NODE_EXPORTER:-9100}:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: '0.1'
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: raptor-cadvisor
+    hostname: raptor-cadvisor
+    privileged: true
+    ports:
+      - "${PORT_CADVISOR:-8085}:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.25'
+
+  # Loki - Log Aggregation
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: raptor-loki
+    hostname: raptor-loki
+    ports:
+      - "${PORT_LOKI:-3100}:3100"
+    volumes:
+      - loki-data:/loki
+      - ./config/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  # Promtail - Log Collection Agent
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: raptor-promtail
+    hostname: raptor-promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./config/promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    depends_on:
+      - loki
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: '0.1'
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:
+  loki-data:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

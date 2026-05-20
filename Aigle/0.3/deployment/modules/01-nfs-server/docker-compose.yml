@@ -1,0 +1,54 @@
+# NFS Server Module
+# Aigle Platform v0.2 - Module 00
+# Provides NFS v4 server for SeaweedFS volume persistence
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  nfs-server:
+    image: itsthenetwork/nfs-server-alpine:latest
+    container_name: raptor-nfs-server
+    hostname: raptor-nfs-server
+    privileged: true
+    ports:
+      - "${PORT_NFS:-2049}:2049"   # NFS
+      # - "111:111"     # RPC portmapper
+      # - "32765:32765" # RPC status
+      # - "32767:32767" # RPC mountd
+    volumes:
+      - ./config/exports:/etc/exports:ro
+      - nfs-storage:/nfs-share
+      - ./logs:/var/log
+    environment:
+      - SHARED_DIRECTORY=/nfs-share
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        aliases:
+          - "raptor-nfs-server"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rpcinfo", "-p", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+    # Storage limit: 100GB (configured in config/storage.conf)
+    # See /opt/dht/apps/raptor/nfs/STORAGE_SETUP.md for setup instructions
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
+
+volumes:
+  nfs-storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NFS_BASE_PATH}

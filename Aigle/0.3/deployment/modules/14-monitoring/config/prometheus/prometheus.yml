@@ -1,0 +1,102 @@
+# Prometheus Configuration — Raptor 0.3
+# 所有 target 使用 Docker 容器名稱（network: raptor）
+# 標記 [TODO] 的需先在該服務加 prometheus-fastapi-instrumentator 或對應 exporter
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'raptor-platform'
+    env: 'production'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['raptor-alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+  - /etc/prometheus/alert_rules_03.yml
+
+scrape_configs:
+
+  # ── Prometheus 自身 ───────────────────────────────────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── Raptor Application Services ───────────────────────────────────────────
+
+  - job_name: 'raptor-agent-protocol'       # Module 21 ✅ /metrics 已存在
+    static_configs:
+      - targets: ['raptor-agent-protocol:8030']
+    metrics_path: /metrics
+
+  - job_name: 'raptor-api-gateway'          # Module 13 [TODO] 加 prometheus-fastapi-instrumentator
+    static_configs:
+      - targets: ['raptor-api-gateway:8012']
+    metrics_path: /metrics
+
+  - job_name: 'raptor-hybridsearch'         # Module 17 [TODO] 加 prometheus-fastapi-instrumentator
+    static_configs:
+      - targets: ['raptor-hybridsearch-api:8000']
+    metrics_path: /metrics
+
+  - job_name: 'raptor-ai-lifecycle'         # Module 07 [TODO] 加 prometheus-fastapi-instrumentator
+    static_configs:
+      - targets: ['raptor-ai-lifecycle-api:8010']
+    metrics_path: /metrics
+
+  - job_name: 'raptor-query-orchestrator'   # Module 18 [TODO] 加 prometheus-fastapi-instrumentator
+    static_configs:
+      - targets: ['raptor-query-orchestrator:8000']
+    metrics_path: /metrics
+
+  - job_name: 'raptor-chat-service'         # Module 15 [TODO] 加 prometheus-fastapi-instrumentator
+    static_configs:
+      - targets: ['raptor-chat-service:8021']
+    metrics_path: /metrics
+
+  # ── A2A Sub-agents (Module 21) ────────────────────────────────────────────
+  # sub-agent 本身無 /metrics，透過 raptor-agent-protocol 的 pipeline metrics 覆蓋
+
+  # ── Infrastructure — 已有 /metrics ───────────────────────────────────────
+
+  - job_name: 'qdrant'                      # ✅ 內建 /metrics
+    static_configs:
+      - targets: ['raptor-qdrant:6333']
+    metrics_path: /metrics
+
+  - job_name: 'neo4j'                       # ✅ 內建 :2004/metrics
+    static_configs:
+      - targets: ['raptor-neo4j:2004']
+    metrics_path: /metrics
+
+  - job_name: 'lakefs'                      # ✅ 內建 /metrics
+    static_configs:
+      - targets: ['raptor-lakefs:8000']
+    metrics_path: /metrics
+
+  # ── Infrastructure — 需要額外 exporter ───────────────────────────────────
+
+  # [TODO] Redis: 需部署 redis_exporter (oliver006/redis_exporter)
+  # - job_name: 'redis-standalone'
+  #   static_configs:
+  #     - targets: ['raptor-redis-exporter:9121']
+
+  # [TODO] Kafka: 需部署 JMX exporter 或 kafka-exporter
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['raptor-kafka-exporter:9308']
+
+  # [TODO] OpenSearch: 需安裝 prometheus-exporter plugin
+  # - job_name: 'opensearch'
+  #   static_configs:
+  #     - targets: ['raptor-opensearch-node1:9200']
+  #   metrics_path: /_prometheus/metrics
+
+  # [TODO] Keycloak: 需在 Keycloak 啟用 metrics endpoint
+  # - job_name: 'keycloak'
+  #   static_configs:
+  #     - targets: ['raptor-keycloak:9000']
+  #   metrics_path: /metrics

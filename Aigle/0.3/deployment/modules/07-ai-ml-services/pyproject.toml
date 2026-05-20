@@ -1,0 +1,45 @@
+[project]
+name = "ai-model-lifecycle"
+version = "0.1.0"
+description = "AI Model Lifecycle Management Platform"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "python-multipart",
+    "mlflow",
+    "ollama",
+    "lakefs-client",
+    "lakefs-spec",
+    "boto3",
+    "psycopg2-binary",
+    "transformers",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "sentencepiece",
+    "accelerate",
+    "pyarrow>=14.0.0,<18.0.0",
+    "datasets>=2.19.0",
+    "librosa",
+    "opencv-python",
+    "pillow",
+    "soundfile",
+    "pyyaml",
+    "python-dotenv",
+    "httpx",
+    "aiohttp",
+    "requests",
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "aiofiles",
+    "celery",
+    "psutil",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

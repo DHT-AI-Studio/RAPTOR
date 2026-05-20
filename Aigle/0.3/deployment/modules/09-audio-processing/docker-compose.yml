@@ -1,0 +1,281 @@
+# Audio Processing Module
+# Aigle Platform v0.2
+# Full audio pipeline. WORKER_TYPE selects the service.
+# GPU required for: audio-recognizer, audio-diarization, audio-classifier
+# Deploy: docker compose -f docker-compose.yml up -d
+
+x-worker-common: &worker-common
+  image: raptor/media-worker:0.3
+  environment: &worker-env
+    KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+    REDIS_HOST: ${REDIS_HOST:-raptor-redis-standalone}
+    REDIS_PORT: ${REDIS_PORT:-6379}
+    REDIS_PASSWORD: ${REDIS_PASSWORD}
+    INFERENCE_URL: ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
+    INFERENCE_MODEL: ${INFERENCE_MODEL:-qwen3.5:9b}
+    HYBRID_SEARCH_INGEST_URL: ${HYBRID_SEARCH_INGEST_URL:-http://raptor-hybridsearch-api:8000/api/v1/ingest/file}
+    HF_TOKEN: ${HF_TOKEN}
+    HF_HOME: /hf_cache
+    TZ: ${TIMEZONE:-Asia/Taipei}
+  volumes:
+    - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+    - media-tmp:/tmp/media_processing
+  restart: unless-stopped
+  networks:
+    - raptor
+
+services:
+  kafka-init-topics:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-audio-kafka-init
+    networks:
+      - raptor
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+    entrypoint: >
+      /bin/bash -c "
+        BS=$$(echo $$KAFKA_BOOTSTRAP_SERVERS | cut -d',' -f1);
+        echo \"Waiting for Kafka at $$BS...\";
+        until kafka-topics --bootstrap-server $$BS --list > /dev/null 2>&1; do
+          sleep 5;
+        done;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-processing-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-processing-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-analysis-requests --partitions 12 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-analysis-results --partitions 12 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-classifier-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-classifier-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-diarization-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-diarization-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-recognizer-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-recognizer-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-summary-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-summary-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-indexer-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-indexer-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-processing-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-analysis-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-classifier-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-diarization-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-recognizer-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-summary-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic audio-indexer-dlq --partitions 1 --replication-factor 3;
+        echo 'Audio topics ready.';
+      "
+    restart: "no"
+
+  # ==========================================================
+  # CPU-only services
+  # ==========================================================
+
+  audio-orchestrator:
+    <<: *worker-common
+    container_name: raptor-audio-orchestrator
+    hostname: raptor-audio-orchestrator
+    depends_on:
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_orchestrator
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-orchestrator
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_ORCHESTRATOR_MEMORY_LIMIT:-2g}
+          cpus: '${AUDIO_ORCHESTRATOR_CPU_LIMIT:-1}'
+
+  audio-analysis:
+    <<: *worker-common
+    container_name: raptor-audio-analysis
+    hostname: raptor-audio-analysis
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_analysis
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-analysis
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_ANALYSIS_MEMORY_LIMIT:-4g}
+          cpus: '${AUDIO_ANALYSIS_CPU_LIMIT:-2}'
+
+  audio-summary:
+    <<: *worker-common
+    container_name: raptor-audio-summary
+    hostname: raptor-audio-summary
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_summary
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-summary
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_SUMMARY_MEMORY_LIMIT:-4g}
+          cpus: '${AUDIO_SUMMARY_CPU_LIMIT:-2}'
+
+  audio-indexer:
+    <<: *worker-common
+    container_name: raptor-audio-indexer
+    hostname: raptor-audio-indexer
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_indexer
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-indexer
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_INDEXER_MEMORY_LIMIT:-2g}
+          cpus: '${AUDIO_INDEXER_CPU_LIMIT:-1}'
+
+  audio-tts:
+    <<: *worker-common
+    container_name: raptor-audio-tts
+    hostname: raptor-audio-tts
+    profiles: [tts]  # 暫不啟用：此功能目前不需要，需要時執行 docker compose --profile tts up -d audio-tts
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_tts
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-tts
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_TTS_MEMORY_LIMIT:-2g}
+          cpus: '${AUDIO_TTS_CPU_LIMIT:-1}'
+
+  # ==========================================================
+  # GPU services (torch.cuda.is_available() auto-detects GPU)
+  # Assign different CUDA_VISIBLE_DEVICES to avoid VRAM conflicts
+  # ==========================================================
+
+  audio-recognizer:
+    <<: *worker-common
+    container_name: raptor-audio-recognizer
+    hostname: raptor-audio-recognizer
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_recognizer
+      CUDA_VISIBLE_DEVICES: ${AUDIO_RECOGNIZER_GPU:-0}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      AUDIO_SYNC_API_PORT: ${AUDIO_SYNC_API_PORT:-8019}
+      DIARIZATION_SYNC_URL: http://raptor-audio-diarization:8029
+      CLASSIFIER_SYNC_URL: http://raptor-audio-classifier:8039
+      CROSS_SERVICE_TIMEOUT: ${CROSS_SERVICE_TIMEOUT:-600}
+    ports:
+      - "${AUDIO_SYNC_API_PORT:-8019}:${AUDIO_SYNC_API_PORT:-8019}"
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-recognizer
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_RECOGNIZER_MEMORY_LIMIT:-12g}
+          cpus: '${AUDIO_RECOGNIZER_CPU_LIMIT:-4}'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${AUDIO_RECOGNIZER_GPU_COUNT:-1}
+              capabilities: [gpu]
+
+  audio-diarization:
+    <<: *worker-common
+    container_name: raptor-audio-diarization
+    hostname: raptor-audio-diarization
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_diarization
+      CUDA_VISIBLE_DEVICES: ${AUDIO_DIARIZATION_GPU:-0}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      AUDIO_DIARIZATION_SYNC_PORT: ${AUDIO_DIARIZATION_SYNC_PORT:-8029}
+    ports:
+      - "${AUDIO_DIARIZATION_SYNC_PORT:-8029}:${AUDIO_DIARIZATION_SYNC_PORT:-8029}"
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-diarization
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_DIARIZATION_MEMORY_LIMIT:-12g}
+          cpus: '${AUDIO_DIARIZATION_CPU_LIMIT:-4}'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${AUDIO_DIARIZATION_GPU_COUNT:-1}
+              capabilities: [gpu]
+
+  audio-classifier:
+    <<: *worker-common
+    container_name: raptor-audio-classifier
+    hostname: raptor-audio-classifier
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: audio_classifier
+      CUDA_VISIBLE_DEVICES: ${AUDIO_CLASSIFIER_GPU:-2}
+      AUDIO_CLASSIFIER_SYNC_PORT: ${AUDIO_CLASSIFIER_SYNC_PORT:-8039}
+    ports:
+      - "${AUDIO_CLASSIFIER_SYNC_PORT:-8039}:${AUDIO_CLASSIFIER_SYNC_PORT:-8039}"
+    volumes:
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+      - media-tmp:/tmp/media_processing
+      - ${PANNS_CACHE_PATH:-~/.cache/panns_data}:/root/panns_data
+    networks:
+      raptor:
+        aliases:
+          - raptor-audio-classifier
+    deploy:
+      resources:
+        limits:
+          memory: ${AUDIO_CLASSIFIER_MEMORY_LIMIT:-8g}
+          cpus: '${AUDIO_CLASSIFIER_CPU_LIMIT:-2}'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${AUDIO_CLASSIFIER_GPU_COUNT:-1}
+              capabilities: [gpu]
+
+  audio-cleanup:
+    image: busybox:1.36.1
+    container_name: raptor-audio-cleanup
+    volumes:
+      - media-tmp:/tmp/media_processing
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          find /tmp/media_processing/audio_processing -mindepth 2 -maxdepth 2 -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+          sleep 3600
+        done
+    restart: unless-stopped
+    networks:
+      - raptor
+
+volumes:
+  hf_cache: {}
+  media-tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_MEDIA_TMP_PATH}"
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

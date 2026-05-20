@@ -1,0 +1,14 @@
+aioboto3==15.0.0
+APScheduler==3.11.0
+fastapi==0.116.1
+pydantic==2.11.7
+pydantic_settings==2.10.1
+python_magic==0.4.27
+qdrant_client==1.17.1
+opensearch-py[async]==3.1.0
+uvicorn==0.35.0
+python-multipart==0.0.20
+asyncpg==0.31.0
+lakefs==0.11.1
+requests==2.32.3
+redis>=5.0.0

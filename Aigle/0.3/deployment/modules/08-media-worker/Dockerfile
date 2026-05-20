@@ -1,0 +1,75 @@
+FROM nvidia/cuda:12.6.0-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# System packages
+# libcudnn8: cuDNN 8 runtime needed by ctranslate2 4.4.x (compiled for cuDNN 8, not 9)
+RUN apt-get update -qq && \
+    apt-get install -y \
+      python3.10 python3-pip python3.10-dev \
+      libgl1 libglib2.0-0 libsm6 libxext6 \
+      ffmpeg libsndfile1 \
+      poppler-utils tesseract-ocr \
+      curl wget patchelf git \
+      libcudnn8 && \
+    rm -rf /var/lib/apt/lists/* && \
+    ln -sf /usr/bin/python3.10 /usr/bin/python && \
+    ln -sf /usr/bin/pip3 /usr/bin/pip
+
+# PyTorch GPU (cu126)
+RUN pip install --no-cache-dir \
+      torch==2.7.1 \
+      torchaudio==2.7.1 \
+      torchvision==0.22.1 \
+      --index-url https://download.pytorch.org/whl/cu126
+
+# PaddlePaddle GPU (cu123) — wheel is ~3.5 GB, needs extended socket timeout
+RUN pip install --no-cache-dir --timeout 600 paddlepaddle-gpu==3.1.0 \
+      -i https://www.paddlepaddle.org.cn/packages/stable/cu123/ \
+      --extra-index-url https://pypi.org/simple
+
+# Remaining dependencies
+COPY 08-media-worker/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# PaddleOCR (separate step to avoid topological sort resolver bug)
+RUN pip install --no-cache-dir "paddleocr[all]"
+
+# EasyOCR models (baked in at build time to avoid runtime downloads)
+RUN python3 -c "import easyocr; easyocr.Reader(['ch_tra', 'en'], gpu=False)"
+
+# PANNS metadata (baked in at build time)
+RUN mkdir -p /root/panns_data && \
+    curl -L -o /root/panns_data/class_labels_indices.csv \
+      https://raw.githubusercontent.com/qiuqiangkong/audioset_tagging_cnn/master/metadata/class_labels_indices.csv
+
+# patchelf ctranslate2 (removes execstack warning from whisperx)
+RUN CT2_LIB=$(find / -name "libctranslate2*.so*" 2>/dev/null | head -n 1) && \
+    [ -n "$CT2_LIB" ] && patchelf --clear-execstack "$CT2_LIB" || true
+
+# cuDNN v8 symlinks (pyannote.audio expects libcudnn_ops_infer.so.8 etc.)
+# nvidia/cuda:12.6.0-cudnn-runtime installs cuDNN 9 into /usr/lib/x86_64-linux-gnu/,
+# so find by filename rather than by the old nvidia/cudnn/lib directory path.
+RUN CUDNN_LIB=$(find /usr/lib -name "libcudnn_ops.so.9" 2>/dev/null | head -n 1 | xargs -r dirname) && \
+    if [ -n "$CUDNN_LIB" ]; then \
+      cd "$CUDNN_LIB" && \
+      [ -f libcudnn_ops_infer.so.8 ] || ln -sf libcudnn_ops.so.9  libcudnn_ops_infer.so.8 ; \
+      [ -f libcudnn_cnn_infer.so.8 ] || ln -sf libcudnn_cnn.so.9  libcudnn_cnn_infer.so.8 ; \
+      [ -f libcudnn_adv_infer.so.8 ] || ln -sf libcudnn_adv.so.9  libcudnn_adv_infer.so.8 ; \
+      [ -f libcudnn.so.8 ]           || ln -sf libcudnn.so.9       libcudnn.so.8 ; \
+    else echo "ERROR: cuDNN 9 libs not found, build aborted" && exit 1 ; fi
+
+# Copy all service code (build context = deployment/modules/)
+COPY 09-audio-processing/worker/services/ /app/services/
+COPY 10-image-processing/worker/services/ /app/services/
+COPY 11-video-processing/worker/services/ /app/services/
+COPY 12-document-processing/worker/services/ /app/services/
+COPY 08-media-worker/main.py /app/main.py
+
+ENV PYTHONPATH=/app
+
+CMD ["python", "main.py"]

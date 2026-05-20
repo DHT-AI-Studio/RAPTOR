@@ -1,0 +1,203 @@
+services:
+
+  # ── Orchestrator (A2A + REST /query entry point) ──────────────────────────
+  agent-protocol:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/agent-protocol:0.3
+    container_name: raptor-agent-protocol
+    hostname: raptor-agent-protocol
+    environment:
+      AGENT_ID:       ${AGENT_ID:-raptor-agent}
+      AGENT_NAME:     ${AGENT_NAME:-Raptor Intelligence Agent}
+      AGENT_ENDPOINT: ${AGENT_ENDPOINT:-http://raptor-agent-protocol:8030}
+      TZ:             ${TIMEZONE:-Asia/Taipei}
+      # Redis (peer discovery)
+      REDIS_HOST:     ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT:     ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB:       ${REDIS_DB:-0}
+      AGENT_TTL:      ${AGENT_TTL:-300}
+      # A2A agent URLs
+      VECTOR_AGENT_URL:   ${VECTOR_AGENT_URL:-http://raptor-vector-agent:52001}
+      KEYWORD_AGENT_URL:  ${KEYWORD_AGENT_URL:-http://raptor-keyword-agent:52002}
+      GRAPHRAG_AGENT_URL: ${GRAPHRAG_AGENT_URL:-http://raptor-graphrag-agent:52003}
+      TKG_AGENT_URL:      ${TKG_AGENT_URL:-http://raptor-tkg-agent:52004}
+      RERANKER_AGENT_URL: ${RERANKER_AGENT_URL:-http://raptor-reranker-agent:52005}
+      # LLM
+      OLLAMA_HOST:    ${OLLAMA_HOST:-http://192.168.157.135:11434}
+      OLLAMA_MODEL:   ${OLLAMA_MODEL:-qwen2.5}
+      # Module 07 for LLM answer
+      INFERENCE_URL:  ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
+      # Module 04 for video presigned URLs
+      ASSET_MANAGEMENT_URL: ${ASSET_MANAGEMENT_URL:-http://raptor-asset-management:8000}
+      # Module 18 Query Orchestrator (intent classification)
+      QUERY_ORCHESTRATOR_URL: ${QUERY_ORCHESTRATOR_URL:-http://raptor-query-orchestrator:8000}
+    ports:
+      - "${PORT_AGENT_PROTOCOL:-8030}:8030"
+    depends_on:
+      vector-agent:
+        condition: service_healthy
+      keyword-agent:
+        condition: service_healthy
+      graphrag-agent:
+        condition: service_healthy
+      tkg-agent:
+        condition: service_healthy
+      reranker-agent:
+        condition: service_healthy
+    networks:
+      raptor:
+        aliases:
+          - "raptor-agent-protocol"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8030/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Vector Search Agent ───────────────────────────────────────────────────
+  vector-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: raptor/rag-agent:0.3
+    container_name: raptor-vector-agent
+    hostname: raptor-vector-agent
+    command: python vector_search_agent.py
+    environment:
+      HYBRID_SEARCH_URL: ${HYBRID_SEARCH_URL:-http://raptor-hybridsearch-api:8000}
+      TZ:                ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_VECTOR_AGENT:-52001}:52001"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-vector-agent"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:52001/.well-known/agent.json"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Keyword Search Agent ──────────────────────────────────────────────────
+  keyword-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: raptor/rag-agent:0.3
+    container_name: raptor-keyword-agent
+    hostname: raptor-keyword-agent
+    command: python keyword_search_agent.py
+    environment:
+      HYBRID_SEARCH_URL: ${HYBRID_SEARCH_URL:-http://raptor-hybridsearch-api:8000}
+      TZ:                ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_KEYWORD_AGENT:-52002}:52002"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-keyword-agent"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:52002/.well-known/agent.json"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Graph RAG Agent ───────────────────────────────────────────────────────
+  graphrag-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: raptor/rag-agent:0.3
+    container_name: raptor-graphrag-agent
+    hostname: raptor-graphrag-agent
+    command: python graphrag_agent.py
+    environment:
+      GRAPH_SERVICE_URL: ${GRAPH_SERVICE_URL:-http://raptor-graph-service:8843}
+      OLLAMA_HOST:       ${OLLAMA_HOST:-http://192.168.157.135:11434}
+      OLLAMA_MODEL:      ${OLLAMA_MODEL:-qwen2.5}
+      TZ:                ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_GRAPHRAG_AGENT:-52003}:52003"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-graphrag-agent"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:52003/.well-known/agent.json"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── TKG Agent ─────────────────────────────────────────────────────────────
+  tkg-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: raptor/rag-agent:0.3
+    container_name: raptor-tkg-agent
+    hostname: raptor-tkg-agent
+    command: python tkg_agent.py
+    environment:
+      GRAPH_SERVICE_URL: ${GRAPH_SERVICE_URL:-http://raptor-graph-service:8843}
+      OLLAMA_HOST:       ${OLLAMA_HOST:-http://192.168.157.135:11434}
+      OLLAMA_MODEL:      ${OLLAMA_MODEL:-qwen2.5}
+      TZ:                ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_TKG_AGENT:-52004}:52004"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-tkg-agent"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:52004/.well-known/agent.json"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Reranker Agent ────────────────────────────────────────────────────────
+  reranker-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: raptor/rag-agent:0.3
+    container_name: raptor-reranker-agent
+    hostname: raptor-reranker-agent
+    command: python reranker_agent.py
+    environment:
+      HYBRID_SEARCH_URL: ${HYBRID_SEARCH_URL:-http://raptor-hybridsearch-api:8000}
+      HF_HOME:           /root/.cache/huggingface
+      HF_TOKEN:          ${HF_TOKEN:-}
+      TZ:                ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_RERANKER_AGENT:-52005}:52005"
+    volumes:
+      - ${HF_CACHE_PATH}:/root/.cache/huggingface
+    networks:
+      raptor:
+        aliases:
+          - "raptor-reranker-agent"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:52005/.well-known/agent.json"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

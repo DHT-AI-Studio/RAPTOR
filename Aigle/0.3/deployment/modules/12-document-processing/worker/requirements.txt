@@ -1,0 +1,44 @@
+# Document Processing Worker Dependencies
+# GPU: InternVL (document_analysis_service) — requires CUDA
+
+# Kafka / async
+aiokafka==0.12.0
+aiofiles==24.1.0
+aiohttp==3.12.15
+
+# Document parsing
+PyMuPDF==1.26.4
+docling==2.54.0
+pandas==2.3.3
+zhconv==1.4.3
+
+# VLM / OCR  (document_analysis_service)
+# paddlepaddle-gpu is installed separately in Dockerfile (custom index)
+paddleocr==3.2.0
+transformers==4.51.3
+einops
+timm
+torch==2.7.1
+torchvision==0.22.1
+
+# Utilities
+numpy==1.26.4
+Pillow==11.3.0
+psutil==6.1.1
+Requests==2.32.5
+python-dotenv==1.1.1
+redis
+platformdirs
+cffi
+jsonpatch
+
+# Neo4j (document_graph_service)
+neo4j>=5.0,<6.0
+
+# Sync API (document_analysis_service)
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+python-multipart>=0.0.9
+
+# Open Chinese Convert (for text processing)
+opencc-python-reimplemented==0.1.7

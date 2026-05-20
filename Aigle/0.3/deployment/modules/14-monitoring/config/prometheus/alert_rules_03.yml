@@ -1,0 +1,66 @@
+groups:
+  - name: raptor_03_alerts
+    rules:
+
+      - alert: APILatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency (p95 > 2s)"
+          description: "Service {{ $labels.service }} p95 latency is {{ $value }}s"
+
+      - alert: KafkaConsumerLag
+        expr: |
+          sum(kafka_consumer_group_lag) by (group, topic) > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag > 1000"
+          description: "Group {{ $labels.group }} on topic {{ $labels.topic }} lag = {{ $value }}"
+
+      - alert: GPUMemoryPressure
+        expr: |
+          (nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU memory usage > 90%"
+          description: "GPU {{ $labels.gpu }} memory utilisation = {{ $value }}%"
+
+      - alert: QdrantSearchError
+        expr: |
+          sum(rate(http_requests_total{status=~"5..",service=~"qdrant.*"}[5m]))
+          /
+          sum(rate(http_requests_total{service=~"qdrant.*"}[5m]))
+          > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Qdrant search error rate > 1%"
+          description: "Error rate = {{ $value | humanizePercentage }}"
+
+      - alert: OpenSearchDown
+        expr: up{job="opensearch"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpenSearch node is down"
+          description: "OpenSearch target {{ $labels.instance }} is unreachable"
+
+      - alert: Neo4jDown
+        expr: up{job="neo4j"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Neo4j node is down"
+          description: "Neo4j target {{ $labels.instance }} is unreachable"
