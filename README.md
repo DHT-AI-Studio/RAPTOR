@@ -153,7 +153,13 @@ For detailed release notes, see [CHANGELOG.md](CHANGELOG.md).
 
 ## 📦 Installation
 
-**Prerequisites:** Docker Engine 24.0+, Docker Compose v2.20+, NVIDIA Container Toolkit (for GPU modules), GPU driver supporting CUDA 12.8+ for the media-processing stack.
+**Prerequisites** (full details, host sizing, and port matrix: [`Aigle/0.3/BUILD.md`](Aigle/0.3/BUILD.md) §1):
+
+- **Software**: Docker Engine 24.0+, Docker Compose v2.20+, Python 3.10+, NVIDIA Container Toolkit on GPU hosts
+- **GPU**: NVIDIA driver supporting CUDA 12.8+ (media stack targets sm_120 / Blackwell); 24 GB+ VRAM, 36 GB+ recommended for video processing (InternVL)
+- **Inference servers**: an **Ollama** server (port 11434) reachable from the cluster — it may be an existing external server; optionally a **vLLM** OpenAI-compatible server as an alternative LLM backend (vLLM is not bundled)
+- **Storage**: an NFSv4 export (module 01 provides a containerized NFS server, or use a native one) mounted by object-storage, AI-ML services, and media workers
+- **Network**: all hosts routable with static IPs, synchronized clocks, and firewall openings per the BUILD.md port matrix; single-host evaluation and multi-host production topologies are both supported
 
 ```bash
 # Clone the repository
@@ -242,7 +248,7 @@ For the complete endpoint list, request/response schemas, and Python client exam
 ### Available Documentation
 
 - 🧩 **[Module Reference (0.3)](Aigle/0.3/README.md)** - 21-module architecture, testing status, service ports
-- 🛠️ **[Build & Source Maintenance Guide (0.3)](Aigle/0.3/BUILD.md)** - Build system, configuration, release rules
+- 🛠️ **[Setup, Build & Configuration Guide (0.3)](Aigle/0.3/BUILD.md)** - Prerequisites, .env configuration, single/multi-host deployment, source maintenance
 - 📝 **[API Reference (0.3)](Aigle/0.3/API_REFERENCE.md)** - Complete endpoint documentation with examples
 - 🚀 **[Quick Start Guide](#quick-start)** - Get started in minutes
 - 📖 **[System Design & Architecture](Aigle/0.1/CIE_System_Design_and_Architecture_1.8.pdf)** - High-level system design

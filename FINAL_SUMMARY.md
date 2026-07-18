@@ -121,7 +121,7 @@ Details: README.md § Future Development Roadmap
 - **Aigle/0.3/raptor-demo-frontend/README.md** — demo UI usage
 
 ### For Operators
-- **Aigle/0.3/BUILD.md** — build system, configuration, source-maintenance rules
+- **Aigle/0.3/BUILD.md** — prerequisites, .env configuration, single/multi-host setup, source-maintenance rules
 - **Aigle/0.3/README.md** — module reference, testing status, service ports
 - **Aigle/0.3/deployment/README.md** — dependency graph and `build.py` reference
 

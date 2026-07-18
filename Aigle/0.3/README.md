@@ -2,7 +2,7 @@
 
 Multimedia intelligence platform for processing video, audio, documents, and images through AI/ML pipelines. Provides hybrid search, RAG question-answering, knowledge graph reasoning, and A2A agent orchestration. Built entirely in Python with Docker microservices.
 
-API Reference: [`API_REFERENCE.md`](API_REFERENCE.md) · Build & Source Maintenance: [`BUILD.md`](BUILD.md) · Demo Frontend: [`raptor-demo-frontend/`](raptor-demo-frontend/)
+API Reference: [`API_REFERENCE.md`](API_REFERENCE.md) · Setup, Build & Configuration: [`BUILD.md`](BUILD.md) · Demo Frontend: [`raptor-demo-frontend/`](raptor-demo-frontend/)
 
 ---
 
