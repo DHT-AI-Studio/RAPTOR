@@ -37,6 +37,12 @@ video-analysis
 audio-transcription
 metadata-generation
 knowledge-graph
+rag
+retrieval-augmented-generation
+graphrag
+ai-agents
+kafka
+docker
 python
 kubernetes
 apache2
@@ -84,7 +90,7 @@ Transform passive media storage into an intelligent knowledge platform.
 
 ## What is RAPTOR?
 
-RAPTOR (Rapid AI-Powered Text and Object Recognition) is a Content Insight Engine 
+RAPTOR (Robust AI-Powered Toolkit for Operational Robots) is a Content Insight Engine 
 that revolutionizes digital asset management through AI-native architecture, 
 multi-modal understanding, and semantic intelligence.
 
@@ -98,18 +104,21 @@ multi-modal understanding, and semantic intelligence.
 ## Core Capabilities
 
 ✨ Multi-modal content analysis (video, audio, image, text)
-🔍 Semantic search with context understanding
-🤖 LLM-powered metadata generation
-🎯 Entity recognition and extraction
-📊 Actionable insights and analytics
-☸️  Production-ready, Kubernetes-native
-🔒 Enterprise-grade security
+🔍 Hybrid search — BM25 + vector with RRF fusion and cross-encoder rerank
+🕸️ Knowledge graph, GraphRAG, and temporal reasoning (Neo4j)
+🤖 A2A agent orchestration and RAG question-answering
+🎯 LLM-powered metadata generation and entity extraction
+🖥️ Demo web frontend for upload, video search, and history
+🔒 Keycloak-backed authentication and authorization
 
 ## Quick Start
 
 ```bash
-pip install raptor-ai
-raptor serve
+git clone https://github.com/DHT-AI-Studio/RAPTOR.git
+cd RAPTOR/Aigle/0.3
+# configure .env files from .env.example (see BUILD.md), then:
+bash deploy.sh -m 08 --build   # shared GPU base image
+bash deploy.sh                 # start all 21 modules
 ```
 
 Developed by DHT Taiwan Team | Apache 2.0 License
@@ -181,15 +190,17 @@ Enable:
 
 ### Milestones to Create
 
-1. **Aigle 0.1.0-beta** (Current)
-   - Due date: Release date
-   - Description: First community beta release
+1. **Aigle 0.1.0-beta** — ✅ Released (October 2025): first community beta
 
-2. **Aigle 0.1.1**
-   - Description: Bug fixes and minor improvements
+2. **Aigle 0.2** — ✅ Released (February 2026): Kafka media pipelines, MLflow lifecycle, Qdrant search
 
-3. **Aigle 0.2.0**
-   - Description: Performance improvements and new features
+3. **Aigle 0.3** — ✅ Released (June 2026, tag `v0.3`): 21-module deployment, hybrid search, GraphRAG, A2A agents, demo frontend
+
+4. **v0.4** (Aug 2026) — MCP integration, Memory Services, Personal Database Service (ArcadeDB)
+
+5. **v0.5** (Sep 2026) — gRPC API interface, content moderation, Guardrail Service, GDPR/CCPA, real-time audio
+
+6. **v1.0** (Q4 2026) — Production ready: Kubernetes, ELK Stack, 99.9% SLA
 
 ### GitHub Actions Secrets
 
@@ -202,52 +213,36 @@ Add these secrets for CI/CD (if needed):
 
 ### Release Template
 
+Latest published release: **[v0.3 — RAPTOR Aigle 0.3 (Community Beta)](https://github.com/DHT-AI-Studio/RAPTOR/releases/tag/v0.3)**, generated from the `[Aigle 0.3]` section of `MAIN_DOCUMENTATION/CHANGELOG.md`.
+
 When creating releases, use this template:
 
 ```markdown
-## RAPTOR Aigle 0.1.0-beta 🎉
+## RAPTOR Aigle <version> (Community Beta)
 
-First open-source beta release of the RAPTOR Content Insight Engine!
+**Released: <Month Year>**
 
-### 🎯 Highlights
+### Added / Changed / Known Limitations
 
-- Multi-modal content processing (video, audio, image, text)
-- Semantic search with vector embeddings
-- AI-powered metadata generation
-- LLM orchestration framework
-- Production-ready architecture
+<copy the release section from MAIN_DOCUMENTATION/CHANGELOG.md>
 
-### 📦 Installation
+### Roadmap
 
-```bash
-git clone https://github.com/DHT-AI-Studio/RAPTOR.git
-cd RAPTOR/Aigle/0.1
-pip install -r requirements.txt
-pip install -e .
-```
-
-### 📚 Documentation
-
-- [Getting Started](docs/getting-started.md)
-- [API Reference](docs/api-reference.md)
-- [Configuration Guide](docs/configuration.md)
-
-### 🐛 Known Issues
-
-See [CHANGELOG.md](CHANGELOG.md) for known limitations.
-
-### 🤝 Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### 📝 License
-
-Apache 2.0 - See [LICENSE](LICENSE) file
+<current roadmap table from README.md "Release Timeline">
 
 ---
 
-Developed by DHT Taiwan Team | [DHT Solutions](https://dhtsolution.com/)
+**Full changelog:** [MAIN_DOCUMENTATION/CHANGELOG.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/MAIN_DOCUMENTATION/CHANGELOG.md)
+**Build guide:** [Aigle/<version>/BUILD.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.3/BUILD.md)
+**API reference:** [Aigle/<version>/API_REFERENCE.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.3/API_REFERENCE.md)
 ```
+
+Release checklist (see also `Aigle/0.3/BUILD.md` §5 Source Maintenance):
+
+1. `.env.example` in sync with `.env` keys for every module; no secrets or internal IPs in the tree
+2. `MAIN_DOCUMENTATION/CHANGELOG.md` updated; README version badge, evaluation API, and Release Timeline updated
+3. Commit via a `release/*` branch, merge to `main`, push
+4. Annotated tag `vX.Y` on the merge commit; `gh release create vX.Y` from the changelog section
 
 ### Discussion Categories
 
@@ -305,7 +300,7 @@ By @DHT_Taiwan
 ### LinkedIn Description
 
 ```
-RAPTOR (Rapid AI-Powered Text and Object Recognition) is an open-source 
+RAPTOR (Robust AI-Powered Toolkit for Operational Robots) is an open-source 
 Content Insight Engine that transforms passive media storage into an 
 intelligent knowledge platform.
 
