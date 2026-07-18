@@ -26,7 +26,8 @@ from config import (
     KAFKA_TOPIC_DIARIZATION_RESULT,
     STATE_TIMEOUT,
     MAX_RETRY_COUNT,
-    SERVICE_NAME
+    SERVICE_NAME,
+    AUDIO_MERGED_RESULTS_DIR,
 )
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 from dotenv import load_dotenv
@@ -142,9 +143,25 @@ class AudioAnalysisKafkaHandler:
             logger.info(f"Audio conversion completed: {audio_file_path}")
             logger.info(f"Audio info: duration={audio_info.get('duration', 0):.2f}s, "
                        f"sample_rate={audio_info.get('sample_rate', 0)}")
-            
+
+            # 按 moments 切割 ASR 音頻分段（若有）
+            moments = parameters.get("moments", [])
+            chunk_infos = []  # [{start_offset, path}, ...]
+            if moments:
+                base = os.path.splitext(audio_file_path)[0]
+                for i, moment in enumerate(moments):
+                    start = float(moment.get("start_time", 0))
+                    end = float(moment.get("end_time", 0))
+                    if end > start:
+                        chunk_path = f"{base}_asr_chunk_{i}.wav"
+                        self.audio_converter.extract_audio_segment(audio_file_path, start, end, chunk_path)
+                        chunk_infos.append({"start_offset": start, "path": chunk_path})
+                logger.info(f"Extracted {len(chunk_infos)} ASR audio chunks for: {request_id}")
+
             # 保存處理狀態
             correlation_id = message["correlation_id"]
+            cleanup_paths = [audio_file_path] if audio_file_path != file_path else []
+            cleanup_paths += [c["path"] for c in chunk_infos]
             state = {
                 "original_message": message,
                 "step": "audio_conversion_done",
@@ -153,14 +170,17 @@ class AudioAnalysisKafkaHandler:
                 "classifier_result": None,
                 "recognizer_result": None,
                 "diarization_result": None,
-                "temp_cleanup_paths": [audio_file_path] if audio_file_path != file_path else [],
-                "created_at": time.time() 
+                "temp_cleanup_paths": cleanup_paths,
+                "recognizer_chunks_total": len(chunk_infos),
+                "recognizer_chunk_results": [],
+                "recognizer_chunk_request_map": {},
+                "created_at": time.time()
             }
             if not self.redis_manager.set_state(correlation_id, state):
                 raise Exception("Failed to save state to Redis")
-            
-            # 並行發送三個分析請求
-            await self.send_parallel_analysis_requests(message, producer, audio_file_path, audio_info)
+
+            # 並行發送分析請求（recognizer 按 chunk 分段送）
+            await self.send_parallel_analysis_requests(message, producer, audio_file_path, audio_info, chunk_infos)
             
             logger.info(f"Audio analysis requests sent for: {request_id}")
             
@@ -173,70 +193,74 @@ class AudioAnalysisKafkaHandler:
         original_message: Dict[str, Any],
         producer: AIOKafkaProducer,
         audio_file_path: str,
-        audio_info: Dict[str, Any]
+        audio_info: Dict[str, Any],
+        chunk_infos: Optional[list] = None
     ):
-        """並行發送三個音頻分析請求"""
+        """並行發送音頻分析請求。
+        classifier/diarization 送全段；recognizer 若有 chunk_infos 則送 N 段，否則送全段。
+        """
         payload = original_message["payload"]
         parameters = payload["parameters"]
         primary_filename = parameters.get("primary_filename")
-        
-        # 基本參數 - 根據各服務期望的格式
+        correlation_id = original_message["correlation_id"]
+
         base_parameters = {
             "primary_filename": primary_filename,
-            "file_path": audio_file_path,  # 這是各服務期望的參數名
+            "file_path": audio_file_path,
             "audio_info": audio_info,
             "asset_path": parameters.get("asset_path"),
             "version_id": parameters.get("version_id")
         }
-        
-        # 創建三個分析請求 - 使用各服務期望的 action 名稱
-        requests = [
-            {
-                "topic": KAFKA_TOPIC_CLASSIFIER_REQUEST,
-                "target_service": "audio_classifier_service",
-                "action": "audio_classification",  # classifier 期望的 action
-                "parameters": {
-                    **base_parameters, 
-                    "classification_type": "segmented",  # classifier 特定參數
-                    "top_k": 10
-                }
-            },
-            {
-                "topic": KAFKA_TOPIC_RECOGNIZER_REQUEST,
-                "target_service": "audio_recognizer_service", 
-                "action": "audio_recognition",  # recognizer 期望的 action
-                "parameters": base_parameters
-            },
-            {
-                "topic": KAFKA_TOPIC_DIARIZATION_REQUEST,
-                "target_service": "audio_diarization_service",
-                "action": "audio_diarization",  # diarization 期望的 action
-                "parameters": {
-                    **base_parameters,
-                    "diarization_type": "basic",  # diarization 特定參數
-                    "min_speakers": 1,
-                    "max_speakers": 10
-                }
-            }
-        ]
-        
-        # 並行發送請求
+
         tasks = []
-        for req in requests:
-            request_message = MessageBuilder.create_processing_request(
+
+        # Classifier — 全段
+        classifier_msg = MessageBuilder.create_processing_request(
+            original_message=original_message,
+            target_service="audio_classifier_service",
+            action="audio_classification",
+            parameters={**base_parameters, "classification_type": "segmented", "top_k": 10},
+            file_path=audio_file_path
+        )
+        tasks.append(producer.send(KAFKA_TOPIC_CLASSIFIER_REQUEST, classifier_msg))
+
+        # Diarization — 全段
+        diarization_msg = MessageBuilder.create_processing_request(
+            original_message=original_message,
+            target_service="audio_diarization_service",
+            action="audio_diarization",
+            parameters={**base_parameters, "diarization_type": "basic", "min_speakers": 1, "max_speakers": 10},
+            file_path=audio_file_path
+        )
+        tasks.append(producer.send(KAFKA_TOPIC_DIARIZATION_REQUEST, diarization_msg))
+
+        # Recognizer — 分段或全段
+        if chunk_infos:
+            chunk_map = {}
+            for chunk in chunk_infos:
+                req = MessageBuilder.create_processing_request(
+                    original_message=original_message,
+                    target_service="audio_recognizer_service",
+                    action="audio_recognition",
+                    parameters={**base_parameters, "file_path": chunk["path"]},
+                    file_path=chunk["path"]
+                )
+                chunk_map[req["payload"]["request_id"]] = chunk["start_offset"]
+                tasks.append(producer.send(KAFKA_TOPIC_RECOGNIZER_REQUEST, req))
+            # 記錄 request_id → start_offset 對應
+            self.redis_manager.update_state(correlation_id, {"recognizer_chunk_request_map": chunk_map})
+            logger.info(f"Sending {len(chunk_infos)} chunked ASR requests for: {payload['request_id']}")
+        else:
+            recognizer_msg = MessageBuilder.create_processing_request(
                 original_message=original_message,
-                target_service=req["target_service"],
-                action=req["action"],
-                parameters=req["parameters"],
+                target_service="audio_recognizer_service",
+                action="audio_recognition",
+                parameters=base_parameters,
                 file_path=audio_file_path
             )
-            
-            task = producer.send(req["topic"], request_message)
-            tasks.append(task)
-        
-        # 等待所有請求發送完成
+            tasks.append(producer.send(KAFKA_TOPIC_RECOGNIZER_REQUEST, recognizer_msg))
+
         await asyncio.gather(*tasks)
-        
         logger.info(f"All audio analysis requests sent for: {payload['request_id']}")
     
     async def handle_classifier_result(self, message: Dict[str, Any], producer: AIOKafkaProducer):
@@ -270,16 +294,21 @@ class AudioAnalysisKafkaHandler:
         await self.check_analysis_completion(producer, state, correlation_id)
     
     async def handle_recognizer_result(self, message: Dict[str, Any], producer: AIOKafkaProducer):
-        """處理語音識別結果"""
+        """處理語音識別結果（支援單段與分段兩種模式）"""
         correlation_id = message["correlation_id"]
-        
+
         state = self.redis_manager.get_state(correlation_id)
         if not state:
             logger.warning(f"No processing state found for correlation_id: {correlation_id}")
             return
-        
-        
-        # 檢查是否為錯誤響應
+
+        is_chunked = state.get("recognizer_chunks_total", 0) > 0
+
+        if is_chunked:
+            await self._handle_recognizer_chunk_result(message, producer, state, correlation_id)
+            return
+
+        # 非分段模式（純音檔或無 moments 的影片）
         if message["message_type"] == "ERROR" or message["payload"].get("status") == "error":
             logger.error(f"Audio recognizer error: {message['payload'].get('error', 'Unknown error')}")
             recognizer_result = {
@@ -288,18 +317,92 @@ class AudioAnalysisKafkaHandler:
                 "file_path": ""
             }
         else:
-            # 成功響應
             recognizer_result = message["payload"]
-            
+
         if not self.redis_manager.update_state(correlation_id, {"recognizer_result": recognizer_result}):
             raise Exception("Failed to update state in Redis")
-        
-        logger.info(f"Audio recognizer result received for: {correlation_id}")
 
+        logger.info(f"Audio recognizer result received for: {correlation_id}")
         state = self.redis_manager.get_state(correlation_id)
-            
-        # 檢查是否所有分析都完成
         await self.check_analysis_completion(producer, state, correlation_id)
+
+    async def _handle_recognizer_chunk_result(
+        self,
+        message: Dict[str, Any],
+        producer: AIOKafkaProducer,
+        state: Dict[str, Any],
+        correlation_id: str
+    ):
+        """累積分段 ASR 結果，全部收齊後合併再繼續"""
+        if message["message_type"] == "ERROR" or message["payload"].get("status") == "error":
+            error_msg = message["payload"].get("error", "Unknown error")
+            logger.error(f"ASR chunk error for {correlation_id}: {error_msg}")
+            recognizer_result = {"status": "error", "error": error_msg, "file_path": ""}
+            self.redis_manager.update_state(correlation_id, {"recognizer_result": recognizer_result})
+            state = self.redis_manager.get_state(correlation_id)
+            await self.check_analysis_completion(producer, state, correlation_id)
+            return
+
+        request_id = message["payload"].get("request_id")
+        chunk_map = state.get("recognizer_chunk_request_map", {})
+        start_offset = float(chunk_map.get(request_id, 0.0))
+        result_path = message["payload"].get("result_path", "")
+
+        current_results = state.get("recognizer_chunk_results", [])
+        current_results.append({"start_offset": start_offset, "result_path": result_path})
+        done = len(current_results)
+        total = state["recognizer_chunks_total"]
+
+        self.redis_manager.update_state(correlation_id, {"recognizer_chunk_results": current_results})
+        logger.info(f"ASR chunk {done}/{total} received for: {correlation_id}")
+
+        if done < total:
+            return  # 等待其餘 chunk
+
+        # 全部收齊：合併並補正 timestamp
+        try:
+            merged_path = self._merge_recognizer_chunks(current_results, correlation_id)
+            recognizer_result = {"status": "success", "result_path": merged_path, "processing_time": 0}
+            logger.info(f"All ASR chunks merged for: {correlation_id} → {merged_path}")
+        except Exception as e:
+            logger.error(f"Failed to merge ASR chunks for {correlation_id}: {e}")
+            recognizer_result = {"status": "error", "error": str(e), "file_path": ""}
+
+        self.redis_manager.update_state(correlation_id, {"recognizer_result": recognizer_result})
+        state = self.redis_manager.get_state(correlation_id)
+        await self.check_analysis_completion(producer, state, correlation_id)
+
+    def _merge_recognizer_chunks(self, chunk_results: list, correlation_id: str) -> str:
+        """
+        讀取 N 個 ASR chunk JSON，將每段的 start/end 加上 start_offset，
+        合併成與單段模式格式相同的 [{start, end, text, words}] 清單。
+        """
+        merged_segments = []
+        for chunk in sorted(chunk_results, key=lambda c: c["start_offset"]):
+            offset = chunk["start_offset"]
+            result_path = chunk.get("result_path", "")
+            if not result_path or not os.path.exists(result_path):
+                logger.warning(f"Missing ASR chunk result, skipping: {result_path}")
+                continue
+            with open(result_path, "r", encoding="utf-8") as f:
+                segments = json.load(f)
+            for seg in segments:
+                merged_segments.append({
+                    "start": seg["start"] + offset,
+                    "end":   seg["end"]   + offset,
+                    "text":  seg["text"],
+                    "words": [
+                        {**w, "start": w.get("start", 0) + offset, "end": w.get("end", 0) + offset}
+                        for w in seg.get("words", [])
+                    ]
+                })
+
+        os.makedirs(AUDIO_MERGED_RESULTS_DIR, exist_ok=True)
+        merged_path = os.path.join(AUDIO_MERGED_RESULTS_DIR, f"{correlation_id}_asr_merged.json")
+        with open(merged_path, "w", encoding="utf-8") as f:
+            json.dump(merged_segments, f, ensure_ascii=False, indent=2)
+
+        return merged_path
     
     async def handle_diarization_result(self, message: Dict[str, Any], producer: AIOKafkaProducer):
         """處理說話人分離結果"""
@@ -466,7 +569,7 @@ class AudioAnalysisKafkaHandler:
             
             # 清理相關狀態
             correlation_id = original_message.get("correlation_id")
-            if correlation_id and correlation_id in self.processing_states:
+            if correlation_id:
                 await self.cleanup_processing_state(correlation_id)
                 
         except Exception as e:

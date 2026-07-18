@@ -17,7 +17,7 @@ class AudioResultMerger:
     def __init__(self):
         # 確保輸出目錄存在
         os.makedirs(AUDIO_MERGED_RESULTS_DIR, exist_ok=True)
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
     
     def time_overlap(self, start1, end1, start2, end2):
         """計算時間重疊"""

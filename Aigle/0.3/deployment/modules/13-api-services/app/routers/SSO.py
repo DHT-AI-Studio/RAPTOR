@@ -2,11 +2,10 @@ from fastapi import (
     APIRouter,
     HTTPException,
     Form,
-    Query,
     Response,
     Cookie,
     Depends,
-    Request
+    Request,
 )
 from fastapi.security import OAuth2PasswordBearer
 import httpx
@@ -28,19 +27,21 @@ TIMEOUT = 60
 # ==============================
 # LOGIN (Proxy)
 # ==============================
-@router.post("/login", tags=["Single Sign-On"])
+@router.post(
+    "/login",
+    tags=["Single Sign-On"],
+    summary="Login",
+    description="Obtain a JWT access token. The token is also written to cookies for subsequent API calls.",
+)
 async def login(
     response: Response,
     username: str = Form(...),
     password: str = Form(...),
     realm_name: str = Form("dhtsolution"),
-    client_id: str = Query("raptor"),
+    client_id: str = Form("raptor"),
 ):
-    """
-    Proxy login request to Auth Service.
-    """
     settings = get_settings()
-    auth_url = f"{settings.auth_service_url}/login"
+    auth_url = f"{settings.auth_service_url}/SSO/login"
 
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
@@ -50,10 +51,8 @@ async def login(
                     "username": username,
                     "password": password,
                     "realm_name": realm_name,
+                    "client_id": client_id,
                 },
-                params={
-                    "client_id": client_id
-                }
             )
 
         if resp.status_code != 200:
@@ -103,6 +102,8 @@ async def login(
 
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Auth service unreachable: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -110,7 +111,12 @@ async def login(
 # ==============================
 # LOGOUT (Proxy)
 # ==============================
-@router.post("/logout", tags=["Single Sign-On"])
+@router.post(
+    "/logout",
+    tags=["Single Sign-On"],
+    summary="Logout",
+    description="Invalidate the current token and clear all cookies. Requires `Authorization: Bearer <token>` header.",
+)
 async def logout(
     request: Request,
     response: Response,
@@ -121,7 +127,7 @@ async def logout(
     Proxy logout to Auth Service.
     """
     settings = get_settings()
-    auth_url = f"{settings.auth_service_url}/logout"
+    auth_url = f"{settings.auth_service_url}/SSO/logout"
 
     if not realm_name:
         raise HTTPException(status_code=400, detail="Missing realm_name cookie")
@@ -152,5 +158,7 @@ async def logout(
 
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Auth service unreachable: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -4,6 +4,7 @@ import json
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Dict, Any
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from api_client import SeaweedFSClient
@@ -25,7 +26,6 @@ from config import (
     ASSET_MANAGEMENT_URL
 )
 from dotenv import load_dotenv
-import os
 # 計算上層資料夾的路徑
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -485,50 +485,60 @@ class DocumentOrchestratorKafkaHandler:
     def is_message_expired(self, message: Dict[str, Any]) -> bool:
         """檢查消息是否過期"""
         try:
-            from datetime import datetime, timezone
             timestamp = datetime.fromisoformat(message["timestamp"].replace('Z', '+00:00'))
             ttl = message.get("ttl", 3600)
             now = datetime.now(timezone.utc)
-            
             return (now - timestamp).total_seconds() > ttl
         except:
             return False
     
     async def send_error_response(
-        self, 
-        producer: AIOKafkaProducer, 
-        original_message: Dict[str, Any], 
+        self,
+        producer: AIOKafkaProducer,
+        original_message: Dict[str, Any],
         error_message: str,
         error_code: str,
         correlation_id: str = None
     ):
         """發送錯誤響應"""
-        error_response = MessageBuilder.create_error_response(
-            original_message=original_message,
-            error_message=error_message,
-            error_code=error_code
-        )
-        await producer.send(KAFKA_TOPIC_FINAL_RESULT, error_response)
-        logger.warning(f"Error response sent: {error_response['message_id']}")
-        # 更新 Redis 狀態
-        if correlation_id:
-            error_state = {
-                "step": f"error:{error_message}"
-            }
-            if self.redis_manager.set_state(correlation_id, error_state):
-                logger.info(f"Error state saved to Redis for: {correlation_id}")
-            else:
-                logger.error(f"Failed to save error state to Redis for: {correlation_id}")
+        try:
+            error_response = MessageBuilder.create_error_response(
+                original_message=original_message,
+                error_message=error_message,
+                error_code=error_code
+            )
+            await producer.send(KAFKA_TOPIC_FINAL_RESULT, error_response)
+            logger.warning(f"Error response sent: {error_response['message_id']}")
+
+            if correlation_id:
+                payload = original_message.get("payload", {})
+                parameters = payload.get("parameters", {})
+                branch_id = (
+                    parameters.get("branch_id")
+                    or payload.get("asset_managemant_download_header", {}).get("X-Branch-ID")
+                    or ""
+                )
+                self.redis_manager.set_state(correlation_id, {
+                    "step": "error",
+                    "error_code": error_code,
+                    "error_message": error_message,
+                    "branch_id": branch_id,
+                })
+        except Exception as e:
+            logger.error(f"Failed to send error response: {e}")
     
     async def send_to_dlq(self, producer: AIOKafkaProducer, original_message: Dict[str, Any], error: str):
-        """發送到 DLQ"""
-        dlq_message = MessageBuilder.create_dlq_message(
-            original_message=original_message,
-            error=error,
-            final_retry_count=original_message.get("retry_count", 0)
-        )
-        await producer.send(KAFKA_TOPIC_DLQ, dlq_message)
-        logger.error(f"Message sent to DLQ: {dlq_message['message_id']}")
+        """發送消息到 DLQ"""
+        try:
+            dlq_message = MessageBuilder.create_dlq_message(
+                original_message=original_message,
+                error=error,
+                final_retry_count=original_message.get("retry_count", 0)
+            )
+            await producer.send(KAFKA_TOPIC_DLQ, dlq_message)
+            logger.error(f"Message sent to DLQ: {dlq_message['message_id']}")
+        except Exception as e:
+            logger.error(f"Failed to send message to DLQ: {e}")
         
     def _determine_processing_mode(self, message: Dict[str, Any], filename: str) -> str:
         """決定文件處理模式"""

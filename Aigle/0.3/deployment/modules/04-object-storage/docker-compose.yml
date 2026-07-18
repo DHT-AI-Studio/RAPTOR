@@ -11,10 +11,9 @@ services:
         required: false
     environment:
       - TZ=${TIMEZONE}
-    restart: on-failure
+      - POSTGRES_DB=asset_management
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
     volumes:
       - ./asset_management:/app/asset_management:ro
@@ -25,61 +24,54 @@ services:
         condition: service_completed_successfully
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # entrypoint: ["/bin/sh", "-c", "sleep 15 && uvicorn main:app --host 0.0.0.0 --port 8000"]
 
   seaweedfs-master1:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-master1
-    command: master -port=9333 -port.grpc=19333 -mdir=/data/master1 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \ 
+    command: master -port=9333 -port.grpc=19333 -mdir=/data/master1 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \
      -ip=seaweedfs-master1 -ip.bind=0.0.0.0 \
-     -defaultReplication=011 -metricsPort=1234 \
+     -defaultReplication=000 -metricsPort=1234 \
      -peers=seaweedfs-master2:9334,seaweedfs-master3:9335
     volumes:
       - seaweedfs_master1:/data/master1
       - ./docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   seaweedfs-master2:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-master2
-    command: master -port=9334 -port.grpc=19334 -mdir=/data/master2 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \ 
+    command: master -port=9334 -port.grpc=19334 -mdir=/data/master2 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \
      -ip=seaweedfs-master2 -ip.bind=0.0.0.0 \
-     -defaultReplication=011  -metricsPort=1235 \
+     -defaultReplication=000 -metricsPort=1235 \
      -peers=seaweedfs-master1:9333,seaweedfs-master3:9335
     volumes:
       - seaweedfs_master2:/data/master2
       - ./docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
-      
+
   seaweedfs-master3:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-master3
     command: master -port=9335 -port.grpc=19335 -mdir=/data/master3 -volumeSizeLimitMB=${VOLUME_SIZE_LIMIT_MB} \
      -ip=seaweedfs-master3 -ip.bind=0.0.0.0 \
-     -defaultReplication=011  -metricsPort=1236 \
+     -defaultReplication=000 -metricsPort=1236 \
      -peers=seaweedfs-master1:9333,seaweedfs-master2:9334
     volumes:
       - seaweedfs_master3:/data/master3
       - ./docker_compose_settings/seaweedfs/master.toml:/etc/seaweedfs/master.toml
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   seaweedfs-volume1:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-volume1
     command: volume -dir=/data/vol1 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
-     -port=8081 -port.grpc=18081 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume1 \ 
+     -port=8081 -port.grpc=18081 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume1 \
      -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack1 -metricsPort=1237
     depends_on:
       - seaweedfs-master1
@@ -87,14 +79,12 @@ services:
       - seaweedfs-master3
     volumes:
       - seaweedfs_vol1:/data/vol1
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   seaweedfs-volume2:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-volume2
     command: volume -dir=/data/vol2 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
      -port=8082 -port.grpc=18082 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume2 \
@@ -105,17 +95,15 @@ services:
       - seaweedfs-master3
     volumes:
       - seaweedfs_vol2:/data/vol2
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-     # asset_management: {}
       raptor: {}
 
   seaweedfs-volume3:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-volume3
-    command: volume -dir=/data/vol3 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \ 
-     -port=8083 -port.grpc=18083 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume3 \ 
+    command: volume -dir=/data/vol3 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -port=8083 -port.grpc=18083 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume3 \
      -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack2 -metricsPort=1239
     depends_on:
       - seaweedfs-master1
@@ -123,17 +111,15 @@ services:
       - seaweedfs-master3
     volumes:
       - seaweedfs_vol3:/data/vol3
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   seaweedfs-volume4:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-volume4
-    command: volume -dir=/data/vol4 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \ 
-     -port=8084 -port.grpc=18084 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume4 \ 
+    command: volume -dir=/data/vol4 -mserver=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
+     -port=8084 -port.grpc=18084 -max=${MAX_NUMBER_OF_VOLUMES} -ip=seaweedfs-volume4 \
      -ip.bind=0.0.0.0 -dataCenter=dc1 -rack=rack2 -metricsPort=1240
     depends_on:
       - seaweedfs-master1
@@ -141,14 +127,12 @@ services:
       - seaweedfs-master3
     volumes:
       - seaweedfs_vol4:/data/vol4
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   seaweedfs-filer:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-filer
     env_file:
       - .env
@@ -159,10 +143,8 @@ services:
       - seaweedfs_filer:/data/filer
       - ./docker_compose_settings/seaweedfs/filer_generated.toml:/etc/seaweedfs/filer_generated.toml
       - ./docker_compose_settings/seaweedfs/filer-entrypoint.sh:/etc/seaweedfs/filer-entrypoint.sh
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 8888 || exit 1"]
@@ -172,27 +154,21 @@ services:
       start_period: 60s
 
   seaweedfs-s3:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-s3
     ports:
       - "${PORT_SEAWEEDFS_S3:-8333}:8333"
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_KEY}
-    # command: s3 -filer=seaweedfs-filer:8888 -ip.bind=0.0.0.0 -port=8333 -port.grpc=18333 -allowEmptyFolder=false -metricsPort=1242
     command: s3 -filer=seaweedfs-filer:8888 -ip.bind=0.0.0.0 -port=8333 -port.grpc=18333 -allowEmptyFolder=true -metricsPort=1242
     depends_on:
       seaweedfs-filer:
         condition: service_healthy
-    # depends_on:
-    #   seaweedfs-filer:
-    #     condition: service_healthy
     volumes:
       - seaweedfs_s3:/data/s3
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
     healthcheck:
       test: ["CMD-SHELL", "wget --spider http://localhost:8333 2>&1 | grep -q '403 Forbidden' || exit 1"]
@@ -202,36 +178,32 @@ services:
       start_period: 45s
 
   seaweedfs-admin:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-admin
     ports:
       - "${PORT_SEAWEEDFS_ADMIN:-23646}:23646"
     command: admin -masters=seaweedfs-master1:9333,seaweedfs-master2:9334,seaweedfs-master3:9335 \
-     -dataDir=/data/admin -port=23646 
+     -dataDir=/data/admin -port=23646
     depends_on:
       - seaweedfs-filer
     volumes:
       - seaweedfs_admin:/data/admin
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   seaweedfs-worker1:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-worker1
-    command: worker -admin=seaweedfs-admin:23646 -capabilities=vacuum,ec,balance -maxConcurrent=2 -heartbeat=30s -taskInterval=5s
+    command: worker -admin=seaweedfs-admin:23646 -jobType=vacuum,volume_balance,erasure_coding -heartbeat=30s
     depends_on:
       - seaweedfs-admin
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   seaweedfs-backup:
-    image: chrislusf/seaweedfs:3.96
+    image: chrislusf/seaweedfs:4.32
     container_name: raptor-seaweedfs-backup
     command: filer.backup -filer=seaweedfs-filer:8888
     volumes:
@@ -239,10 +211,8 @@ services:
       - seaweedfs_backup:/backup
     depends_on:
       - seaweedfs-filer
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
 
   lakefs:
@@ -252,19 +222,13 @@ services:
       - "${PORT_LAKEFS:-8001}:8000"
     environment:
       - LAKEFS_DATABASE_TYPE=postgres
-      # - LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      - LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB:-asset_management}?sslmode=disable
-      # - LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://admin:password@postgres:5432/asset_management?sslmode=disable
-      # - LAKEFS_DATABASE_TYPE=local
+      - LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/asset_management?sslmode=disable
       - LAKEFS_BLOCKSTORE_TYPE=s3
       - LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE=true
       - LAKEFS_BLOCKSTORE_S3_ENDPOINT=${S3_ENDPOINT}
       - LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION=false
       - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${AWS_ACCESS_KEY}
       - LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${AWS_SECRET_KEY}
-      # - LAKEFS_INSTALLATION_USER_NAME=admin
-      # - LAKEFS_INSTALLATION_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
-      # - LAKEFS_INSTALLATION_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
       - LAKECTL_CREDENTIALS_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY}
       - LAKECTL_CREDENTIALS_SECRET_ACCESS_KEY=${LAKEFS_SECRET_KEY}
       - LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_AUTH_ENCRYPT_SECRET_KEY}
@@ -277,10 +241,8 @@ services:
         condition: service_healthy
     volumes:
       - lakefs_data:/home/lakefs
-    restart: on-failure
+    restart: unless-stopped
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/api/v1/healthcheck"]
@@ -310,31 +272,7 @@ services:
                }
              }' && echo "Setup successful or already completed." || echo "Setup skipped."
     networks:
-      # - asset_management
-      # asset_management: {}
       raptor: {}
-
-  # lakefs-gc-cron:
-  #   build: ./docker_compose_settings/lakefs/gc-runner
-  #   container_name: lakefs-gc-cron
-  #   environment:
-  #     - LAKEFS_ENDPOINT=${LAKEFS_ENDPOINT}
-  #     - LAKEFS_ACCESS_KEY=${LAKEFS_ACCESS_KEY}
-  #     - LAKEFS_SECRET_KEY=${LAKEFS_SECRET_KEY}
-  #     - S3_ENDPOINT=${S3_ENDPOINT}
-  #     - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
-  #     - AWS_SECRET_KEY=${AWS_SECRET_KEY}
-  #     - LAKEFS_REPOSITORY=${LAKEFS_REPOSITORY}
-  #     - GC_CRON_SCHEDULE=${GC_CRON_SCHEDULE}
-  #     - TZ=${TIMEZONE}
-  #   command: >
-  #     /bin/bash -c "chmod +x /usr/local/bin/run-gc.sh && /usr/local/bin/entrypoint.sh"
-  #   depends_on:
-  #     lakefs:
-  #       condition: service_healthy
-  #   restart: on-failure
-  #   networks:
-  #     - asset_management
 
 volumes:
   app:
@@ -343,101 +281,81 @@ volumes:
   seaweedfs_master1:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/master1"
-      device: ":${SEAWEEDFS_BASE_DIR}/master1"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/master1
 
   seaweedfs_master2:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/master2"
-      device: ":${SEAWEEDFS_BASE_DIR}/master2"
-
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/master2
 
   seaweedfs_master3:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/master3"
-      device: ":${SEAWEEDFS_BASE_DIR}/master3"
-
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/master3
 
   seaweedfs_vol1:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/vol1"
-      device: ":${SEAWEEDFS_BASE_DIR}/vol1"
-
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/vol1
 
   seaweedfs_vol2:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/vol2"
-      device: ":${SEAWEEDFS_BASE_DIR}/vol2"
-
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/vol2
 
   seaweedfs_vol3:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/vol3"
-      device: ":${SEAWEEDFS_BASE_DIR}/vol3"
-
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/vol3
 
   seaweedfs_vol4:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/vol4"
-      device: ":${SEAWEEDFS_BASE_DIR}/vol4"
-
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/vol4
 
   seaweedfs_filer:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/filer"
-      device: ":${SEAWEEDFS_BASE_DIR}/filer"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/filer
 
   seaweedfs_s3:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/s3"
-      device: ":${SEAWEEDFS_BASE_DIR}/s3"
-
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/s3
 
   seaweedfs_admin:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/admin"
-      device: ":${SEAWEEDFS_BASE_DIR}/admin"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/admin
 
   seaweedfs_backup:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      # device: ":${NFS_EXPORT}/${BASE_DIR}/backup"
-      device: ":${SEAWEEDFS_BASE_DIR}/backup"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/seaweedfs/backup
 
 networks:
-  # asset_management:
-  #   driver: bridge
   raptor:
     external: true
     name: ${DOCKER_NETWORK:-raptor}

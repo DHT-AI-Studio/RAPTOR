@@ -21,6 +21,27 @@ _ROTATE_TRANSPOSE = {
     270: "transpose=2,",
 }
 
+_CUDA_DECODE_CODECS = {"h264", "hevc", "vp9", "mpeg2video", "mpeg4", "mjpeg", "vc1"}
+
+
+def _probe_codec(video_path: str) -> str:
+    """Return the video codec name from stream metadata."""
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=codec_name",
+        "-of", "json", video_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    try:
+        data = json.loads(result.stdout)
+        streams = data.get("streams", [])
+        if streams:
+            return streams[0].get("codec_name", "")
+    except (json.JSONDecodeError, KeyError):
+        pass
+    return ""
+
 
 def _probe_rotation(video_path: str) -> int:
     """Return video rotation degrees (0/90/180/270) from stream metadata."""
@@ -54,12 +75,13 @@ def normalize_video(video_path: str, request_id: str) -> str:
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "normalized.mp4")
 
+    codec = _probe_codec(video_path)
     rotation = _probe_rotation(video_path)
     rotate_filter = _ROTATE_TRANSPOSE.get(rotation, "")
 
-    # Fallback 0: full GPU (scale_cuda). Only attempted for non-rotated videos —
-    # scale_cuda cannot consume CPU-side transpose output.
-    if not rotate_filter:
+    # Fallback 0: full GPU (scale_cuda). Skipped for codecs without CUDA decode support
+    # (e.g. AV1) and for rotated videos (scale_cuda cannot consume CPU-side transpose output).
+    if not rotate_filter and codec in _CUDA_DECODE_CODECS:
         cmd = [
             "ffmpeg", "-y",
             "-hwaccel", "cuda", "-hwaccel_output_format", "cuda",
@@ -84,11 +106,10 @@ def normalize_video(video_path: str, request_id: str) -> str:
         "ffmpeg", "-y",
         "-noautorotate",
         "-i", video_path,
-        "-vf", f"format=yuv420p,{rotate_filter}scale=-2:{NORMALIZE_HEIGHT}",
+        "-vf", f"{rotate_filter}scale=-2:{NORMALIZE_HEIGHT},format=yuv420p",
         "-c:v", "h264_nvenc",
         "-preset", "p4",
         "-cq", str(NORMALIZE_CRF),
-        "-pix_fmt", "yuv420p",
         "-c:a", NORMALIZE_AUDIO_CODEC,
         "-b:a", NORMALIZE_AUDIO_BITRATE,
         "-ar", str(NORMALIZE_AUDIO_SAMPLERATE),
@@ -104,7 +125,7 @@ def normalize_video(video_path: str, request_id: str) -> str:
     logger.warning(f"CPU decode + nvenc failed, falling back to libx264: {result.stderr.decode(errors='replace')}")
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
-        "-vf", f"format=yuv420p,{rotate_filter}scale=-2:{NORMALIZE_HEIGHT}",
+        "-vf", f"format=yuv420p,scale=-2:{NORMALIZE_HEIGHT}",
         "-c:v", NORMALIZE_VIDEO_CODEC,
         "-crf", str(NORMALIZE_CRF),
         "-preset", NORMALIZE_PRESET,

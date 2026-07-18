@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from moment_parser import extract_search_text
+from date_utils import fill_relation_dates
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,12 @@ async def extract_entities_and_relations(
                 f"(valid ids: {sorted(valid_ids)})"
             )
     relations = filtered_relations
+
+    # Fix 1B: backfill time_start from dates stated in the text when the LLM
+    # left a relation timeless, so timed relations become TemporalFacts.
+    filled = fill_relation_dates(text, entities, relations)
+    if filled:
+        logger.info(f"Fix1B: backfilled time_start on {filled}/{len(relations)} relation(s)")
 
     logger.info(f"Extracted {len(entities)} entities, {len(relations)} relations from summary")
     return {"entities": entities, "relations": relations}

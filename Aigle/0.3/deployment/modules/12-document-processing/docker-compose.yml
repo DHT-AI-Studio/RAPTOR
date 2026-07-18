@@ -14,8 +14,8 @@ x-worker-common: &worker-common
     NEO4J_URI: ${NEO4J_URI:-bolt://raptor-neo4j:7687}
     NEO4J_USER: ${NEO4J_USER:-neo4j}
     NEO4J_PASSWORD: ${NEO4J_PASSWORD:-raptor0.3}
-    OLLAMA_URL: ${OLLAMA_URL:-http://raptor-ollama:11434}
-    INFERENCE_MODEL: ${INFERENCE_MODEL:-qwen3.5:9b}
+    OLLAMA_URL: ${OLLAMA_HOST:-http://raptor-ollama:11434}
+    INFERENCE_MODEL: ${DOCUMENT_INFERENCE_MODEL:-qwen3.5:9b}
     INFERENCE_URL: ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
     HYBRID_SEARCH_INGEST_URL: ${HYBRID_SEARCH_INGEST_URL:-http://raptor-hybridsearch-api:8000/api/v1/ingest/file}
     HF_TOKEN: ${HF_TOKEN}
@@ -105,7 +105,7 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: document_analysis
-      CUDA_VISIBLE_DEVICES: ${DOCUMENT_ANALYSIS_GPU:-0}
+      CUDA_VISIBLE_DEVICES: "0"
       VLM_MODEL_PATH: ${DOCUMENT_ANALYSIS_VLM_MODEL:-OpenGVLab/InternVL3_5-4B}
       MAX_CHUNK_TOKENS: ${DOCUMENT_ANALYSIS_MAX_CHUNK_TOKENS:-400}
       DOCUMENT_SYNC_API_PORT: ${DOCUMENT_SYNC_API_PORT:-8020}
@@ -126,7 +126,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${DOCUMENT_ANALYSIS_GPU_COUNT:-1}
+              device_ids: ["${DOCUMENT_ANALYSIS_GPU:-0}"]
               capabilities: [gpu]
 
   # ============================================================
@@ -141,7 +141,6 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: document_summary
-      CUDA_VISIBLE_DEVICES: ${DOCUMENT_SUMMARY_GPU:-1}
     networks:
       raptor:
         aliases:
@@ -218,9 +217,9 @@ volumes:
   media-tmp:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      device: ":${NFS_MEDIA_TMP_PATH}"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/media/processing
 
 networks:
   raptor:

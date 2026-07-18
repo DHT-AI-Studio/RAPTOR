@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union, Literal
 
 import httpx
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.api.dependencies import get_current_user, get_http_client, get_storage_service
@@ -39,21 +39,35 @@ def get_search_service(
 # ============================================================================
 
 class HybridSearchRequest(BaseModel):
-    query: str = Field(..., description="Search query text")
-    top_k: Optional[int] = Field(10, description="Maximum number of results")
-    payload_schema: str = Field("contextual", description="Schema: 'contextual' or 'temporal'")
-    embedding_type: Optional[str] = Field(None, description="'text' or 'summary'")
-    type: Optional[Union[str, List[str]]] = Field(None, description="Collection type filter")
-    filename: Optional[List[str]] = Field(None, description="Filename filter")
-    speaker: Optional[List[str]] = Field(None, description="Speaker filter (audio/video)")
-    source: Optional[str] = Field(None, description="File type filter (e.g. pdf, csv)")
+    query: str = Field(..., description="Search query text or natural language question")
+    top_k: Optional[int] = Field(10, description="Maximum number of results to return")
+    payload_schema: str = Field("contextual", description="Result schema: `contextual` (general documents) or `temporal` (audio/video segments with timestamps)")
+    embedding_type: Optional[str] = Field(None, description="Embedding type: `text` (raw content) or `summary`; omit to search both")
+    type: Optional[Union[str, List[str]]] = Field(None, description="Filter by media type: `document` / `image` / `video` / `audio`; accepts a list for multiple types")
+    filename: Optional[List[str]] = Field(None, description="Filter by filename; accepts multiple values")
+    speaker: Optional[List[str]] = Field(None, description="Filter by speaker name (applicable to audio/video segments)")
+    source: Optional[str] = Field(None, description="Filter by original file extension, e.g. `pdf`, `csv`, `mp4`")
 
 
 # ============================================================================
 # Search endpoints
 # ============================================================================
 
-@router.post("/hybrid", tags=["Search"], status_code=status.HTTP_200_OK)
+@router.post(
+    "/hybrid",
+    tags=["Search"],
+    status_code=status.HTTP_200_OK,
+    summary="Hybrid Search (BM25 + Vector + Rerank)",
+    description="""
+Runs BM25 keyword search and vector semantic search in parallel, merges the ranked lists with Reciprocal Rank Fusion (RRF), then re-ranks the top candidates with a cross-encoder reranker.
+
+Covers all uploaded and processed **document / image / video / audio** assets.
+
+**Response fields:**
+- `results[]` — each result includes a relevance score, payload (content, filename, timestamps), and a pre-signed access URL
+- `collection_stats` — hit counts per collection
+""",
+)
 async def hybrid_search(
     req: HybridSearchRequest,
     svc: HybridSearchService = Depends(get_search_service),
@@ -65,13 +79,19 @@ async def hybrid_search(
         return await svc.hybrid_search(req.model_dump(exclude_none=True), user=user)
     except httpx.HTTPStatusError as e:
         _logger.error(f"Hybrid search failed: {e.response.status_code} {e.response.text}")
-        return {"error": "Hybrid search failed", "detail": str(e), "status_code": e.response.status_code}
+        raise HTTPException(status_code=e.response.status_code, detail=f"Hybrid search failed: {e.response.text}")
     except Exception as e:
         _logger.error(f"Hybrid search error: {e}")
-        return {"error": "Internal server error", "detail": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/bm25", tags=["Search"], status_code=status.HTTP_200_OK)
+@router.post(
+    "/bm25",
+    tags=["Search"],
+    status_code=status.HTTP_200_OK,
+    summary="BM25 Keyword Search",
+    description="Full-text keyword search using the BM25 algorithm. Best for exact term matching; no semantic inference.",
+)
 async def bm25_search(
     req: HybridSearchRequest,
     svc: HybridSearchService = Depends(get_search_service),
@@ -83,13 +103,19 @@ async def bm25_search(
         return await svc.bm25_search(req.model_dump(exclude_none=True), user=user)
     except httpx.HTTPStatusError as e:
         _logger.error(f"BM25 search failed: {e.response.status_code}")
-        return {"error": "BM25 search failed", "detail": str(e)}
+        raise HTTPException(status_code=e.response.status_code, detail=f"BM25 search failed: {e.response.text}")
     except Exception as e:
         _logger.error(f"BM25 search error: {e}")
-        return {"error": "Internal server error", "detail": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/vector", tags=["Search"], status_code=status.HTTP_200_OK)
+@router.post(
+    "/vector",
+    tags=["Search"],
+    status_code=status.HTTP_200_OK,
+    summary="Vector Semantic Search",
+    description="Semantic similarity search using embedding vectors. Finds relevant content even when the exact keywords are not present.",
+)
 async def vector_search(
     req: HybridSearchRequest,
     svc: HybridSearchService = Depends(get_search_service),
@@ -101,10 +127,10 @@ async def vector_search(
         return await svc.vector_search(req.model_dump(exclude_none=True), user=user)
     except httpx.HTTPStatusError as e:
         _logger.error(f"Vector search failed: {e.response.status_code}")
-        return {"error": "Vector search failed", "detail": str(e)}
+        raise HTTPException(status_code=e.response.status_code, detail=f"Vector search failed: {e.response.text}")
     except Exception as e:
         _logger.error(f"Vector search error: {e}")
-        return {"error": "Internal server error", "detail": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
@@ -112,15 +138,32 @@ async def vector_search(
 # ============================================================================
 
 class TkgSearchRequest(BaseModel):
-    query: str = Field(..., description="Natural-language query text")
-    time_start: Optional[str] = Field(None, description="ISO 8601 時間區間起點（可選）")
-    time_end:   Optional[str] = Field(None, description="ISO 8601 時間區間終點（可選）")
-    max_depth:  int = Field(2, ge=1, le=4)
-    limit:      int = Field(50, ge=1, le=200)
-    score_threshold: float = Field(0.3, ge=0.0, le=10.0)
+    query: str = Field(..., description="Natural language query text")
+    time_start: Optional[str] = Field(None, description="Start of time range (ISO 8601, e.g. `2024-01-01T00:00:00`)")
+    time_end:   Optional[str] = Field(None, description="End of time range (ISO 8601)")
+    max_depth:  int = Field(2, ge=1, le=4, description="Graph traversal depth (1–4)")
+    limit:      int = Field(50, ge=1, le=200, description="Maximum number of nodes/events to return")
+    score_threshold: float = Field(0.3, ge=0.0, le=10.0, description="Minimum relevance score")
 
 
-@router.post("/tkg", tags=["Search"], status_code=status.HTTP_200_OK)
+@router.post(
+    "/tkg",
+    tags=["Search"],
+    status_code=status.HTTP_200_OK,
+    summary="Temporal Knowledge Graph Search (TKG)",
+    description="""
+Graph traversal query over a Temporal Knowledge Graph (TKG).
+
+**Best for:**
+- Querying what happened at a specific time in a video or audio recording
+- Event queries that require a time range filter
+
+**Response fields:**
+- `subgraph_nodes` / `subgraph_edges` — relevant graph nodes and edges
+- `temporal_facts` — timestamped event records
+- `moment_ids` — corresponding audio/video segment IDs (with pre-signed access URLs)
+""",
+)
 async def tkg_search(
     req: TkgSearchRequest,
     svc: HybridSearchService = Depends(get_search_service),
@@ -128,10 +171,7 @@ async def tkg_search(
     settings: Settings = Depends(get_settings),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """TKG + GraphRAG combined search via module 20 (graph-service).
-
-    回傳 subgraph_nodes / subgraph_edges / temporal_facts / moment_ids。
-    """
+    """TKG + GraphRAG combined search via module 20 (graph-service)."""
     try:
         user = {"user_id": current_user["sub"], "branch_id": current_user["sub"]}
         body = req.model_dump(exclude_none=True)
@@ -147,10 +187,10 @@ async def tkg_search(
         return data
     except httpx.HTTPStatusError as e:
         _logger.error(f"TKG search failed: {e.response.status_code} {e.response.text}")
-        return {"error": "TKG search failed", "detail": str(e), "status_code": e.response.status_code}
+        raise HTTPException(status_code=e.response.status_code, detail=f"TKG search failed: {e.response.text}")
     except Exception as e:
         _logger.error(f"TKG search error: {e}")
-        return {"error": "Internal server error", "detail": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
@@ -158,14 +198,35 @@ async def tkg_search(
 # ============================================================================
 
 class GraphRagSearchRequest(BaseModel):
-    query: str = Field(..., description="Natural-language query text")
-    max_depth: int = Field(2, ge=1, le=4)
-    limit: int = Field(50, ge=1, le=200)
-    score_threshold: float = Field(0.5, ge=0.0, le=10.0)
-    strategy: Literal["hybrid", "literal", "semantic"] = Field("hybrid")
+    query: str = Field(..., description="Natural language query text")
+    max_depth: int = Field(2, ge=1, le=4, description="Graph traversal depth (1–4)")
+    limit: int = Field(50, ge=1, le=200, description="Maximum number of entities/nodes to return")
+    score_threshold: float = Field(0.5, ge=0.0, le=10.0, description="Minimum relevance score")
+    strategy: Literal["hybrid", "literal", "semantic"] = Field(
+        "hybrid",
+        description="`hybrid`: keyword + semantic; `literal`: keyword only; `semantic`: semantic only",
+    )
 
 
-@router.post("/graphrag", tags=["Search"], status_code=status.HTTP_200_OK)
+@router.post(
+    "/graphrag",
+    tags=["Search"],
+    status_code=status.HTTP_200_OK,
+    summary="Knowledge Graph Entity Search (GraphRAG)",
+    description="""
+Entity and subgraph search over a structured knowledge graph.
+
+**Best for:**
+- Finding people, events, or locations mentioned in documents or media
+- Complex queries that require understanding relationships between entities
+
+**Response fields:**
+- `matched_entities` — matched knowledge graph entities
+- `matched_moments` — associated audio/video segments (with pre-signed URLs)
+- `nodes` / `relationships` — subgraph structure
+- `citations` — source references
+""",
+)
 async def graphrag_search(
     req: GraphRagSearchRequest,
     svc: HybridSearchService = Depends(get_search_service),
@@ -173,10 +234,7 @@ async def graphrag_search(
     settings: Settings = Depends(get_settings),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """GraphRAG entity/subgraph search via module 20 (graph-service).
-
-    回傳 matched_entities / matched_moments / nodes / relationships / citations。
-    """
+    """GraphRAG entity/subgraph search via module 20 (graph-service)."""
     try:
         user = {"user_id": current_user["sub"], "branch_id": current_user["sub"]}
         body = req.model_dump(exclude_none=True)
@@ -195,7 +253,7 @@ async def graphrag_search(
         return data
     except httpx.HTTPStatusError as e:
         _logger.error(f"GraphRAG search failed: {e.response.status_code} {e.response.text}")
-        return {"error": "GraphRAG search failed", "detail": str(e), "status_code": e.response.status_code}
+        raise HTTPException(status_code=e.response.status_code, detail=f"GraphRAG search failed: {e.response.text}")
     except Exception as e:
         _logger.error(f"GraphRAG search error: {e}")
-        return {"error": "Internal server error", "detail": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))

@@ -91,7 +91,7 @@ class AudioDiarizationClient:
             logger.debug(f"[SYNC] Diarization type: {diarization_type}, speakers: {min_speakers}-{max_speakers}")
             
             # 判斷檔案類型
-            file_type = self.get_file_type(filename)
+            file_type = self.get_file_type(audio_file_path.name)
             
             # 處理音頻檔案
             start_time = datetime.now()

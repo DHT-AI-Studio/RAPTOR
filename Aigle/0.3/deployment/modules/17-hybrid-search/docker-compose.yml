@@ -80,6 +80,34 @@ services:
         aliases:
           - "raptor-opensearch-dashboards"
 
+  opensearch-security-init:
+    image: docker:cli
+    container_name: raptor-opensearch-security-init
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+      opensearch-node2:
+        condition: service_started
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - sh
+      - -c
+      - |
+        echo 'Running securityadmin inside node1...'
+        docker exec raptor-opensearch-node1 bash \
+          /usr/share/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
+          -cd /usr/share/opensearch/config/opensearch-security/ \
+          -icl -nhnv \
+          -cacert /usr/share/opensearch/config/root-ca.pem \
+          -cert /usr/share/opensearch/config/kirk.pem \
+          -key /usr/share/opensearch/config/kirk-key.pem \
+          -h localhost
+        echo 'Security initialized.'
+    networks:
+      raptor: {}
+    restart: "no"
+
   api:
     build: .
     image: raptor/hybridsearch-api:0.3
@@ -91,7 +119,7 @@ services:
       - path: ../.env
         required: false
     environment:
-      CUDA_VISIBLE_DEVICES: ${HYBRID_SEARCH_GPU:-0}
+      CUDA_VISIBLE_DEVICES: "0"
     volumes:
       - ./app:/app/app
       - ${HF_CACHE_PATH}:${HF_HOME}
@@ -100,6 +128,8 @@ services:
         condition: service_healthy
       opensearch-node2:
         condition: service_started
+      opensearch-security-init:
+        condition: service_completed_successfully
     networks:
       raptor:
         aliases:
@@ -109,7 +139,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${HYBRID_SEARCH_GPU_COUNT:-1}
+              device_ids: ["${HYBRID_SEARCH_GPU:-0}"]
               capabilities: [gpu]
 
 volumes:

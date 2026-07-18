@@ -127,12 +127,20 @@ class AudioDiarizationKafkaHandler:
                     
                     try:
                         diarization_results = await self.handle_audio_diarization_async(message)
-                        
-                        response_message = MessageBuilder.create_diarization_result_message(
-                            original_message=message,
-                            diarization_results=diarization_results
-                        )
-                        await self.send_response(producer, response_message)
+
+                        if diarization_results.get("status") == "error":
+                            err = diarization_results.get("error", {})
+                            await self.send_error_response(
+                                producer, message,
+                                err.get("message", "Diarization failed"),
+                                err.get("code", "DIARIZATION_ERROR"),
+                            )
+                        else:
+                            response_message = MessageBuilder.create_diarization_result_message(
+                                original_message=message,
+                                diarization_results=diarization_results,
+                            )
+                            await self.send_response(producer, response_message)
                         
                         # 記錄處理時間
                         if ASYNC_PROCESSING_CONFIG["enable_task_monitoring"]:

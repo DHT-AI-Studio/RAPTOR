@@ -4,6 +4,7 @@ import json
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Dict, Any
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from api_client import SeaweedFSClient
@@ -25,7 +26,6 @@ from config import (
     ASSET_MANAGEMENT_URL
 )
 from dotenv import load_dotenv
-import os
 # 計算上層資料夾的路徑
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -118,30 +118,33 @@ class ImageOrchestratorKafkaHandler:
             # 驗證消息格式
             if not self.validate_message(message):
                 await self.send_error_response(
-                    producer, message, 
-                    "Invalid message format", 
-                    "INVALID_FORMAT"
+                    producer, message,
+                    "Invalid message format",
+                    "INVALID_FORMAT",
+                    message.get("correlation_id")
                 )
                 return
-            
+
             # 檢查 TTL
             if self.is_message_expired(message):
                 await self.send_error_response(
                     producer, message,
                     "Message expired",
-                    "MESSAGE_EXPIRED"
+                    "MESSAGE_EXPIRED",
+                    message.get("correlation_id")
                 )
                 return
-            
+
             # 檢查目標服務
             if message["target_service"] != self.service_name:
                 await self.send_error_response(
                     producer, message,
                     f"Wrong target service: {message['target_service']}",
-                    "WRONG_TARGET"
+                    "WRONG_TARGET",
+                    message.get("correlation_id")
                 )
                 return
-            
+
             # 處理圖片處理請求
             if message["payload"]["action"] == "image_processing":
                 await self.handle_image_processing(message, producer)
@@ -149,7 +152,8 @@ class ImageOrchestratorKafkaHandler:
                 await self.send_error_response(
                     producer, message,
                     f"Unknown action: {message['payload']['action']}",
-                    "UNKNOWN_ACTION"
+                    "UNKNOWN_ACTION",
+                    message.get("correlation_id")
                 )
                 
         except Exception as e:
@@ -175,7 +179,8 @@ class ImageOrchestratorKafkaHandler:
                 await self.send_error_response(
                     producer, message,
                     "Missing required parameters",
-                    "MISSING_PARAMETERS"
+                    "MISSING_PARAMETERS",
+                    message.get("correlation_id")
                 )
                 return
 
@@ -219,7 +224,8 @@ class ImageOrchestratorKafkaHandler:
             await self.send_error_response(
                 producer, message,
                 f"Image processing failed: {str(e)}",
-                "PROCESSING_FAILED"
+                "PROCESSING_FAILED",
+                message.get("correlation_id")
             )
     
     async def send_parallel_requests(self, message: Dict[str, Any], producer: AIOKafkaProducer, temp_file_path: str, parameters: Dict[str, Any]):
@@ -476,40 +482,60 @@ class ImageOrchestratorKafkaHandler:
     def is_message_expired(self, message: Dict[str, Any]) -> bool:
         """檢查消息是否過期"""
         try:
-            from datetime import datetime, timezone
             timestamp = datetime.fromisoformat(message["timestamp"].replace('Z', '+00:00'))
             ttl = message.get("ttl", 3600)
             now = datetime.now(timezone.utc)
-            
             return (now - timestamp).total_seconds() > ttl
         except:
             return False
     
     async def send_error_response(
-        self, 
-        producer: AIOKafkaProducer, 
-        original_message: Dict[str, Any], 
+        self,
+        producer: AIOKafkaProducer,
+        original_message: Dict[str, Any],
         error_message: str,
-        error_code: str
+        error_code: str,
+        correlation_id: str = None
     ):
         """發送錯誤響應"""
-        error_response = MessageBuilder.create_error_response(
-            original_message=original_message,
-            error_message=error_message,
-            error_code=error_code
-        )
-        await producer.send(KAFKA_TOPIC_FINAL_RESULT, error_response)
-        logger.warning(f"Error response sent: {error_response['message_id']}")
+        try:
+            error_response = MessageBuilder.create_error_response(
+                original_message=original_message,
+                error_message=error_message,
+                error_code=error_code
+            )
+            await producer.send(KAFKA_TOPIC_FINAL_RESULT, error_response)
+            logger.warning(f"Error response sent: {error_response['message_id']}")
+
+            if correlation_id:
+                payload = original_message.get("payload", {})
+                parameters = payload.get("parameters", {})
+                branch_id = (
+                    parameters.get("branch_id")
+                    or payload.get("asset_managemant_download_header", {}).get("X-Branch-ID")
+                    or ""
+                )
+                self.redis_manager.set_state(correlation_id, {
+                    "step": "error",
+                    "error_code": error_code,
+                    "error_message": error_message,
+                    "branch_id": branch_id,
+                })
+        except Exception as e:
+            logger.error(f"Failed to send error response: {e}")
     
     async def send_to_dlq(self, producer: AIOKafkaProducer, original_message: Dict[str, Any], error: str):
-        """發送到 DLQ"""
-        dlq_message = MessageBuilder.create_dlq_message(
-            original_message=original_message,
-            error=error,
-            final_retry_count=original_message.get("retry_count", 0)
-        )
-        await producer.send(KAFKA_TOPIC_DLQ, dlq_message)
-        logger.error(f"Message sent to DLQ: {dlq_message['message_id']}")
+        """發送消息到 DLQ"""
+        try:
+            dlq_message = MessageBuilder.create_dlq_message(
+                original_message=original_message,
+                error=error,
+                final_retry_count=original_message.get("retry_count", 0)
+            )
+            await producer.send(KAFKA_TOPIC_DLQ, dlq_message)
+            logger.error(f"Message sent to DLQ: {dlq_message['message_id']}")
+        except Exception as e:
+            logger.error(f"Failed to send message to DLQ: {e}")
     
     # async def cleanup_expired_states(self):
     #     """清理過期的處理狀態（可選的背景任務）"""

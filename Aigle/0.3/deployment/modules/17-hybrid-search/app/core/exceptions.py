@@ -8,12 +8,12 @@ class AppBaseException(HTTPException):
 # === Embedding 相關錯誤 ===
 class EmbeddingError(AppBaseException):
     def __init__(self, detail: str):
-        super().__init__(detail=detail, status_code=500)
+        super().__init__(detail=detail, status_code=503)
 
 # === 搜尋錯誤 ===
 class SearchError(AppBaseException):
     def __init__(self, detail: str):
-        super().__init__(detail=detail, status_code=500)
+        super().__init__(detail=detail, status_code=503)
 
 # === 批次寫入錯誤 ===
 class IngestError(AppBaseException):

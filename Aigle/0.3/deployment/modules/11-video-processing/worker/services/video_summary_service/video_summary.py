@@ -16,7 +16,7 @@ class VideoSummary:
         self.max_summary_length = max_summary_length
         self.inference_url = inference_url
         self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
     
     def load_json_data(self, file_path: str) -> Any:
         """載入JSON檔案"""

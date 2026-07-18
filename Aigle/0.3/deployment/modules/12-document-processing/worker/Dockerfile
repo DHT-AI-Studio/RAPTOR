@@ -2,7 +2,8 @@
 # Aigle Platform v0.2
 # GPU required for document_analysis_service (InternVL OCR/VLM)
 
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+# CUDA 12.8 is the minimum runtime that ships sm_120 (Blackwell, RTX 50-series) kernels.
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
 
 WORKDIR /app
 
@@ -23,14 +24,21 @@ RUN apt-get update && apt-get install -y \
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 
-# PaddlePaddle GPU (document_analysis_service OCR) — requires custom index
-RUN pip install --no-cache-dir paddlepaddle-gpu==3.0.0 \
-    -i https://www.paddlepaddle.org.cn/packages/stable/cu118/
+# PaddlePaddle GPU (cu129) — required for sm_120 (Blackwell / RTX 50-series).
+# paddlepaddle-gpu==3.3.0 is the first official release shipping sm_120 kernels.
+RUN pip install --no-cache-dir --timeout 600 paddlepaddle-gpu==3.3.0 \
+    -i https://www.paddlepaddle.org.cn/packages/stable/cu129/ \
+    --extra-index-url https://pypi.org/simple
+
+# PyTorch built against CUDA 12.8 — required for RTX 50-series (sm_120).
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cu128 \
+        torch==2.7.1 torchvision==0.22.1
 
 # Remaining Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Dispatcher entrypoint + all service code
 COPY main.py /app/

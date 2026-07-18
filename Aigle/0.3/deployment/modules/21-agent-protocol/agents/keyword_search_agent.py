@@ -33,6 +33,8 @@ def _do_keyword_search(req: BM25SearchRequest) -> SearchResult:
     body: dict = {"query": req.query, "top_k": req.top_k}
     if req.type is not None:
         body["type"] = req.type
+    if req.branch_id:
+        body["branch_id"] = req.branch_id
     url  = f"{hybrid_url}/api/v1/search/bm25"
     logger.info("[KeywordSearch] → {} body={}", url, body)
 

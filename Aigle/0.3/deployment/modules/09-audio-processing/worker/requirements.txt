@@ -9,8 +9,10 @@ aiohttp==3.12.15
 
 # ASR + Diarization (audio_recognizer + audio_diarization)
 whisperx==3.3.1
-torch==2.5.1
-torchaudio==2.5.1
+# torch / torchaudio are installed in the Dockerfile from the cu128 wheel
+# index (https://download.pytorch.org/whl/cu128) so we get sm_120 kernels
+# for RTX 50-series (Blackwell). Do NOT add torch/torchaudio pins here —
+# that would let pip resolve a default PyPI build that lacks sm_120.
 # huggingface_hub>=1.0 removed use_auth_token; pyannote.audio 3.3.2 needs <1.0
 huggingface_hub>=0.21,<1.0.0
 # transformers 5.x requires huggingface_hub>=1.0, pin to 4.x

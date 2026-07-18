@@ -5,7 +5,8 @@
 #   audio_diarization  (whisperx + pyannote speaker diarization)
 #   audio_classifier   (panns_inference audio tagging)
 
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+# CUDA 12.8 is the minimum runtime that ships sm_120 (Blackwell, RTX 50-series) kernels.
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
 
 WORKDIR /app
 
@@ -24,10 +25,17 @@ RUN apt-get update && apt-get install -y \
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 
+# PyTorch built against CUDA 12.8 — required for RTX 50-series (sm_120).
+# Must be installed BEFORE requirements.txt so the cu128 wheels win over any
+# transitive PyPI torch resolution.
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cu128 \
+        torch==2.7.1 torchaudio==2.7.1
+
 # Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 
 # Dispatcher entrypoint + all service code

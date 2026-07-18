@@ -131,12 +131,20 @@ class AudioRecognizerKafkaHandler:
                     
                     try:
                         recognition_results = await self.handle_audio_recognition_async(message)
-                        
-                        response_message = MessageBuilder.create_recognition_result_message(
-                            original_message=message,
-                            recognition_results=recognition_results
-                        )
-                        await self.send_response(producer, response_message)
+
+                        if recognition_results.get("status") == "error":
+                            err = recognition_results.get("error", {})
+                            await self.send_error_response(
+                                producer, message,
+                                err.get("message", "Recognition failed"),
+                                err.get("code", "RECOGNITION_ERROR"),
+                            )
+                        else:
+                            response_message = MessageBuilder.create_recognition_result_message(
+                                original_message=message,
+                                recognition_results=recognition_results,
+                            )
+                            await self.send_response(producer, response_message)
                         
                         # 記錄處理時間
                         if ASYNC_PROCESSING_CONFIG["enable_task_monitoring"]:

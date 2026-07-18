@@ -54,33 +54,9 @@
         "composite": true,
         "composites": {
           "client": {
-            "realm-management": [
-              "query-clients",
-              "manage-authorization",
-              "manage-events",
-              "view-realm",
-              "view-events",
-              "query-users",
-              "realm-admin",
-              "view-users",
-              "create-client",
-              "manage-users",
-              "view-authorization",
-              "manage-identity-providers",
-              "query-groups",
-              "query-realms",
-              "manage-realm",
-              "view-clients",
-              "manage-clients",
-              "view-identity-providers",
-              "impersonation"
-            ],
             "raptor": [
               "user_standard",
               "user_basic"
-            ],
-            "broker": [
-              "read-token"
             ],
             "account": [
               "view-profile",
@@ -490,7 +466,18 @@
       ]
     }
   },
-  "groups": [],
+  "groups": [
+    {
+      "id": "9bbd7152-379a-43fe-bab2-17f785115ce9",
+      "name": "default_group",
+      "description": "",
+      "path": "/default_group",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": [],
+      "clientRoles": {}
+    }
+  ],
   "defaultRole": {
     "id": "be3d10b7-d19c-4958-9b23-75488d2856d4",
     "name": "default-roles-dhtsolution",
@@ -579,16 +566,7 @@
       "enabled": true,
       "createdTimestamp": 1765938033791,
       "totp": false,
-      "credentials": [
-        {
-          "id": "4f87f65b-56f8-4917-9ed6-d81d182a6230",
-          "type": "password",
-          "userLabel": "My password",
-          "createdDate": 1765949389881,
-          "secretData": "{\"value\":\"bwE0eVNjwhA9+OFAfL0WorBVCUEqXUtXO2LP3uIvj+g=\",\"salt\":\"l1v8CzfN169WruVuc2AS3A==\",\"additionalParameters\":{}}",
-          "credentialData": "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
-        }
-      ],
+      "credentials": [],
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
@@ -612,16 +590,7 @@
       "enabled": true,
       "createdTimestamp": 1765938113051,
       "totp": false,
-      "credentials": [
-        {
-          "id": "8095f874-199a-483e-960c-a3ed6eb15f97",
-          "type": "password",
-          "userLabel": "My password",
-          "createdDate": 1765949404088,
-          "secretData": "{\"value\":\"gl7qzWT9irAaxImZEoVAT9s14oKJ0vH6PnafY23QcvE=\",\"salt\":\"lVAIOx03uWbgNr5h5QwDVg==\",\"additionalParameters\":{}}",
-          "credentialData": "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
-        }
-      ],
+      "credentials": [],
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
@@ -633,6 +602,74 @@
         ]
       },
       "notBefore": 1766035143,
+      "groups": []
+    },
+    {
+      "id": "388c05c4-1194-424f-a30f-a11366d992ea",
+      "username": "dht_developer",
+      "firstName": "Firstname",
+      "lastName": "Lastname",
+      "email": "dht_developer@test.com",
+      "emailVerified": true,
+      "enabled": true,
+      "createdTimestamp": 1779329096286,
+      "totp": false,
+      "credentials": [],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "Developer",
+        "default-roles-dhtsolution"
+      ],
+      "notBefore": 0,
+      "groups": []
+    },
+    {
+      "id": "5979f3eb-b9a3-44b7-8518-aa84a1fcfba4",
+      "username": "test_nontraining",
+      "firstName": "Firstname",
+      "lastName": "Lastname",
+      "email": "test_nontraining@test.com",
+      "emailVerified": true,
+      "enabled": true,
+      "createdTimestamp": 1776648777964,
+      "totp": false,
+      "credentials": [],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-dhtsolution"
+      ],
+      "clientRoles": {
+        "raptor": [
+          "user_basic"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
+    },
+    {
+      "id": "18d24902-591f-4d6d-8c31-f7c864c6ed0c",
+      "username": "test_training",
+      "firstName": "Firstname",
+      "lastName": "Lastname",
+      "email": "test_training@test.com",
+      "emailVerified": true,
+      "enabled": true,
+      "createdTimestamp": 1776648574698,
+      "totp": false,
+      "credentials": [],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-dhtsolution"
+      ],
+      "clientRoles": {
+        "raptor": [
+          "user_standard"
+        ]
+      },
+      "notBefore": 0,
       "groups": []
     }
   ],
@@ -1877,23 +1914,7 @@
     "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
-  "smtpServer": {
-    "allowutf8": "false",
-    "debug": "false",
-    "replyToDisplayName": "",
-    "starttls": "false",
-    "auth": "false",
-    "envelopeFrom": "",
-    "ssl": "false",
-    "password": "",
-    "port": "",
-    "host": "",
-    "replyTo": "",
-    "from": "",
-    "fromDisplayName": "",
-    "authType": "basic",
-    "user": ""
-  },
+  "smtpServer": {},
   "eventsEnabled": false,
   "eventsListeners": [
     "jboss-logging"

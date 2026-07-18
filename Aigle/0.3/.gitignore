@@ -51,3 +51,6 @@ htmlcov/
 tmp/
 temp/
 .cache/
+
+# Model checkpoints
+checkpoints/

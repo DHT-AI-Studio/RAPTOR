@@ -57,6 +57,7 @@ class VideoNeo4jClient:
             s.asset_path   = $asset_path,
             s.branch_id    = $branch_id,
             s.media_type   = 'video',
+            s.status       = 'active',
             s.summary      = $summary,
             s.moment_count = $moment_count,
             s.processed_at = datetime()

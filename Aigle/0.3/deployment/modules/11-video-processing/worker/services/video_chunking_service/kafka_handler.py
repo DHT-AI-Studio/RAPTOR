@@ -127,8 +127,11 @@ class VideoChunkingKafkaHandler:
                 "source_service": SERVICE_NAME,
                 "message_type": "ERROR",
                 "priority": "HIGH",
-                "payload": {"status": "failed", "error": str(e)},
+                "payload": {"status": "error", "error": str(e)},
                 "retry_count": 0,
                 "ttl": 3600,
             }
-            await producer.send_and_wait(KAFKA_TOPIC_DLQ, error_msg)
+            await asyncio.gather(
+                producer.send_and_wait(KAFKA_TOPIC_CHUNKING_RESULT, error_msg),
+                producer.send_and_wait(KAFKA_TOPIC_DLQ, error_msg),
+            )

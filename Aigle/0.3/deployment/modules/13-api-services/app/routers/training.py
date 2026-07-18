@@ -112,8 +112,8 @@ async def forward_request(request: Request, path: str):
 @router.post(
     "/submit",
     response_model=JobStatusResponse,
-    summary="Submit a new training job",
-    description="Proxy endpoint for training job submission"
+    summary="Submit a training job",
+    description="Submit a new AI model fine-tuning job by specifying the dataset, model path, and training parameters."
 )
 async def submit_proxy(
     payload: TrainingJobSubmitRequest = Body(
@@ -156,7 +156,12 @@ async def submit_proxy(
     return await forward_request(request, "/submit")
 
 
-@router.api_route("/status/{job_id}", methods=["GET"])
+@router.api_route(
+    "/status/{job_id}",
+    methods=["GET"],
+    summary="Get training job status",
+    description="Returns the current status, progress metrics, and model output path for the specified job. Status values: `queued` / `running` / `completed` / `failed` / `cancelled`.",
+)
 async def status_proxy(job_id: str, request: Request):
     return await forward_request(request, f"/status/{job_id}")
 
@@ -164,13 +169,13 @@ async def status_proxy(job_id: str, request: Request):
 @router.get(
     "/list",
     response_model=List[JobStatusResponse],
-    summary="List all training jobs",
+    summary="List training jobs",
     description="List all submitted training jobs, optionally filtered by status."
 )
 async def list_proxy(
     status: Optional[str] = Query(
         None,
-        description="Filter by status (queued, running, completed, failed, cancelled)",
+        description="Filter by status: `queued` / `running` / `completed` / `failed` / `cancelled`",
         example="running"
     ),
     request: Request = None
@@ -179,31 +184,31 @@ async def list_proxy(
     return await forward_request(request, "/list")
 
 
-@router.api_route("/cancel/{job_id}", methods=["POST"])
+@router.api_route(
+    "/cancel/{job_id}",
+    methods=["POST"],
+    summary="Cancel a training job",
+    description="Abort a running or queued training job. Completed or failed jobs cannot be cancelled.",
+)
 async def cancel_proxy(job_id: str, request: Request):
     return await forward_request(request, f"/cancel/{job_id}")
 
 
 @router.delete(
     "/delete/{job_id}",
-    summary="Delete job records",
+    summary="Delete a training job",
     description="""
-Delete job records from Redis and clean up associated files.
+Delete the job record and clean up associated files (logs and checkpoints).
 
-- If the job is still running or queued, you must set `force=true` to delete.
-- This will remove records from Redis and delete logs and checkpoints from disk.
-
-Warning: This operation cannot be undone.
+- Set `force=true` to delete a job that is still running or queued.
+- **This operation cannot be undone.**
 """
 )
 async def delete_proxy(
-    job_id: str = Path(
-        ...,
-        description="Job ID to delete",
-    ),
+    job_id: str = Path(..., description="ID of the job to delete"),
     force: bool = Query(
         False,
-        description="Force cancel and delete if job is still running or queued",
+        description="Force delete even if the job is still running or queued",
         example=True
     ),
     request: Request = None

@@ -18,7 +18,7 @@ class PDFOCRProcessor:
     def __init__(self, vlm_annotator=None, max_chunk_tokens: int = 400):
         self.max_chunk_tokens = max_chunk_tokens
         self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
         
         # 使用共享的 VLM 實例或創建新的
         if vlm_annotator is not None:

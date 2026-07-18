@@ -7,7 +7,6 @@ sed \
   -e "s|\${POSTGRES_PORT}|${POSTGRES_PORT}|g" \
   -e "s|\${POSTGRES_USER}|${POSTGRES_USER}|g" \
   -e "s|\${POSTGRES_PASSWORD}|${POSTGRES_PASSWORD}|g" \
-  -e "s|\${POSTGRES_DB}|${POSTGRES_DB}|g" \
   /etc/seaweedfs/filer_generated.toml > /etc/seaweedfs/filer.toml
 
 # Run filer

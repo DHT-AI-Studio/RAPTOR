@@ -93,11 +93,16 @@ class SeaweedFSClient:
                 form = aiohttp.FormData()
                 form.add_field("primary_version_id", version_id)
                 for path in existing:
+                    base = os.path.basename(path)
+                    moment_dir = os.path.basename(os.path.dirname(os.path.dirname(path)))
+                    ext = os.path.splitext(base)[1] or ".jpg"
+                    stem = os.path.splitext(base)[0]
+                    unique_filename = f"{moment_dir}_{stem}{ext}"
                     with open(path, "rb") as f:
                         form.add_field(
                             "associated_files",
                             f.read(),
-                            filename=os.path.basename(path),
+                            filename=unique_filename,
                             content_type="image/jpeg",
                         )
                 async with session.post(

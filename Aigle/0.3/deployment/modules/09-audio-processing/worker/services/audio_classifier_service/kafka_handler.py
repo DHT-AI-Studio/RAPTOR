@@ -127,12 +127,20 @@ class AudioClassifierKafkaHandler:
                     
                     try:
                         classification_results = await self.handle_audio_classification_async(message)
-                        
-                        response_message = MessageBuilder.create_classification_result_message(
-                            original_message=message,
-                            classification_results=classification_results
-                        )
-                        await self.send_response(producer, response_message)
+
+                        if classification_results.get("status") == "error":
+                            err = classification_results.get("error", {})
+                            await self.send_error_response(
+                                producer, message,
+                                err.get("message", "Classification failed"),
+                                err.get("code", "CLASSIFICATION_ERROR"),
+                            )
+                        else:
+                            response_message = MessageBuilder.create_classification_result_message(
+                                original_message=message,
+                                classification_results=classification_results,
+                            )
+                            await self.send_response(producer, response_message)
                         
                         # 記錄處理時間
                         if ASYNC_PROCESSING_CONFIG["enable_task_monitoring"]:

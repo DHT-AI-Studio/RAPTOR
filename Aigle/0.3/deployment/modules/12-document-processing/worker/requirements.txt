@@ -13,13 +13,15 @@ pandas==2.3.3
 zhconv==1.4.3
 
 # VLM / OCR  (document_analysis_service)
-# paddlepaddle-gpu is installed separately in Dockerfile (custom index)
+# paddlepaddle-gpu is installed separately in Dockerfile (custom index).
+# torch / torchvision are installed in the Dockerfile from the cu128 wheel
+# index (https://download.pytorch.org/whl/cu128) so we get sm_120 kernels
+# for RTX 50-series (Blackwell). Do NOT add torch/torchvision pins here —
+# that would let pip resolve a default PyPI build that lacks sm_120.
 paddleocr==3.2.0
 transformers==4.51.3
 einops
 timm
-torch==2.7.1
-torchvision==0.22.1
 
 # Utilities
 numpy==1.26.4

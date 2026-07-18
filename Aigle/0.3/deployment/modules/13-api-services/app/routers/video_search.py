@@ -142,8 +142,23 @@ def _rrf_add(
 
 # ── Main endpoint ─────────────────────────────────────────────────────────────
 
-@router.post("", tags=["Video Search"], status_code=status.HTTP_200_OK,
-             response_model=VideoSearchResponse)
+@router.post(
+    "",
+    tags=["Video Search"],
+    status_code=status.HTTP_200_OK,
+    response_model=VideoSearchResponse,
+    summary="Video Search (4-way RRF + Rerank)",
+    description="""
+Runs **BM25, Vector, GraphRAG, and TKG** retrievers in parallel, merges their ranked lists with Reciprocal Rank Fusion (RRF), then re-ranks the top candidates (up to 50) with a cross-encoder reranker.
+
+**Results are grouped by video:**
+- Each video entry includes matching segments with `start_time` / `end_time`, segment text, and source tags
+- `asset_url` — pre-signed URL for direct video access
+
+**Response headers:**
+`X-Process-Time-*` fields report per-stage latency in milliseconds.
+""",
+)
 async def video_search(
     req: VideoSearchRequest,
     response: Response,
@@ -168,11 +183,11 @@ async def video_search(
 
     # ── Parallel fan-out to all 4 retrievers ─────────────────────────────────
     bm25_coro = svc.bm25_search(
-        {"query": req.query, "top_k": candidate_k, "type": "videos"},
+        {"query": req.query, "top_k": candidate_k, "type": "videos", "embedding_type": "text"},
         user=user, resolve_urls=False,
     )
     vector_coro = svc.vector_search(
-        {"query": req.query, "top_k": candidate_k, "type": "videos"},
+        {"query": req.query, "top_k": candidate_k, "type": "videos", "embedding_type": "text"},
         user=user, resolve_urls=False,
     )
     graphrag_coro = client.post(
@@ -265,6 +280,8 @@ async def video_search(
                 text=m.get("asr_text") or m.get("contextual_text") or "",
                 source_tag="graphrag",
                 asset_path=m.get("asset_path"),
+                filename=m.get("filename"),
+                upload_time=m.get("upload_time"),
             )
 
         # moment_ids (subgraph traversal): no real score, rank just after matched_moments.
@@ -285,6 +302,8 @@ async def video_search(
                 text=_format_graph_text(m),
                 source_tag="graphrag",
                 asset_path=m.get("asset_path"),
+                filename=m.get("filename"),
+                upload_time=m.get("upload_time"),
             )
     else:
         _logger.warning(f"GraphRAG search failed: {graphrag_res}")
@@ -313,6 +332,8 @@ async def video_search(
                 text=_format_graph_text(m),
                 source_tag="tkg",
                 asset_path=m.get("asset_path"),
+                filename=m.get("filename"),
+                upload_time=m.get("upload_time"),
             )
     else:
         _logger.warning(f"TKG search failed: {tkg_res}")
@@ -321,21 +342,27 @@ async def video_search(
     candidates = sorted(pool.values(), key=lambda s: s["score"], reverse=True)[:_RERANK_CANDIDATES]
     if candidates:
         try:
-            rerank_resp = await client.post(
-                f"{settings.hybrid_search_url}/api/v1/search/rerank",
-                json={
-                    "query": req.query,
-                    "documents": [
-                        {"id": _seg_key(s["video_id"], s["start_time"]), "text": s["text"]}
-                        for s in candidates
-                    ],
-                },
-                timeout=30.0,
-            )
-            rerank_resp.raise_for_status()
-            for item in rerank_resp.json().get("results", []):
-                if item["id"] in pool:
-                    pool[item["id"]]["score"] = item["score"]
+            # Video-level vector hits have no text; sending text="" to the cross-encoder
+            # yields sigmoid(0)≈0.596, which inflates scores above score_threshold.
+            # Zero them out before reranking so they cannot pass the threshold.
+            rerank_docs = [
+                {"id": _seg_key(s["video_id"], s["start_time"]), "text": s["text"]}
+                for s in candidates if s.get("text")
+            ]
+            for s in candidates:
+                if not s.get("text"):
+                    pool[_seg_key(s["video_id"], s["start_time"])]["score"] = 0.0
+
+            if rerank_docs:
+                rerank_resp = await client.post(
+                    f"{settings.hybrid_search_url}/api/v1/search/rerank",
+                    json={"query": req.query, "documents": rerank_docs},
+                    timeout=30.0,
+                )
+                rerank_resp.raise_for_status()
+                for item in rerank_resp.json().get("results", []):
+                    if item["id"] in pool:
+                        pool[item["id"]]["score"] = item["score"]
         except Exception as exc:
             _logger.warning(f"Rerank failed, keeping RRF scores: {exc}")
     _t_rerank = _time.perf_counter()

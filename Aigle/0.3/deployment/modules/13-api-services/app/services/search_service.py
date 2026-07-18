@@ -108,6 +108,25 @@ class HybridSearchService:
             if vid and url_map.get(vid):
                 item["asset_url"] = url_map[vid]
 
+    async def _resolve_asset_urls(
+        self,
+        search_results: List[dict],
+        user_dict: Dict[str, str],
+    ) -> List[dict]:
+        """Enrich chat search_results with presigned asset URLs.
+
+        search_results is a list of groups: [{items: [{payload: {...}}, ...]}, ...]
+        Payloads are modified in-place; the same list is returned.
+        """
+        all_payloads = [
+            hit["payload"]
+            for group in search_results
+            for hit in group.get("items", [])
+            if hit.get("payload")
+        ]
+        await self.enrich_with_urls(all_payloads, user_dict)
+        return search_results
+
     # ── Public: search with optional URL resolution ───────────────────────────
 
     async def hybrid_search(

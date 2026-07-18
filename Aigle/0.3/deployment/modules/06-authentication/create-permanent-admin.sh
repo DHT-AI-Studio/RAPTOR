@@ -13,7 +13,29 @@ KC_URL="${KEYCLOAK_URL:-http://keycloak:8080}"
 KCADM="/opt/keycloak/bin/kcadm.sh"
 
 # ------------------------
-# 若 permanent admin 已存在則直接跳過
+# SMTP 設定 helper（需在 kcadm session 已認證後呼叫）
+# ------------------------
+configure_smtp() {
+  if [ -n "$SMTP_HOST" ]; then
+    echo "Configuring SMTP for dhtsolution realm..."
+    $KCADM update realms/dhtsolution \
+      -s "smtpServer.host=$SMTP_HOST" \
+      -s "smtpServer.port=$SMTP_PORT" \
+      -s "smtpServer.from=$SMTP_FROM" \
+      -s "smtpServer.fromDisplayName=$SMTP_FROM_DISPLAY_NAME" \
+      -s "smtpServer.auth=$SMTP_AUTH" \
+      -s "smtpServer.user=$SMTP_USER" \
+      -s "smtpServer.password=$SMTP_PASSWORD" \
+      -s "smtpServer.ssl=$SMTP_SSL" \
+      -s "smtpServer.starttls=$SMTP_STARTTLS"
+    echo "✅ SMTP configured."
+  else
+    echo "⚠️ SMTP_HOST not set, skipping SMTP configuration."
+  fi
+}
+
+# ------------------------
+# 若 permanent admin 已存在則設定 SMTP 後離開
 # ------------------------
 echo "Checking if permanent admin already exists..."
 if $KCADM config credentials \
@@ -22,7 +44,8 @@ if $KCADM config credentials \
     --user "$PERMANENT_MASTER_ADMIN_USER" \
     --password "$PERMANENT_ADMIN_PASSWORD" \
     >/dev/null 2>&1; then
-  echo "✅ Permanent admin already initialized. Skipping setup."
+  echo "✅ Permanent admin already initialized."
+  configure_smtp
   exit 0
 fi
 
@@ -108,5 +131,10 @@ if [ -n "$BOOTSTRAP_USER_ID" ]; then
 else
   echo "Bootstrap admin '$BOOTSTRAP_USER' not found, skipping."
 fi
+
+# ------------------------
+# 設定 dhtsolution realm SMTP
+# ------------------------
+configure_smtp
 
 echo "✅ Permanent admin setup complete."

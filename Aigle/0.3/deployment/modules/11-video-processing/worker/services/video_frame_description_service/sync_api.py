@@ -33,7 +33,7 @@ INFERENCE_MODEL = os.getenv("INFERENCE_MODEL", "qwen3.5:9b")
 CROSS_SERVICE_TIMEOUT = int(os.getenv("CROSS_SERVICE_TIMEOUT", "600"))
 MOMENT_DURATION_SEC = 10.0
 KEYFRAMES_PER_MOMENT = 2
-_cc = opencc.OpenCC("s2tw")
+_cc = opencc.OpenCC("s2twp")
 
 
 def init(processor, summarizer, thread_pool):

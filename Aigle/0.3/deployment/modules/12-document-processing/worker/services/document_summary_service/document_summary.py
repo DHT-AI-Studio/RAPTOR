@@ -15,7 +15,7 @@ class DocumentSummarizer:
         self.chunk_group_size = 5
         self.max_summary_tokens = 800
         self.safety_buffer = 0.8
-        self.converter = opencc.OpenCC('s2tw')
+        self.converter = opencc.OpenCC('s2twp')
     
     def count_tokens_estimate(self, text: str) -> int:
         """估算文本的token數量"""

@@ -22,7 +22,7 @@ HYBRID_SEARCH_INGEST_URL = os.getenv("HYBRID_SEARCH_INGEST_URL")
 
 logger = logging.getLogger(__name__)
 
-_cc = opencc.OpenCC("s2tw")
+_cc = opencc.OpenCC("s2twp")
 
 
 class VideoIndexerKafkaHandler:
@@ -93,7 +93,7 @@ class VideoIndexerKafkaHandler:
 
         except Exception as e:
             logger.error(f"Error processing message: {e}")
-            response = create_response_message(message, status="failed", error=str(e))
+            response = create_response_message(message, status="error", error=str(e))
             await self.send_response(response)
         finally:
             for cleanup_path in [summary_result_path, video_analysis_path, audio_analysis_path]:
@@ -146,9 +146,18 @@ class VideoIndexerKafkaHandler:
                     json.dump(enriched, dbf, indent=2, ensure_ascii=False)
                 logger.info(f"[DEBUG] Qdrant payload saved to: {debug_path}")
 
+            # Write enriched records to a file for graph service to consume.
+            # Passing the full list through Kafka would exceed max_request_size
+            # for long videos, so we use a shared volume path instead.
+            graph_records_dir = "/tmp/media_processing/video_processing/graph_records"
+            os.makedirs(graph_records_dir, exist_ok=True)
+            records_path = os.path.join(graph_records_dir, f"{version_id}_graph_records.json")
+            with open(records_path, "w", encoding="utf-8") as rf:
+                json.dump(enriched, rf, ensure_ascii=False)
+
             if not HYBRID_SEARCH_INGEST_URL:
                 logger.info("[DEBUG] HYBRID_SEARCH_INGEST_URL not set — skipping upload (dry-run)")
-                return {"dry_run": True, "total_entries": len(enriched), "debug_file": debug_path, "records": enriched, "text_entries": moment_text_entries}
+                return {"dry_run": True, "total_entries": len(enriched), "debug_file": debug_path, "records_path": records_path, "text_entries": moment_text_entries[:100]}
 
             tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json")
             try:
@@ -168,7 +177,7 @@ class VideoIndexerKafkaHandler:
                                 raise Exception(f"Search API error: {resp.status}")
                             result = await resp.json()
                             logger.info(f"Search API response: {result}")
-                            return {**result.get("results", {}), "records": enriched, "text_entries": moment_text_entries}
+                            return {**result.get("results", {}), "records_path": records_path, "text_entries": moment_text_entries[:100]}
             finally:
                 os.unlink(tmp_path)
 

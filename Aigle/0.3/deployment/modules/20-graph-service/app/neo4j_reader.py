@@ -28,19 +28,48 @@ class Neo4jClient:
         logger.info(f"Neo4j connected: {uri}")
 
     async def _ensure_indexes(self):
-        """Idempotent: create fulltext indexes used by GraphRAG queries."""
-        stmts = [
-            ("CREATE FULLTEXT INDEX entity_fulltext IF NOT EXISTS "
-             "FOR (n:Entity) ON EACH [n.name, n.description]"),
-            ("CREATE FULLTEXT INDEX moment_fulltext IF NOT EXISTS "
-             "FOR (n:Moment) ON EACH [n.asr_text, n.lvlm_description, n.contextual_text]"),
-        ]
+        """Ensure fulltext indexes use the CJK analyzer.
+
+        The default analyzer tokenises Chinese per-character, causing noise matches
+        on queries like '台積電'. The 'cjk' bigram analyzer eliminates that pollution.
+        Neo4j cannot change an index's analyzer in place — if the index exists with a
+        different analyzer, drop and recreate it (one-time migration).
+        """
+        targets = {
+            "entity_fulltext": "FOR (n:Entity) ON EACH [n.name, n.description]",
+            "moment_fulltext": (
+                "FOR (n:Moment) ON EACH "
+                "[n.asr_text, n.lvlm_description, n.contextual_text]"
+            ),
+        }
         async with self._driver.session() as session:
-            for stmt in stmts:
+            existing = {}
+            try:
+                res = await session.run(
+                    "SHOW INDEXES YIELD name, type, options "
+                    "WHERE type = 'FULLTEXT' RETURN name, options"
+                )
+                async for rec in res:
+                    cfg = (rec["options"] or {}).get("indexConfig", {}) or {}
+                    existing[rec["name"]] = cfg.get("fulltext.analyzer")
+            except Exception as exc:
+                logger.warning(f"Could not list fulltext indexes: {exc}")
+
+            for name, pattern in targets.items():
+                if existing.get(name) == "cjk":
+                    continue
                 try:
-                    await (await session.run(stmt)).consume()
+                    if name in existing:
+                        await (await session.run(f"DROP INDEX {name}")).consume()
+                        logger.info(f"Dropped {name} (analyzer was {existing[name]!r})")
+                    create = (
+                        f"CREATE FULLTEXT INDEX {name} IF NOT EXISTS {pattern} "
+                        "OPTIONS { indexConfig: { `fulltext.analyzer`: 'cjk' } }"
+                    )
+                    await (await session.run(create)).consume()
+                    logger.info(f"Created {name} with cjk analyzer")
                 except Exception as exc:
-                    logger.warning(f"Index ensure failed (may already exist): {exc}")
+                    logger.warning(f"Index ensure failed for {name}: {exc}")
 
     async def close(self):
         if self._driver:
@@ -63,9 +92,19 @@ class Neo4jClient:
         CALL db.index.fulltext.queryNodes("entity_fulltext", $query_text)
         YIELD node, score
         WHERE score > $threshold
-          AND ($branch_id = ''
-            OR EXISTS { MATCH (node)-[:MENTIONED_IN]->(s:Source {branch_id: $branch_id}) }
-            OR EXISTS { MATCH (node)-[:APPEARS_IN]->(m:Moment {branch_id: $branch_id}) }
+          AND (
+            $branch_id = ''
+            OR EXISTS { MATCH (node)-[:MENTIONED_IN]->(s:Source {branch_id: $branch_id})
+                        WHERE s.status IS NULL OR s.status <> 'archived' }
+            OR EXISTS { MATCH (node)-[:APPEARS_IN]->(m:Moment {branch_id: $branch_id})<-[:HAS_MOMENT]-(s:Source)
+                        WHERE s.status IS NULL OR s.status <> 'archived' }
+          )
+          AND (
+            $branch_id <> ''
+            OR EXISTS { MATCH (node)-[:MENTIONED_IN]->(s:Source)
+                        WHERE s.status IS NULL OR s.status <> 'archived' }
+            OR EXISTS { MATCH (node)-[:APPEARS_IN]->(m:Moment)<-[:HAS_MOMENT]-(s:Source)
+                        WHERE s.status IS NULL OR s.status <> 'archived' }
           )
         RETURN node.id AS id, node.name AS name, node.type AS type,
                node.description AS description, 'entity' AS node_kind, score
@@ -107,6 +146,9 @@ class Neo4jClient:
         YIELD node, score
         WHERE score > $threshold
           AND ($branch_id = '' OR node.branch_id = $branch_id)
+        OPTIONAL MATCH (s:Source)-[:HAS_MOMENT]->(node)
+        WITH node, score, s
+        WHERE s IS NULL OR s.status IS NULL OR s.status <> 'archived'
         RETURN node.id AS id,
                node.version_id AS version_id,
                node.asset_path AS asset_path,
@@ -116,6 +158,8 @@ class Neo4jClient:
                node.asr_text AS asr_text,
                node.lvlm_description AS lvlm_description,
                node.contextual_text AS contextual_text,
+               s.filename AS filename,
+               toString(s.processed_at) AS upload_time,
                'moment' AS node_kind, score
         ORDER BY score DESC
         LIMIT $limit
@@ -210,14 +254,39 @@ class Neo4jClient:
         relationships = [_serialize_rel(r) for r in record["relationships"]]
         moments = record["moments"] or []
 
+        # Source nodes are already in the subgraph traversal; use them to enrich moments
+        # with filename and upload_time (stored only on Source, not on Moment nodes).
+        source_map = {
+            n["id"]: n["properties"]
+            for n in nodes if "Source" in n["labels"]
+        }
+        # Collect archived version_ids so moments from archived sources can be excluded
+        archived_vids = {
+            n["id"]
+            for n in nodes
+            if "Source" in n["labels"] and n["properties"].get("status") == "archived"
+        }
+        enriched_moments = []
+        for m in moments:
+            m = dict(m)
+            if m.get("version_id") in archived_vids:
+                continue
+            src = source_map.get(m.get("version_id"), {})
+            if not m.get("filename"):
+                m["filename"] = src.get("filename")
+            if not m.get("upload_time"):
+                pa = src.get("processed_at")
+                m["upload_time"] = str(pa) if pa else None
+            enriched_moments.append(m)
+
         logger.info(
             f"Subgraph for {entity_id}: {len(nodes)} nodes, "
-            f"{len(relationships)} rels, {len(moments)} moments"
+            f"{len(relationships)} rels, {len(enriched_moments)} moments"
         )
-        return {"nodes": nodes, "relationships": relationships, "moment_ids": moments}
+        return {"nodes": nodes, "relationships": relationships, "moment_ids": enriched_moments}
 
     async def get_moment_subgraph(
-        self, moment_id: str, max_depth: int = 1
+        self, moment_id: str, max_depth: int = 1  # max_depth reserved, always depth-1
     ) -> Dict[str, Any]:
         """從 Moment 節點出發，取周邊的 Source + Entity。"""
         # Neo4j 5.x 不允許 RETURN 同時混 raw column 跟 collect()，必須先用
@@ -341,21 +410,37 @@ class Neo4jClient:
                         all_nodes[n["id"]] = n
                 # fulltext matched moment 本身也加入 moment_ids，帶 matched_via + snippets
                 all_moment_ids[moment["id"]] = {
-                "moment_id":    moment["id"],
-                "version_id":   moment.get("version_id"),
-                "asset_path":   moment.get("asset_path"),
-                "branch_id":    moment.get("branch_id"),
-                "moment_index": moment.get("moment_index"),
-                "start_sec":    moment.get("start_sec"),
-                "end_sec":      moment.get("end_sec"),
-                "asr_text":          moment.get("asr_text"),
-                "lvlm_description":  moment.get("lvlm_description"),
-                "contextual_text":   moment.get("contextual_text"),
-                "ocr_text":          moment.get("ocr_text"),
-                "matched_via":  moment.get("matched_via", []),
-                "snippets":     moment.get("snippets", {}),
-                "score":        moment.get("score"),
-            }
+                    "moment_id":    moment["id"],
+                    "version_id":   moment.get("version_id"),
+                    "asset_path":   moment.get("asset_path"),
+                    "branch_id":    moment.get("branch_id"),
+                    "moment_index": moment.get("moment_index"),
+                    "start_sec":    moment.get("start_sec"),
+                    "end_sec":      moment.get("end_sec"),
+                    "asr_text":          moment.get("asr_text"),
+                    "lvlm_description":  moment.get("lvlm_description"),
+                    "contextual_text":   moment.get("contextual_text"),
+                    "ocr_text":          moment.get("ocr_text"),
+                    "matched_via":  moment.get("matched_via", []),
+                    "snippets":     moment.get("snippets", {}),
+                    "score":        moment.get("score"),
+                    "filename":     moment.get("filename"),
+                    "upload_time":  moment.get("upload_time"),
+                }
+
+        # Enrich all moments with filename/upload_time from Source nodes in all_nodes
+        source_map = {
+            nid: n["properties"]
+            for nid, n in all_nodes.items()
+            if "Source" in n.get("labels", [])
+        }
+        for m in all_moment_ids.values():
+            src = source_map.get(m.get("version_id"), {})
+            if not m.get("filename"):
+                m["filename"] = src.get("filename")
+            if not m.get("upload_time"):
+                pa = src.get("processed_at")
+                m["upload_time"] = str(pa) if pa else None
 
         # 4. 結構化 citations — 給 LLM agent 引用片段時用
         sorted_moments = sorted(
@@ -459,12 +544,17 @@ def _serialize_node(node) -> Dict[str, Any]:
 
 def _serialize_rel(rel) -> Dict[str, Any]:
     props = dict(rel.items())
-    start_props = dict(rel.start_node.items())
-    end_props = dict(rel.end_node.items())
+
+    def _node_id(node) -> str:
+        p = dict(node.items())
+        if "Source" in list(node.labels):
+            return p.get("version_id", str(node.element_id))
+        return p.get("id", str(node.element_id))
+
     return {
         "type": rel.type,
-        "start_id": start_props.get("id", str(rel.start_node.element_id)),
-        "end_id": end_props.get("id", str(rel.end_node.element_id)),
+        "start_id": _node_id(rel.start_node),
+        "end_id":   _node_id(rel.end_node),
         "properties": _to_json_safe(props),
     }
 

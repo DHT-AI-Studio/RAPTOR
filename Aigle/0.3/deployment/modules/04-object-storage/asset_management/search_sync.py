@@ -2,6 +2,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import PointStruct, Filter, FieldCondition, MatchValue
 from opensearchpy import AsyncOpenSearch
 from opensearchpy.helpers import async_bulk
+import httpx
 import uuid
 import asyncio
 import logging
@@ -74,22 +75,38 @@ class SearchSync:
 
     # ---------- public API ----------
 
+    async def check_indexed(self, asset_path: str, version_id: str, branch: str) -> bool:
+        """Return True if this asset version has been indexed in Qdrant (i.e. analysis completed)."""
+        try:
+            result = await self.qdrant.count(
+                collection_name=settings.qdrant_collection,
+                count_filter=self._qdrant_filter(asset_path, version_id, branch),
+                exact=False,
+            )
+            return result.count > 0
+        except Exception as e:
+            logger.warning(f"[Qdrant] check_indexed failed for {asset_path}/{version_id}: {e}")
+            return True  # assume indexed on error to avoid spurious re-processing
+
     async def archive_metadata(self, asset_path: str, version_id: str, branch: str):
         await asyncio.gather(
             self._qdrant_set_status(asset_path, version_id, "archived", branch_id=branch),
             self._opensearch_set_status(asset_path, version_id, "archived", branch_id=branch),
+            self._graph_set_status(asset_path, version_id, "archived", branch_id=branch),
         )
 
     async def reactivate_metadata(self, asset_path: str, version_id: str, branch: str):
         await asyncio.gather(
             self._qdrant_set_status(asset_path, version_id, "active", branch_id=branch),
             self._opensearch_set_status(asset_path, version_id, "active", branch_id=branch),
+            self._graph_set_status(asset_path, version_id, "active", branch_id=branch),
         )
 
     async def delete_metadata(self, asset_path: str, version_id: str, branch: str):
         await asyncio.gather(
             self._qdrant_delete(asset_path, version_id, branch_id=branch),
             self._opensearch_delete(asset_path, version_id, branch_id=branch),
+            self._graph_delete(asset_path, version_id, branch_id=branch),
         )
 
     async def clone_point(
@@ -104,6 +121,47 @@ class SearchSync:
             self._qdrant_clone(source_path, source_version, target_path, target_version, branch_id=branch),
             self._opensearch_clone(source_path, source_version, target_path, target_version, branch_id=branch),
         )
+
+    # ---------- Graph Service internals ----------
+
+    async def _graph_set_status(self, asset_path: str, version_id: str, status: str, branch_id: str = None):
+        url = settings.graph_service_url
+        if not url:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{url}/source/set_status",
+                    json={
+                        "asset_path": asset_path,
+                        "version_id": version_id,
+                        "branch_id":  branch_id or "",
+                        "status":     status,
+                    },
+                )
+                resp.raise_for_status()
+            logger.info(f"[Graph] status={status} for {asset_path}/{version_id}")
+        except Exception as e:
+            logger.error(f"[Graph] Failed to set status for {asset_path}/{version_id}: {e}")
+
+    async def _graph_delete(self, asset_path: str, version_id: str, branch_id: str = None):
+        url = settings.graph_service_url
+        if not url:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    f"{url}/source/delete",
+                    json={
+                        "asset_path": asset_path,
+                        "version_id": version_id,
+                        "branch_id":  branch_id or "",
+                    },
+                )
+                resp.raise_for_status()
+            logger.info(f"[Graph] Deleted Neo4j nodes for {asset_path}/{version_id}")
+        except Exception as e:
+            logger.error(f"[Graph] Failed to delete Neo4j nodes for {asset_path}/{version_id}: {e}")
 
     # ---------- Qdrant internals ----------
 

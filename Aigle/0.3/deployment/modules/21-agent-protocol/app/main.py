@@ -203,7 +203,7 @@ async def query_endpoint(body: QueryRequest, request: Request):
     if body.mode == "agent":
         from smolagents_host import build_host_agent
         from pipeline import _fetch_presigned_url
-        agent, tools = await build_host_agent()
+        agent, tools = await build_host_agent(branch_id=branch_id)
         answer = await asyncio.to_thread(agent.run, body.question)
         # Aggregate hits from every A2A tool that was called, dedup by doc_id, sort by score
         seen: set[str] = set()

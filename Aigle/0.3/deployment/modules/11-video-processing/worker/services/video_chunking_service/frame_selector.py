@@ -27,8 +27,13 @@ def extract_frames(video_path: str, start: float, end: float, output_dir: str) -
         pattern,
     ]
     result = subprocess.run(cmd, capture_output=True, timeout=60)
-    if result.returncode != 0:
-        logger.warning(f"GPU frame extraction failed, falling back to CPU: {result.stderr.decode(errors='replace')}")
+    frames = sorted(f for f in os.listdir(output_dir) if f.startswith("frame_") and f.endswith(".jpg"))
+
+    if result.returncode != 0 or not frames:
+        if result.returncode == 0:
+            logger.warning("GPU frame extraction produced no frames, falling back to CPU")
+        else:
+            logger.warning(f"GPU frame extraction failed, falling back to CPU: {result.stderr.decode(errors='replace')}")
         cmd = [
             "ffmpeg", "-y",
             "-ss", str(start), "-to", str(end),
@@ -37,8 +42,25 @@ def extract_frames(video_path: str, start: float, end: float, output_dir: str) -
             "-q:v", "2",
             pattern,
         ]
-        subprocess.run(cmd, capture_output=True, timeout=60)
-    frames = sorted(f for f in os.listdir(output_dir) if f.startswith("frame_") and f.endswith(".jpg"))
+        cpu_result = subprocess.run(cmd, capture_output=True, timeout=60)
+        if cpu_result.returncode != 0:
+            logger.warning(f"CPU frame extraction failed: {cpu_result.stderr.decode(errors='replace')}")
+        frames = sorted(f for f in os.listdir(output_dir) if f.startswith("frame_") and f.endswith(".jpg"))
+
+    # Last resort: grab a single frame from the middle of the segment
+    if not frames:
+        mid = (start + end) / 2
+        single = os.path.join(output_dir, "frame_0001.jpg")
+        r = subprocess.run([
+            "ffmpeg", "-y",
+            "-ss", str(mid), "-i", video_path,
+            "-frames:v", "1", "-q:v", "2", single,
+        ], capture_output=True, timeout=30)
+        if r.returncode == 0 and os.path.exists(single):
+            logger.warning(f"Using single mid-segment frame as last resort for {start}-{end}s")
+            frames = [single]
+        else:
+            logger.warning(f"All frame extraction attempts failed for {start}-{end}s")
     return [os.path.join(output_dir, f) for f in frames]
 
 
@@ -82,9 +104,11 @@ def select_keyframes(moment: Dict[str, Any]) -> List[str]:
         logger.warning(f"No frames extracted for moment {moment['moment_index']}")
         return []
 
-    scored = [(laplacian_variance(f), f) for f in frames]
-    scored = [(score, path) for score, path in scored if score >= BLUR_THRESHOLD]
-    scored.sort(key=lambda x: x[0], reverse=True)
+    all_scored = sorted([(laplacian_variance(f), f) for f in frames], key=lambda x: x[0], reverse=True)
+    scored = [(score, path) for score, path in all_scored if score >= BLUR_THRESHOLD]
+    if not scored:
+        logger.warning(f"All frames below blur threshold for moment {moment['moment_index']}, using sharpest available")
+        scored = all_scored
 
     selected = []
     for _, path in scored:

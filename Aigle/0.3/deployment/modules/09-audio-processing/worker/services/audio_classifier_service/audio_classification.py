@@ -89,8 +89,8 @@ class AudioClassificationClient:
             logger.debug(f"[SYNC] Asset path: {asset_path}, Version ID: {version_id}")
             logger.debug(f"[SYNC] Classification type: {classification_type}, top_k: {top_k}")
             
-            # 判斷檔案類型
-            file_type = self.get_file_type(filename)
+            # 判斷檔案類型（用實際音訊檔案副檔名，不用原始影片 primary_filename）
+            file_type = self.get_file_type(audio_file_path.name)
             
             # 處理音頻檔案
             start_time = datetime.now()

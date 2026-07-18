@@ -35,7 +35,7 @@ services:
 
   # Keycloak Identity Server
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4.7
+    image: quay.io/keycloak/keycloak:26.6.2
     container_name: raptor-keycloak
     hostname: raptor-keycloak
     command:
@@ -71,8 +71,8 @@ services:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health HTTP/1.0\r\n\r\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 90s
+      retries: 10
+      start_period: 180s
     deploy:
       resources:
         limits:
@@ -80,7 +80,7 @@ services:
           cpus: '1'
 
   keycloak-init:
-    image: quay.io/keycloak/keycloak:26.4.7
+    image: quay.io/keycloak/keycloak:26.6.2
     container_name: raptor-keycloak-init
     depends_on:
       keycloak:
@@ -92,6 +92,15 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       PERMANENT_MASTER_ADMIN_USER: ${PERMANENT_MASTER_ADMIN_USER}
       PERMANENT_ADMIN_PASSWORD: ${PERMANENT_ADMIN_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_DISPLAY_NAME: ${SMTP_FROM_DISPLAY_NAME:-DHT Solution}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
     volumes:
       - ./create-permanent-admin.sh:/opt/keycloak/bin/create-permanent-admin.sh:ro
     networks:
@@ -117,6 +126,12 @@ services:
       KEYCLOAK_FINETUNING_URIS: ${KEYCLOAK_FINETUNING_URIS:-}
       PERMANENT_MASTER_ADMIN_USER: ${PERMANENT_MASTER_ADMIN_USER}
       PERMANENT_ADMIN_PASSWORD: ${PERMANENT_ADMIN_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TO_EMAIL: ${SMTP_TO_EMAIL:-}
       TZ: ${TIMEZONE:-Asia/Taipei}
     ports:
       - "${PORT_KEYCLOAK_API:-8800}:8800"

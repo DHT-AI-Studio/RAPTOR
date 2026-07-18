@@ -21,7 +21,7 @@ class AudioRecognitionClient:
     def __init__(self):
         """初始化音頻識別客戶端"""
         self.speech_recognizer = SpeechRecognizer()
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
         logger.info("Audio recognition client initialized")
     
     def get_file_type(self, filename: str) -> str:
@@ -85,7 +85,7 @@ class AudioRecognitionClient:
             logger.debug(f"[SYNC] Asset path: {asset_path}, Version ID: {version_id}")
             
             # 判斷檔案類型
-            file_type = self.get_file_type(filename)
+            file_type = self.get_file_type(audio_file_path.name)
             
             # 處理音頻檔案
             start_time = datetime.now()

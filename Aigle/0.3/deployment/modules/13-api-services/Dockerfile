@@ -69,7 +69,7 @@ RUN if [ -d /wheels ] && [ "$(ls -A /wheels 2>/dev/null | grep -v '^\.gitkeep$')
         pip install --no-index --find-links=/wheels -r requirements.txt; \
     else \
         echo "No wheels found, installing from PyPI..."; \
-        pip install -r requirements.txt; \
+        pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt; \
     fi
 
 # # 複製自訂 keycloak 套件並安裝
@@ -79,7 +79,6 @@ RUN if [ -d /wheels ] && [ "$(ls -A /wheels 2>/dev/null | grep -v '^\.gitkeep$')
 # 複製其他專案程式碼
 #COPY . /src
 COPY ./app /app
-COPY .env /app
 
 # 暴露應用端口
 EXPOSE 8012

@@ -78,8 +78,8 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: image_processing
-      CUDA_VISIBLE_DEVICES: ${IMAGE_PROCESSING_GPU:-0}
-      VLM_MODEL_PATH: ${VLM_MODEL_PATH:-OpenGVLab/InternVL3_5-4B}
+      CUDA_VISIBLE_DEVICES: "0"
+      VLM_MODEL_PATH: ${IMAGE_VLM_MODEL_PATH:-OpenGVLab/InternVL3_5-4B}
       MAX_MEMORY_PER_GPU: ${MAX_MEMORY_PER_GPU:-36GiB}
       IMAGE_SYNC_API_PORT: ${IMAGE_SYNC_API_PORT:-8018}
     ports:
@@ -96,7 +96,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${IMAGE_PROCESSING_GPU_COUNT:-1}
+              device_ids: ["${IMAGE_PROCESSING_GPU:-0}"]
               capabilities: [gpu]
 
   image-indexer:
@@ -138,9 +138,9 @@ volumes:
   media-tmp:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      device: ":${NFS_MEDIA_TMP_PATH}"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/media/processing
 
 networks:
   raptor:

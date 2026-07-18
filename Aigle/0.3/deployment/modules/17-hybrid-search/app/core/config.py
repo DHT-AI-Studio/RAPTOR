@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # Reranker Model Settings
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
+    RERANKER_TEMPERATURE: float = 0.25  # sigmoid temperature scaling; <1 sharpens score distribution
 
     # App settings
     DEBUG: bool = False

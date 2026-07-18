@@ -32,7 +32,7 @@ import httpx
 import opencc
 from loguru import logger
 
-_s2tw_converter = opencc.OpenCC("s2tw")
+_s2tw_converter = opencc.OpenCC("s2twp")
 
 def _s2tw(text: str) -> str:
     return _s2tw_converter.convert(text) if text else text
@@ -508,10 +508,10 @@ async def run_rag_pipeline(
 
     # ── Step 1: Fan-out ───────────────────────────────────────────────────────
     tasks: list = [
-        _call_agent(vec_url, VectorSearchRequest(query=question, top_k=top_k * 2, type=_TEXT_TYPES), request_id=rid),
-        _call_agent(kw_url,  BM25SearchRequest(query=question,   top_k=top_k * 2, type=_TEXT_TYPES), request_id=rid),
-        _call_agent(vec_url, VectorSearchRequest(query=question, top_k=top_k, type=_VIDEO_TYPES), request_id=rid),
-        _call_agent(kw_url,  BM25SearchRequest(query=question,   top_k=top_k, type=_VIDEO_TYPES), request_id=rid),
+        _call_agent(vec_url, VectorSearchRequest(query=question, top_k=top_k * 2, type=_TEXT_TYPES, branch_id=branch_id or None), request_id=rid),
+        _call_agent(kw_url,  BM25SearchRequest(query=question,   top_k=top_k * 2, type=_TEXT_TYPES, branch_id=branch_id or None), request_id=rid),
+        _call_agent(vec_url, VectorSearchRequest(query=question, top_k=top_k, type=_VIDEO_TYPES, branch_id=branch_id or None), request_id=rid),
+        _call_agent(kw_url,  BM25SearchRequest(query=question,   top_k=top_k, type=_VIDEO_TYPES, branch_id=branch_id or None), request_id=rid),
     ]
     labels = ["vec_text", "kw_text", "vec_video", "kw_video"]
 
@@ -519,7 +519,7 @@ async def run_rag_pipeline(
         seed_entity = plan.entities[0] if plan.entities else None
         tasks.append(_call_agent(
             urls["graphrag"],
-            GraphRAGRequest(query=question, entity=seed_entity, max_depth=2),
+            GraphRAGRequest(query=question, entity=seed_entity, max_depth=2, branch_id=branch_id or None),
             request_id=rid,
         ))
         labels.append("graphrag")
@@ -531,7 +531,7 @@ async def run_rag_pipeline(
             time_end   = plan.time_range.get("end")
         tasks.append(_call_agent(
             urls["tkg"],
-            TKGRequest(query=question, max_depth=2, time_start=time_start, time_end=time_end),
+            TKGRequest(query=question, max_depth=2, time_start=time_start, time_end=time_end, branch_id=branch_id or None),
             request_id=rid,
         ))
         labels.append("tkg")

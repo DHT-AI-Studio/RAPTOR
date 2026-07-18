@@ -11,7 +11,7 @@ class AudioSummary:
         self.max_tokens_per_batch = max_tokens_per_batch
         self.max_summary_length = max_summary_length
         self.inference_url = inference_url
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
     
     def load_audio_data(self, file_path: str) -> List[Dict]:
         """載入音訊分析結果檔案"""

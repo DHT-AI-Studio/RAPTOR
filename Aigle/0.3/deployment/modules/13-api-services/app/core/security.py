@@ -1,4 +1,4 @@
-"""Security utilities for JWT verification and Keycloak UMA permission checks."""
+"""Security utilities for JWT verification and permission checks via module 06 auth service."""
 from __future__ import annotations
 
 import json
@@ -37,59 +37,90 @@ def _extract_bearer_token(request: Request) -> str:
     return token
 
 
-def _get_public_key(use_cache: bool = True) -> Any:
+def _get_public_key(token: str, use_cache: bool = True) -> Any:
     global _jwks_cache
     if use_cache and _jwks_cache is not None:
         return _jwks_cache
 
-    settings = get_settings()
-    jwks_url = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/certs"
+    try:
+        unverified = jwt.decode(token, options={"verify_signature": False})
+        iss = unverified.get("iss", "")
+        if not iss:
+            raise AuthenticationError(
+                status.HTTP_401_UNAUTHORIZED, "Token missing iss claim"
+            )
+        # iss may contain an external IP (e.g. http://192.168.x.x:8080/realms/xxx)
+        # which is unreachable from inside Docker. Extract the realm and use the
+        # internal Keycloak hostname instead.
+        parts = iss.split("/realms/", 1)
+        if len(parts) != 2:
+            raise AuthenticationError(
+                status.HTTP_401_UNAUTHORIZED, f"Cannot parse realm from iss: {iss}"
+            )
+        realm = parts[1].split("/")[0]
+        keycloak_url = get_settings().keycloak_url.rstrip("/")
+        jwks_url = f"{keycloak_url}/realms/{realm}/protocol/openid-connect/certs"
+    except AuthenticationError:
+        raise
+    except Exception as exc:
+        raise AuthenticationError(
+            status.HTTP_401_UNAUTHORIZED, f"Cannot parse token issuer: {exc}"
+        ) from exc
+
     try:
         resp = httpx.get(jwks_url, timeout=10)
         resp.raise_for_status()
     except Exception as exc:
-        raise AuthenticationError(status.HTTP_503_SERVICE_UNAVAILABLE, f"Cannot reach Keycloak: {exc}") from exc
+        raise AuthenticationError(
+            status.HTTP_503_SERVICE_UNAVAILABLE, f"Cannot reach Keycloak: {exc}"
+        ) from exc
 
     for key in resp.json().get("keys", []):
         if key.get("use") == "sig" and key.get("kty") == "RSA":
             _jwks_cache = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key))
             return _jwks_cache
 
-    raise AuthenticationError(status.HTTP_503_SERVICE_UNAVAILABLE, "No RS256 signing key found in JWKS")
+    raise AuthenticationError(
+        status.HTTP_503_SERVICE_UNAVAILABLE, "No RS256 signing key found in JWKS"
+    )
 
 
 async def check_uma_permission(token: str, request_path: str) -> None:
-    """Call Keycloak UMA Ticket endpoint to verify the token has access to request_path."""
+    """Call module 06 /auth/permission to verify the token has access to request_path."""
     settings = get_settings()
-    url = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/token"
-    data = {
-        "grant_type": "urn:ietf:params:oauth:grant-type:uma-ticket",
-        "audience": settings.keycloak_client_id,
-        "permission": request_path,
-        "permission_resource_format": "uri",
-        "permission_resource_matching_uri": "true",
-    }
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
+    url = f"{settings.auth_service_url}/auth/permission"
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(url, data=data, headers=headers)
+            resp = await client.get(
+                url,
+                params={"request_path": request_path},
+                headers={"Authorization": f"Bearer {token}"},
+            )
     except Exception as exc:
         raise AuthenticationError(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            f"Cannot reach Keycloak UMA endpoint: {exc}",
+            f"Cannot reach auth service: {exc}",
         ) from exc
 
     if resp.status_code == 401:
         raise AuthenticationError(status.HTTP_401_UNAUTHORIZED, f"Unauthorized: {resp.text}")
     if resp.status_code == 403:
-        raise AuthenticationError(status.HTTP_403_FORBIDDEN, f"Permission denied for: {request_path}")
+        try:
+            detail = resp.json().get("detail") or resp.text
+        except Exception:
+            detail = resp.text or f"Permission denied for: {request_path}"
+        _permission_denied_keywords = ("access_denied", "request_denied", "not_authorized", "forbidden", "not allowed", "no permission")
+        if any(k in detail.lower() for k in _permission_denied_keywords):
+            raise AuthenticationError(status.HTTP_403_FORBIDDEN, detail)
+        raise AuthenticationError(
+            status.HTTP_401_UNAUTHORIZED,
+            f"Session expired due to inactivity, please log in again ({detail})",
+        )
     if resp.status_code != 200:
         raise AuthenticationError(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            f"Keycloak UMA error {resp.status_code}: {resp.text}",
+            f"Auth service error {resp.status_code}: {resp.text}",
         )
 
 
@@ -97,7 +128,7 @@ def verify_jwt(request: Request, settings: Optional[Settings] = None) -> Dict[st
     token = _extract_bearer_token(request)
 
     try:
-        public_key = _get_public_key()
+        public_key = _get_public_key(token=token)
         return jwt.decode(token, public_key, algorithms=["RS256"], options={"verify_aud": False})
     except ExpiredSignatureError as exc:
         _logger.warning("JWT expired")
@@ -105,7 +136,7 @@ def verify_jwt(request: Request, settings: Optional[Settings] = None) -> Dict[st
     except InvalidTokenError:
         # Retry once with a fresh key in case Keycloak rotated keys
         try:
-            public_key = _get_public_key(use_cache=False)
+            public_key = _get_public_key(token=token, use_cache=False)
             return jwt.decode(token, public_key, algorithms=["RS256"], options={"verify_aud": False})
         except ExpiredSignatureError as exc:
             raise AuthenticationError(status.HTTP_401_UNAUTHORIZED, "Token expired") from exc
