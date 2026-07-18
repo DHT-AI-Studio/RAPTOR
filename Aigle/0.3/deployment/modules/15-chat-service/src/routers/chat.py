@@ -121,6 +121,8 @@ async def get_memory(
         data = await redis_client.get(memory_key)
         memories = json.loads(data) if data else []
         return {"user_id": user_id, "session_id": session_id, "memory_count": len(memories), "memories": memories}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -134,5 +136,7 @@ async def clear_memory(
     memory_key = f"chat_memory:{user_id}:{session_id}" if session_id else f"chat_memory:{user_id}"
     try:
         await redis_client.delete(memory_key)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

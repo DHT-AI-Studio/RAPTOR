@@ -31,12 +31,14 @@ class VectorSearchRequest(BaseModel):
     top_k:           int                        = 10
     type:            str | list[str] | None     = None   # "videos"|"audios"|"documents"|"images"
     score_threshold: float                      = 0.3
+    branch_id:       str | None                 = None
 
 
 class BM25SearchRequest(BaseModel):
-    query: str
-    top_k: int                    = 10
-    type:  str | list[str] | None = None         # "videos"|"audios"|"documents"|"images"
+    query:     str
+    top_k:     int                    = 10
+    type:      str | list[str] | None = None     # "videos"|"audios"|"documents"|"images"
+    branch_id: str | None             = None
 
 
 class GraphRAGRequest(BaseModel):
@@ -44,6 +46,7 @@ class GraphRAGRequest(BaseModel):
     entity:          str | None = None       # seed entity for graph traversal
     max_depth:       int   = 2
     score_threshold: float = 0.3
+    branch_id:       str | None = None
 
 
 class TKGRequest(BaseModel):
@@ -52,6 +55,7 @@ class TKGRequest(BaseModel):
     score_threshold: float = 0.3
     time_start:      str | None = None       # ISO8601, from QueryPlan.time_range
     time_end:        str | None = None
+    branch_id:       str | None = None
 
 
 class RerankerRequest(BaseModel):

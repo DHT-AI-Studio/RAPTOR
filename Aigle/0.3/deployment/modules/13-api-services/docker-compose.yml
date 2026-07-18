@@ -18,7 +18,7 @@ services:
     networks:
       raptor:
         aliases:
-          - "raptor-api-gatewar"
+          - "raptor-api-gateway"
     labels:
       - "com.example.description=VIE FastAPI Gateway Application"
 
@@ -43,9 +43,9 @@ volumes:
   media-tmp:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      device: ":${NFS_MEDIA_TMP_PATH}"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/media/processing
 
 networks:
   raptor:

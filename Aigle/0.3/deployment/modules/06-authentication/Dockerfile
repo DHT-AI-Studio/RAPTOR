@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # 複製專案程式碼
-COPY api/ .
+COPY ./app app
 
 # 暴露 port
 EXPOSE 8800

@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
   </a>
   <a href="https://github.com/DHT-AI-Studio/RAPTOR/releases">
-    <img src="https://img.shields.io/badge/version-Aigle%200.2%20(Community%20Beta)-orange.svg" alt="Version">
+    <img src="https://img.shields.io/badge/version-Aigle%200.3%20(Community%20Beta)-orange.svg" alt="Version">
   </a>
   <img src="https://img.shields.io/badge/status-Beta-yellow.svg" alt="Status">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python">
@@ -42,11 +42,23 @@
 
 ## 🚀 Current Release
 
-**Aigle 0.2** - Community Beta (February 2026)
+**Aigle 0.3** - Community Beta (July 2026)
 
-This release continues the open-source RAPTOR framework, codenamed "Aigle". We're excited to share this with the community and look forward to your feedback and contributions.
+This release continues the open-source RAPTOR framework, codenamed "Aigle". Release 0.3 restructures the platform into **21 independently deployable Docker Compose modules** driven by a single build system (`Aigle/0.3/deployment/modules/build.py`), and delivers the v0.3 roadmap: advanced video understanding, Graph database & GraphRAG, A2A agent orchestration, temporal knowledge graph, BM25 hybrid retrieval, and contextual embeddings.
 
-### 🧪 Aigle 0.2 - Evaluation and Testing API
+**Highlights:**
+
+- 🎬 **Video Search 2.0** — multi-recall retrieval (BM25 + Vector + GraphRAG + TKG) fused with RRF, re-ranked by cross-encoder, aggregated per video with time-coded segments
+- 🕸️ **Knowledge Graph & GraphRAG** — Neo4j-backed entity/temporal-fact graph with LLM-powered graph reasoning (module 20)
+- 🤖 **Agent Protocol (A2A)** — agent discovery, orchestration and RAG pipeline over vector / keyword / GraphRAG / TKG agents (module 21)
+- 🌿 **Branch-aware data isolation** — `branch_id` propagated end-to-end: upload → processing → indexing → search → agents
+- 🖥️ **Demo Frontend** — React + Vite web UI for file upload, natural-language video search, and upload history (`Aigle/0.3/raptor-demo-frontend/`)
+- ⚡ **Blackwell-ready GPU stack** — CUDA 12.8 base image, PyTorch cu128, PaddlePaddle 3.3.0 (sm_120 / RTX 50-series support)
+- 🔐 **Reworked authentication** — Keycloak-backed auth module with group/account management, SMTP notifications, and gateway permission checks
+
+See [`Aigle/0.3/README.md`](Aigle/0.3/README.md) for the module reference, [`Aigle/0.3/BUILD.md`](Aigle/0.3/BUILD.md) for the build guide, and [`Aigle/0.3/API_REFERENCE.md`](Aigle/0.3/API_REFERENCE.md) for the API reference.
+
+### 🧪 Evaluation and Testing API (Aigle 0.2)
 
 To help developers get started with the RAPTOR framework quickly and easily, we've deployed a **test run API** on DHT's development infrastructure. This evaluation API allows developers to:
 
@@ -98,9 +110,19 @@ For detailed API documentation, usage examples, and access instructions, please 
 
 ## ✨ Features
 
-### Version Aigle 0.2
+### Version Aigle 0.3
 
-This community release includes:
+New in this release:
+
+- **Modular Deployment System**: 21 independent Docker Compose modules with one build entry point (`build.py`) — start, stop, rebuild, or inspect any subset of the platform
+- **Hybrid Search**: OpenSearch BM25 + Qdrant vector retrieval with RRF fusion and cross-encoder re-ranking
+- **GraphRAG & Temporal Knowledge Graph**: Neo4j graph storage with LLM graph reasoning and time-aware facts
+- **A2A Agent Orchestration**: JSON-RPC agent-to-agent discovery and multi-agent RAG pipelines
+- **Video-centric Search API**: results aggregated per video with the most relevant time segments
+- **Branch-based Multi-tenancy**: full `branch_id` isolation across upload, processing, indexing, and retrieval
+- **Demo Web Frontend**: React + Vite UI for upload, video search, and history management
+
+Carried over from Aigle 0.2:
 
 #### Core Capabilities
 
@@ -131,206 +153,100 @@ For detailed release notes, see [CHANGELOG.md](CHANGELOG.md).
 
 ## 📦 Installation
 
+**Prerequisites:** Docker Engine 24.0+, Docker Compose v2.20+, NVIDIA Container Toolkit (for GPU modules), GPU driver supporting CUDA 12.8+ for the media-processing stack.
+
 ```bash
 # Clone the repository
 git clone https://github.com/DHT-AI-Studio/RAPTOR.git
-cd RAPTOR/Aigle/0.1
+cd RAPTOR/Aigle/0.3
 
-# Create virtual environment (recommended)
-conda create -n CIE python=3.10
-conda activate CIE
-
-# Install required dependencies:
-pip install -r requirements.txt
+# Configure: copy the templates and fill in hosts, credentials, and model names
+cd deployment/modules
+cp .env.example .env
+for m in */; do [ -f "$m/.env.example" ] && cp "$m/.env.example" "$m/.env"; done
+cd ../..
 ```
+
+See [`Aigle/0.3/BUILD.md`](Aigle/0.3/BUILD.md) for the full configuration reference.
 
 ## Development
 
-### Step 1.
-
 ```bash
-cd raptor
-chmod +x check-services.sh deploy.sh logs.sh rollback.sh stop-all.sh tag-backup.sh
-./deploy.sh
+cd Aigle/0.3
+
+# Build the shared GPU base image first (used by modules 09-12)
+bash deploy.sh -m 08 --build
+
+# Start all modules in dependency order (or --cpu-only to skip GPU modules)
+bash deploy.sh
+
+# Inspect
+bash deploy.sh --status              # running / stopped status per module
+bash deploy.sh -m <id> --logs        # follow a module's logs
 ```
-
-### Step 2.Deploy service
-
-1. Check container status
-   
-   ```bash
-   ./check-services.sh
-   ```
-
-2. Test API connectivity
-   
-   ```bash
-   # Modellifecycle 服務
-   curl -s http://192.168.157.165:8086/docs
-   
-   # Assetmanagement
-   curl -s http://192.168.157.165:8010/docs
-   ```
-
-3. View service logs
-   
-   ```bash
-   ./logs.sh <service_name>
-   ```
 
 ## Quick Start
 
-1. Create a new user and assign a new branch to the user
-   
+1. Deploy the platform (see [Development](#development) above), then open the API Gateway docs:
+
    ```bash
-   curl -X 'POST' \
-   'http://192.168.157.165:8086/users' \
-   -H 'accept: application/json' \
-   -H 'Content-Type: application/json' \
-   -d '{
-   "username": "user1",
-   "password": "dht888888",
-   "password_hash": "",
-   "branch": "",
-   "permissions": [
-       "upload",
-       "download",
-       "list"
-   ]
-   }'
+   curl -s http://<host_ip>:8012/docs
    ```
 
-2. Create a new access token for the user
-   
+2. Log in through SSO to obtain a token (users/groups are managed by the authentication module, Keycloak-backed):
+
    ```bash
-   curl -X 'POST' \
-   'http://192.168.157.165:8086/token' \
-   -H 'accept: application/json' \
-   -H 'Content-Type: application/x-www-form-urlencoded' \
-   -d 'grant_type=password&username=user1&password=dht888888&scope=&client_id=string&client_secret=********'
+   curl -X POST "http://<host_ip>:8012/api/0.3/sso/login" \
+     -H "Content-Type: application/json" \
+     -d '{"username": "<user>", "password": "<password>"}'
    ```
 
-3. Access RedisInsight
-   🔗 [http://192.168.157.165:5540](http://192.168.157.165:5540)
-   
-    Add a new connection:
-   
-   - Connection Type: **Redis Cluster**
-   - Host: `redis1`
-   - Port: `7000`
-   - Name: `Redis Cluster`
-   - Authentication: `dht888888`
+3. Upload a media file for automatic AI processing (transcription, OCR, frame description, summary, embeddings, knowledge graph):
 
-4. Check if the local Ollama model includes qwen2.5:7b
-   
    ```bash
-   ollama list
-   ```
-   
-    If not present
-   
-   ```bash
-   ollama pull qwen2.5:7b
+   curl -X POST "http://<host_ip>:8012/api/0.3/asset/fileupload_analysis" \
+     -H "Authorization: Bearer <token>" \
+     -F "file=@/path/to/video.mp4"
    ```
 
-5. Register MLflow with local Ollama
-   
+4. Search — video-centric, multi-recall (BM25 + Vector + GraphRAG + TKG) with cross-encoder re-ranking:
+
    ```bash
-   curl -X 'POST' \
-     'http://192.168.157.165:8010/models/register_ollama' \
-     -H 'accept: application/json' \
-     -H 'Content-Type: application/json' \
-     -d '{
-     "local_model_name": "qwen2.5:7b",
-     "model_params": 7,
-     "registered_name": "qwenforsummary",
-     "set_priority_to_one": false,
-     "stage": "production",
-     "task": "text-generation-ollama",
-     "version_description": "Register qwen2.5:7b local model"
-   }'
+   curl -X POST "http://<host_ip>:8012/api/0.3/search/video_search" \
+     -H "Authorization: Bearer <token>" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "OpenAI announcement", "top_k": 5}'
    ```
 
-6. Check if the registration was successful
-   
+5. Ask questions over your content with RAG chat:
+
    ```bash
-   curl -X 'GET' \
-     'http://192.168.157.165:8010/models/registered_in_mlflow?show_all=false' \
-     -H 'accept: application/json'
+   curl -X POST "http://<host_ip>:8012/api/0.3/chat/" \
+     -H "Authorization: Bearer <token>" \
+     -H "Content-Type: application/json" \
+     -d '{"message": "Summarize the uploaded video"}'
    ```
 
-7. Start audio/video/image/document service  
-    9.1 Create Kafka topics:
-   
-   ```bash
-   cd path/to/kafka
-   chmod +x create_topic.sh
-   sudo ./create_topic.sh
-   ```
-   
-    9.2 Starting Services
-   
-   ```bash
-   cd services
-   chmod +x start_services.sh
-   ./start_services.sh
-   ```
-   
-    9.3 Check if all services are still running
-   
-   ```bash
-   ./check_services.sh
-   ```
+Or use the **demo frontend** instead of raw APIs:
 
-8. Produce a test requests topic
-   
-   ```bash
-   cd /path/to/kafka/test_service
-   python test.py
-   ```
+```bash
+cd Aigle/0.3/raptor-demo-frontend
+cp .env.example .env        # set API_TARGET / DEMO_PORT
+docker compose up -d --build
+```
 
-9. View Service Logs
-   
-   ```bash
-   cd path/to/kafka
-   tail -f service_name.log
-   ```
-   
-    Available service names include: `document_orchestrator_service`, `document_analysis_service`, `document_summary_service`, `document_save2qdrant_service`, etc. You can replace `document` with `audio`, `video`, or `image` based on the required service, for example: `audio_orchestrator_service`, `video_analysis_service`, `image_summary_service`, etc
-
-10. Check Redis Data
-    
-    ```bash
-    sudo docker exec -it redis-kafka_dev redis-cli --raw
-    GET "document_orchestrator:correlation_id"
-    GET "video_orchestrator:correlation_id"
-    GET "audio_orchestrator:correlation_id"
-    GET "image_orchestrator:correlation_id"
-    ```
-    
-    Note: Replace service_name and correlation_id with actual values.
-
-11. Use the Qdrant Search API to query data  
-    (8821/video_search, 8822/audio_search, 8823/document_search, 8824/image_search)
-    
-    ```bash
-    curl -X POST "http://192.168.157.165:8822/audio_search" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "query_text": "OpenAI",
-        "embedding_type": "text",
-        "limit": 5
-      }'
-    ```
+For the complete endpoint list, request/response schemas, and Python client examples, see [`Aigle/0.3/API_REFERENCE.md`](Aigle/0.3/API_REFERENCE.md) and [`Aigle/0.3/raptor_client.py`](Aigle/0.3/raptor_client.py).
 
 ## 📚 Documentation
 
 ### Available Documentation
 
+- 🧩 **[Module Reference (0.3)](Aigle/0.3/README.md)** - 21-module architecture, testing status, service ports
+- 🛠️ **[Build & Source Maintenance Guide (0.3)](Aigle/0.3/BUILD.md)** - Build system, configuration, release rules
+- 📝 **[API Reference (0.3)](Aigle/0.3/API_REFERENCE.md)** - Complete endpoint documentation with examples
+- 🚀 **[Quick Start Guide](#quick-start)** - Get started in minutes
 - 📖 **[System Design & Architecture](Aigle/0.1/CIE_System_Design_and_Architecture_1.8.pdf)** - High-level system design
 - 🔧 **[Technical Implementation Guide](Aigle/0.1/doc/CIE_System_Technical_Implementation_1.2.pdf)** - Detailed implementation
-- 📝 **[API Documentation](Aigle/0.1/raptor/)** - API references and examples
-- 🚀 **[Quick Start Guide](#quick-start)** - Get started in minutes
 - 📋 **[CHANGELOG](MAIN_DOCUMENTATION/CHANGELOG.md)** - Version history and updates
 
 ### Additional Resources
@@ -573,7 +489,7 @@ Meet the talented developers behind RAPTOR:
 
 The following features are planned for upcoming releases to transform RAPTOR into a production-ready, enterprise-grade platform:
 
-### **1. Advanced Video Understanding (v0.3 - Q1 2026)**
+### **1. Advanced Video Understanding (v0.3 — ✅ delivered)**
 
 - Implement temporal reasoning models for event sequences
 - Add action recognition and activity detection
@@ -588,23 +504,23 @@ The following features are planned for upcoming releases to transform RAPTOR int
 - Build GDPR/CCPA compliance workflows
 - Create comprehensive audit reporting
 
-### **3. Graph database & GraphRAG (v0.3)**
+### **3. Graph database & GraphRAG (v0.3 — ✅ delivered)**
 
 - Graph-native storage and retrieval augmented generation on graph structure
 
-### **4. Agents & interoperability (v0.3)**
+### **4. Agents & interoperability (v0.3 — ✅ delivered)**
 
 - Multi-agent workflows, agent-to-agent coordination, **JSON-RPC** communication, and self-learning / self-tuning agent behavior
 
-### **5. Temporal model & temporal knowledge graph (v0.3)**
+### **5. Temporal model & temporal knowledge graph (v0.3 — ✅ delivered)**
 
 - Time-aware models and knowledge graphs for evolving facts and sequences
 
-### **6. BM25 RAG & BM25 search (v0.3)**
+### **6. BM25 RAG & BM25 search (v0.3 — ✅ delivered)**
 
 - Hybrid and keyword-first retrieval with BM25 alongside semantic RAG
 
-### **7. Contextual embedding (v0.3)**
+### **7. Contextual embedding (v0.3 — ✅ delivered)**
 
 - Embeddings that preserve richer context for retrieval and downstream reasoning
 
@@ -645,14 +561,14 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 
 | Version    | Target    | Focus                       | Key Features                                                                            |
 | ---------- | --------- | --------------------------- | --------------------------------------------------------------------------------------- |
-| **v0.3**   | Q1 2026   | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings |
-| **v0.4**   | Q2 2026   | Media & compliance          | Real-time audio processing, content moderation, GDPR/CCPA                              |
-| **v0.5**  | Q1 2026   | LLM interoperability        | MCP integration across all core services                                                |
-| **v1.0**   | July 2026 | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
+| **v0.3**   | July 2026 ✅ | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings — **Delivered** |
+| **v0.4**   | Q4 2026   | Media & compliance          | Real-time audio processing, content moderation, GDPR/CCPA                              |
+| **v0.5**  | Q4 2026   | LLM interoperability        | MCP integration across all core services                                                |
+| **v1.0**   | 2027      | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
 
-**Current Status**: Aigle 0.2 (Community Beta) - February 2026 ✅  
-**Next Milestone**: v0.3 (Q1 2026)  
-**Production Target**: v1.0 by July 2026
+**Current Status**: Aigle 0.3 (Community Beta) - July 2026 ✅  
+**Next Milestone**: v0.4 (Q4 2026)  
+**Production Target**: v1.0 in 2027
 
 ---
 

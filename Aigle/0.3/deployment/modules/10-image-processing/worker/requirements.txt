@@ -8,13 +8,15 @@ aiofiles==24.1.0
 aiohttp==3.12.15
 
 # VLM / InternVL (image_processing + video_frame_description)
-# paddlepaddle-gpu is installed separately in Dockerfile (custom index)
+# paddlepaddle-gpu is installed separately in Dockerfile (custom index).
+# torch / torchvision are installed in the Dockerfile from the cu128 wheel
+# index (https://download.pytorch.org/whl/cu128) so we get sm_120 kernels
+# for RTX 50-series (Blackwell). Do NOT add torch/torchvision pins here —
+# that would let pip resolve a default PyPI build that lacks sm_120.
 transformers==4.51.3
 einops
 accelerate
 timm
-torch==2.7.1
-torchvision==0.22.1
 decord==0.6.0
 
 # OCR (video_ocr_frame)

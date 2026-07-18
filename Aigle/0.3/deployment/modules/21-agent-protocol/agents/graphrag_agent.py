@@ -33,6 +33,8 @@ def _do_graphrag(req: GraphRAGRequest) -> GraphResult:
     }
     if req.entity:
         body["entity"] = req.entity
+    if req.branch_id:
+        body["branch_id"] = req.branch_id
 
     triples: list[dict] = []
     with httpx.Client(timeout=30.0) as client:

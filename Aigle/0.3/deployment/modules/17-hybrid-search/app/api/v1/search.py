@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from app.schemas import SearchRequest, SearchResponse, RerankRequest, RerankResponse, RerankResult, SearchResult
 from app.core.dependencies import get_search_service, get_embedding_service, get_reranker_service
+from app.core.config import settings
 from app.services.search import SearchService
 from app.core.embedding import EmbeddingManager
 from app.core.rerank import RerankerManager
@@ -121,7 +122,8 @@ async def rerank_documents(
         content_extractor=lambda p: p.get("_text", ""),
         top_k=top_k,
     )
+    t = max(settings.RERANKER_TEMPERATURE, 1e-6)
     return RerankResponse(results=[
-        RerankResult(id=r.id, score=1.0 / (1.0 + math.exp(-r.score)), payload=r.payload)
+        RerankResult(id=r.id, score=1.0 / (1.0 + math.exp(-r.score / t)), payload=r.payload)
         for r in reranked
     ])

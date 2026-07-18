@@ -15,6 +15,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Aigle 0.3] - 2026-07-18
+
+### 🚀 Community Beta — Modular Platform Release
+
+### Added
+
+- **Modular deployment system**: 21 independent Docker Compose modules under `Aigle/0.3/deployment/modules/`, managed by a single build entry point (`build.py` / `deploy.sh` wrapper) with dependency-ordered start, per-module lifecycle (`--stop/--delete/--restart/--build`), status and logs
+- **Hybrid search**: OpenSearch BM25 + Qdrant vector retrieval with RRF fusion and cross-encoder re-ranking (module 17)
+- **Graph database & GraphRAG**: Neo4j entity/temporal-fact graph with LLM-powered graph query and reasoning, including relation date normalization (`date_utils`) (modules 19–20)
+- **Agent Protocol (A2A)**: agent discovery, orchestration, and multi-agent RAG pipeline over vector / keyword / GraphRAG / TKG agents (module 21)
+- **Video Search 2.0**: video-centric search endpoint — multi-recall (BM25 + Vector + GraphRAG + TKG) → RRF fusion → cross-encoder rerank → per-video aggregation with time-coded segments
+- **Branch-aware multi-tenancy**: `branch_id` isolation propagated through upload, media processing, indexing, search, and agents
+- **Demo frontend**: React + Vite web UI (file upload, natural-language video search, upload history) with Docker deployment (`Aigle/0.3/raptor-demo-frontend/`)
+- **Authentication module rework**: restructured FastAPI app (`app/` package) with group and account management, permission endpoint used by the API Gateway, SMTP e-mail notifications, updated Keycloak realm
+- **Custom MLflow image** (`raptor/mlflow:0.3`) in module 07
+- **Build & source maintenance guide**: `Aigle/0.3/BUILD.md`
+
+### Changed
+
+- **GPU stack upgraded for Blackwell (sm_120 / RTX 50-series)**: CUDA base image 12.6 → 12.8, PyTorch 2.7.1 cu126 → cu128 wheels, PaddlePaddle GPU 3.0/3.1 → 3.3.0 (cu129); shared `raptor/media-worker:0.3` base image for modules 09–12
+- **SeaweedFS** upgraded 3.96 → 4.32; LakeFS SDK calls moved off the event loop (thread pool); index/graph status sync added to asset management (module 04)
+- **API Gateway permission model**: JWT verification + permission check via authentication module `/auth/permission` (Keycloak UMA removed)
+- **Configuration templates**: per-modality model selection (`VIDEO/AUDIO/DOCUMENT_INFERENCE_MODEL`, `IMAGE/VIDEO_VLM_MODEL_PATH`), SMTP block, memory/timeout tuning keys; removed per-service `*_GPU_COUNT`, `GATEWAY_KEYCLOAK_*`, `TKG_AGENT_URL`, `RERANKER_AGENT_URL`
+- `search` API `payload_schema` now supports `"contextual"` only
+
+### Known Limitations
+
+- Module 14 (monitoring) is incomplete
+- Module 11 (video-processing) requires high GPU VRAM
+- Docker Compose deployment is not intended for production scale (Kubernetes planned for v1.0)
+
+---
+
+## [Aigle 0.2] - 2026-02
+
+### Community Beta
+
+- Kafka-based multi-modal processing pipelines (audio / video / image / document)
+- MLflow model lifecycle management and Ollama model registration
+- Qdrant vector search APIs (video / audio / document / image)
+- Redis cluster caching, evaluation & testing API on DHT infrastructure
+
+---
+
 ## [Aigle 0.1.0-beta] - 2025-10-22
 
 ### 🎉 First Release

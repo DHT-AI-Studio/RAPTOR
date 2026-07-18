@@ -2,5 +2,7 @@ fastapi
 uvicorn
 python-multipart
 requests
-python-jose
 python-dotenv
+pydantic-settings
+PyJWT
+email-validator

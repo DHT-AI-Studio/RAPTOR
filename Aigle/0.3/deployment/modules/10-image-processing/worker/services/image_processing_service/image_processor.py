@@ -30,7 +30,7 @@ class ImageProcessor:
         self.generation_config = dict(max_new_tokens=2048, do_sample=True)
         self.IMAGENET_MEAN = (0.485, 0.456, 0.406)
         self.IMAGENET_STD = (0.229, 0.224, 0.225)
-        self.converter = opencc.OpenCC('s2tw')
+        self.converter = opencc.OpenCC('s2twp')
         
     def initialize_model(self):
         """初始化模型 - 只初始化一次，供兩種功能共用"""

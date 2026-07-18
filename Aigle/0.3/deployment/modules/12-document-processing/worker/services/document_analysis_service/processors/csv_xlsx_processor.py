@@ -15,7 +15,7 @@ class CSVXLSXProcessor:
     def __init__(self):
         self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
         self.max_tokens = 512
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
     
     def count_tokens(self, text: str) -> int:
         """計算文本的token數量"""

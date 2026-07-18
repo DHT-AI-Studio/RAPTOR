@@ -7,7 +7,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from aiokafka import AIOKafkaProducer
 from fastapi import HTTPException, status
@@ -18,9 +18,10 @@ _logger = logging.getLogger(__name__)
 
 
 class KafkaService:
-    def __init__(self, producer: AIOKafkaProducer, settings: Settings):
+    def __init__(self, producer: AIOKafkaProducer, settings: Settings, redis_client=None):
         self.producer = producer
         self.settings = settings
+        self.redis_client = redis_client
 
     def get_file_type(self, filename: str) -> str:
         """Determines the file type based on the extension."""
@@ -159,7 +160,19 @@ class KafkaService:
             _logger.info(f"Sending message to Kafka topic '{target_topic}'", extra={"message_id": message["message_id"]})
             # payload = json.dumps(message, ensure_ascii=False).encode("utf-8")
             await self.producer.send_and_wait(target_topic, message)
-            return {"message_id": message["message_id"], "correlation_id": message["correlation_id"]}
+            correlation_id = message["correlation_id"]
+            if self.redis_client is not None:
+                try:
+                    await self.redis_client.setex(
+                        f"{file_type}_orchestrator:{correlation_id}",
+                        86400,
+                        json.dumps({"step": "queued", "branch_id": branch_id}),
+                    )
+                except Exception as redis_err:
+                    _logger.warning(f"Failed to write queued state to Redis: {redis_err}")
+            return {"message_id": message["message_id"], "correlation_id": correlation_id}
+        except HTTPException:
+            raise
         except Exception as e:
             _logger.exception("Failed to send message to Kafka", exc_info=e)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to send processing request.")

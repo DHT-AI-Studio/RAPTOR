@@ -2,7 +2,7 @@
 
 Multimedia intelligence platform for processing video, audio, documents, and images through AI/ML pipelines. Provides hybrid search, RAG question-answering, knowledge graph reasoning, and A2A agent orchestration. Built entirely in Python with Docker microservices.
 
-API Reference: [`API_REFERENCE.md`](API_REFERENCE.md)
+API Reference: [`API_REFERENCE.md`](API_REFERENCE.md) · Build & Source Maintenance: [`BUILD.md`](BUILD.md) · Demo Frontend: [`raptor-demo-frontend/`](raptor-demo-frontend/)
 
 ---
 
@@ -50,7 +50,7 @@ File Upload (API Gateway :8012)
 | ID | Module              | Description                                                                   |
 | -- | ------------------- | ----------------------------------------------------------------------------- |
 | 07 | ai-ml-services      | MLflow tracking server + AI Lifecycle API                                     |
-| 08 | media-worker        | Shared GPU base image (torch 2.7.1 cu126 + PaddlePaddle + WhisperX + docling) |
+| 08 | media-worker        | Shared GPU base image (torch 2.7.1 cu128 sm_120/Blackwell + PaddlePaddle 3.3.0 + WhisperX + docling) |
 | 09 | audio-processing    | WhisperX STT / diarization / PANNs / audio summary workers                    |
 | 10 | image-processing    | InternVL image analysis + hybrid search workers                               |
 | 11 | video-processing    | Video chunking / frame description / OCR / summary workers                    |
@@ -62,7 +62,7 @@ File Upload (API Gateway :8012)
 
 ## Testing Status
 
-Last tested on host **123** (2026-05-18) and remote host **165** (192.168.157.165, 2026-05-18).
+Last tested on host **123** (2026-05-18) and remote host **165** (2026-05-18).
 
 | ID | Module              | Status                                           |
 | -- | ------------------- | ------------------------------------------------ |
@@ -131,7 +131,7 @@ See `deployment/README.md` for the full dependency graph and module reference.
 
 ## Configuration
 
-- Each module has its own `.env` file under `deployment/modules/<module>/`
+- Each module has its own `.env` file under `deployment/modules/<module>/` — create it from the committed `.env.example` template (see [`BUILD.md`](BUILD.md))
 - All services share the `raptor` external Docker bridge network
 - Shared PostgreSQL (`raptor-postgres`) is used by all services except Keycloak
 - GPU allocation is managed by module 07 (`07-ai-ml-services`)

@@ -2,6 +2,7 @@
 
 import whisperx
 import torch
+import threading
 import gc
 import numpy as np
 import pandas as pd
@@ -11,17 +12,18 @@ import os
 from typing import Dict, Any, List, Optional, Union
 from dotenv import load_dotenv
 
-load_dotenv('.env') 
+load_dotenv('.env')
 from langsmith import traceable
+from config import ASYNC_PROCESSING_CONFIG
 
 logger = logging.getLogger(__name__)
 
 class SpeakerDiarization:
     def __init__(self, device=None, hf_token=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self._inference_sem = threading.Semaphore(ASYNC_PROCESSING_CONFIG["max_inference_concurrency"])
         hf_token = os.getenv('HF_TOKEN')
         logger.info(f"Loading WhisperX Diarization Pipeline on {self.device}")
-        # self.pipeline = whisperx.diarize.DiarizationPipeline(device=self.device)
         self.pipeline = whisperx.diarize.DiarizationPipeline(
             device=self.device,
             use_auth_token=hf_token)
@@ -36,8 +38,8 @@ class SpeakerDiarization:
             pd.DataFrame: DataFrame containing speaker segments with start and end times.
         """
         logger.info("Starting speaker diarization...")
-        # 執行說話人分離，返回時間區段
-        result = self.pipeline(audio)
+        with self._inference_sem:
+            result = self.pipeline(audio)
         logger.info(f"Diarization completed. Result type: {type(result)}")
         if hasattr(result, '__len__'):
             logger.info(f"Result length: {len(result)}")
@@ -184,6 +186,8 @@ class SpeakerDiarization:
             # 清理記憶體
             del audio
             gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             
             # 清理提取的音頻檔案
             if extracted_audio_path and os.path.exists(extracted_audio_path):
@@ -211,14 +215,17 @@ class SpeakerDiarization:
             
         except Exception as e:
             logger.error(f"Failed to process audio file {file_path}: {e}")
-            
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
             # 清理提取的音頻檔案
             if extracted_audio_path and os.path.exists(extracted_audio_path):
                 try:
                     os.remove(extracted_audio_path)
                 except:
                     pass
-            
+
             return {
                 "request_id": request_id,
                 "status": "error",

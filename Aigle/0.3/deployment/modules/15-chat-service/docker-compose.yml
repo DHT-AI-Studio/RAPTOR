@@ -21,7 +21,7 @@ services:
       PYTHONWARNINGS: "ignore"
       # LLM (Ollama OpenAI-compat)
       LLM_BASE_URL: ${LLM_BASE_URL:-http://192.168.157.135:11434/v1}
-      LLM_MODEL: ${LLM_MODEL:-qwen3.5:9b}
+      LLM_MODEL: ${CHAT_LLM_MODEL:-qwen2.5:7b}
       TEMPERATURE: ${TEMPERATURE:-0.7}
       # Hybrid Search (module 17)
       HYBRID_SEARCH_URL: ${HYBRID_SEARCH_URL:-http://raptor-hybridsearch-api:8000}

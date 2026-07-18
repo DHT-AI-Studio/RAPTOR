@@ -35,6 +35,8 @@ def _do_tkg(req: TKGRequest) -> GraphResult:
         body["time_start"] = req.time_start
     if req.time_end:
         body["time_end"] = req.time_end
+    if req.branch_id:
+        body["branch_id"] = req.branch_id
 
     triples: list[dict] = []
     with httpx.Client(timeout=30.0) as client:

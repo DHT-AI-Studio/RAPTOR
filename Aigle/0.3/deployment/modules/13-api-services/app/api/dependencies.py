@@ -37,7 +37,7 @@ async def get_current_user(
     token: str = Depends(_bearer),
     settings: Settings = Depends(get_settings),
 ) -> Dict[str, Any]:
-    """Validate the bearer token via JWT signature check and Keycloak UMA permission check."""
+    """Validate the bearer token via JWT signature check and module 06 /auth/permission check."""
     payload = verify_jwt(request, settings=settings)
     if "sub" not in payload:
         raise HTTPException(

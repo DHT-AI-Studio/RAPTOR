@@ -56,9 +56,11 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: Optional[str] = None
+    presign_url_cache_enabled: bool = True
     timezone: str = "Asia/Taipei"
     auto_daily_archive_time: str = "00:00"
     auto_daily_destroy_time: str = "01:00"
+    graph_service_url: str = ""
    
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

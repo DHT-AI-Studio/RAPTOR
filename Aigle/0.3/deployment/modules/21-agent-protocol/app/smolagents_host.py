@@ -40,7 +40,7 @@ class A2AAgentTool(Tool):
     """Wraps a remote A2A sub-agent as a smolagents Tool (JSON tool-calling)."""
     output_type = "string"
 
-    def __init__(self, tool_name: str, description: str, card: AgentCard):
+    def __init__(self, tool_name: str, description: str, card: AgentCard, branch_id: str = ""):
         self.name        = tool_name
         self.description = description
         self.inputs      = {
@@ -51,6 +51,7 @@ class A2AAgentTool(Tool):
         }
         super().__init__()
         self.card      = card
+        self.branch_id = branch_id
         self.last_hits: list[dict] = []
 
     def forward(self, question: str) -> str:
@@ -68,7 +69,10 @@ class A2AAgentTool(Tool):
         import json as _json
         # Sub-agents expect JSON-encoded request body, not plain text.
         # All search agents share the `query` field; top_k/extra fields are ignored by pydantic.
-        payload = _json.dumps({"query": question, "top_k": 5})
+        body: dict = {"query": question, "top_k": 5}
+        if self.branch_id:
+            body["branch_id"] = self.branch_id
+        payload = _json.dumps(body)
         async with httpx.AsyncClient(timeout=60) as client:
             a2a = A2AClient(httpx_client=client, agent_card=self.card)
             req = SendMessageRequest(
@@ -82,8 +86,9 @@ class A2AAgentTool(Tool):
 class A2AToolBootstrap:
     """Discovers A2A sub-agents and wraps them as smolagents Tools."""
 
-    def __init__(self, agent_urls: dict[str, str]):
+    def __init__(self, agent_urls: dict[str, str], branch_id: str = ""):
         self.agent_urls = agent_urls  # logical_name → url
+        self.branch_id  = branch_id
 
     async def get_tools(self) -> list[A2AAgentTool]:
         tools: list[A2AAgentTool] = []
@@ -97,6 +102,7 @@ class A2AToolBootstrap:
                         tool_name=logical_name,
                         description=card.description or f"{logical_name} search agent",
                         card=card,
+                        branch_id=self.branch_id,
                     ))
                     logger.success("Discovered A2A tool: {} @ {}", logical_name, url)
                 except Exception as exc:
@@ -178,10 +184,10 @@ class WebSearchTool(Tool):
 
 # ── Mode builders ─────────────────────────────────────────────────────────────
 
-async def build_host_agent() -> tuple[ToolCallingAgent, list[A2AAgentTool]]:
+async def build_host_agent(branch_id: str = "") -> tuple[ToolCallingAgent, list[A2AAgentTool]]:
     """Build a ToolCallingAgent backed by A2A sub-agents wrapped as tools."""
     urls  = get_agent_urls()
-    tools = await A2AToolBootstrap(urls).get_tools()
+    tools = await A2AToolBootstrap(urls, branch_id=branch_id).get_tools()
     if not tools:
         logger.warning("No A2A tools discovered — agent mode will answer without search")
     host = ToolCallingAgent(

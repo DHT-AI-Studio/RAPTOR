@@ -25,6 +25,7 @@ ASYNC_PROCESSING_CONFIG = {
     "max_concurrent_tasks": 8,           # 最大並發任務數
     "task_timeout": 1800,                # 單個任務超時時間（30分鐘）
     "enable_task_monitoring": True,      # 啟用任務監控
+    "max_inference_concurrency": int(os.getenv("WHISPER_MAX_INFERENCE_CONCURRENCY", "1")),  # GPU 推理並發數
 }
 
 # 服務配置
@@ -47,4 +48,4 @@ WHISPER_BATCH_SIZE = int(os.getenv('WHISPER_BATCH_SIZE', '16'))
 LANGSMITH_PROJECT = os.getenv('LANGSMITH_PROJECT', 'audioprocess')
 
 # 支援的音頻檔案類型
-SUPPORTED_AUDIO_TYPES = ['wav', 'mp3', 'mp4', 'flac', 'ogg', 'm4a', 'wma']
+SUPPORTED_AUDIO_TYPES = ['wav', 'mp3', 'mp4', 'flac', 'ogg', 'm4a', 'wma', 'mkv', 'mov', 'avi', 'webm']

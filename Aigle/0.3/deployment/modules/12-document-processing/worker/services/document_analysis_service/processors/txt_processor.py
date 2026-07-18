@@ -15,7 +15,7 @@ class TxtProcessor:
     def __init__(self, max_chunk_tokens: int = 512):
         self.max_chunk_tokens = max_chunk_tokens
         self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
     
     def count_tokens(self, text: str) -> int:
         """計算文本的 token 數量"""

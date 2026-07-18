@@ -35,7 +35,7 @@ class FrameDescriptionProcessor:
         self.model = None
         self.tokenizer = None
         self.generation_config = dict(max_new_tokens=1024, do_sample=True)
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
         self._initialize_model()
 
         # 確保輸出目錄存在

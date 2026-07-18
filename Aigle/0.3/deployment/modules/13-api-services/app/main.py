@@ -185,14 +185,14 @@ app.include_router(well_known_router)
 # SSO login — no auth required
 app.include_router(sso, prefix=f"/api/{_v}/sso")
 
-# Protected routers — JWT + Keycloak UMA enforced via get_current_user
+# Protected routers — JWT verified + permission checked via module 06 /auth/permission
 app.include_router(search_router, prefix=f"/api/{_v}/search")
 app.include_router(video_search_router, prefix=f"/api/{_v}/search/video_search", dependencies=[Depends(get_current_user)])
 app.include_router(asset_router, prefix=f"/api/{_v}/asset")
 app.include_router(processing_router, prefix=f"/api/{_v}/processing")
 app.include_router(chat_router, prefix=f"/api/{_v}/chat")
-app.include_router(training_proxy_router, prefix=f"/api/{_v}/training", dependencies=[Depends(get_current_user)], include_in_schema=False)
-app.include_router(aiml_router, prefix=f"/api/{_v}/aiml", dependencies=[Depends(get_current_user)], include_in_schema=False)
+app.include_router(training_proxy_router, prefix=f"/api/{_v}/training", dependencies=[Depends(get_current_user)])
+app.include_router(aiml_router, prefix=f"/api/{_v}/aiml", dependencies=[Depends(get_current_user)])
 app.include_router(media_sync_router, prefix=f"/api/{_v}/sync", dependencies=[Depends(get_current_user)])
 app.include_router(agent_protocol_router, prefix=f"/api/{_v}/a2a", dependencies=[Depends(get_current_user)])
 

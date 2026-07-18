@@ -2,7 +2,7 @@
 #
 # Pydantic models for the FastAPI endpoints. Drives Swagger documentation.
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -82,6 +82,18 @@ class IngestResponse(BaseModel):
     co_occurs_created: int
     temporal_facts: int
     elapsed_sec: float
+
+
+class AsyncIngestAccepted(BaseModel):
+    job_id: str
+    status: Literal["accepted"] = "accepted"
+
+
+class JobStatus(BaseModel):
+    job_id: str
+    status: Literal["pending", "running", "done", "failed"]
+    result: Optional[IngestResponse] = None
+    error: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

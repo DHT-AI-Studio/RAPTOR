@@ -8,16 +8,16 @@
 # periodically run these scripts are the same as running them from 'weed shell'
 scripts = """
   lock
-  ec.encode -collection=asset-management -fullPercent=95 -quietFor=1h
-  ec.rebuild -force
-  ec.balance -force
   volume.deleteEmpty -quietFor=24h -force
   volume.balance -force
   volume.fix.replication
   s3.clean.uploads -timeAgo=24h
+# ec.encode -fullPercent=95 -quietFor=1h
+# ec.rebuild -force
+# ec.balance -force
   unlock
 """
-sleep_minutes = 17          # sleep minutes between each script execution
+sleep_minutes = 60          # sleep minutes between each script execution
 
 
 [master.sequencer]

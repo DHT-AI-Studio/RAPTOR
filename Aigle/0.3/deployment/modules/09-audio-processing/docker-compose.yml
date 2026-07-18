@@ -12,7 +12,7 @@ x-worker-common: &worker-common
     REDIS_PORT: ${REDIS_PORT:-6379}
     REDIS_PASSWORD: ${REDIS_PASSWORD}
     INFERENCE_URL: ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
-    INFERENCE_MODEL: ${INFERENCE_MODEL:-qwen3.5:9b}
+    INFERENCE_MODEL: ${AUDIO_INFERENCE_MODEL:-qwen3.5:9b}
     HYBRID_SEARCH_INGEST_URL: ${HYBRID_SEARCH_INGEST_URL:-http://raptor-hybridsearch-api:8000/api/v1/ingest/file}
     HF_TOKEN: ${HF_TOKEN}
     HF_HOME: /hf_cache
@@ -169,11 +169,11 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: audio_recognizer
-      CUDA_VISIBLE_DEVICES: ${AUDIO_RECOGNIZER_GPU:-0}
+      CUDA_VISIBLE_DEVICES: "0"
       WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
       AUDIO_SYNC_API_PORT: ${AUDIO_SYNC_API_PORT:-8019}
-      DIARIZATION_SYNC_URL: http://raptor-audio-diarization:8029
-      CLASSIFIER_SYNC_URL: http://raptor-audio-classifier:8039
+      DIARIZATION_SYNC_URL: http://raptor-audio-diarization:${AUDIO_DIARIZATION_SYNC_PORT:-8029}
+      CLASSIFIER_SYNC_URL: http://raptor-audio-classifier:${AUDIO_CLASSIFIER_SYNC_PORT:-8039}
       CROSS_SERVICE_TIMEOUT: ${CROSS_SERVICE_TIMEOUT:-600}
     ports:
       - "${AUDIO_SYNC_API_PORT:-8019}:${AUDIO_SYNC_API_PORT:-8019}"
@@ -189,7 +189,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${AUDIO_RECOGNIZER_GPU_COUNT:-1}
+              device_ids: ["${AUDIO_RECOGNIZER_GPU:-0}"]
               capabilities: [gpu]
 
   audio-diarization:
@@ -199,7 +199,7 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: audio_diarization
-      CUDA_VISIBLE_DEVICES: ${AUDIO_DIARIZATION_GPU:-0}
+      CUDA_VISIBLE_DEVICES: "0"
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       AUDIO_DIARIZATION_SYNC_PORT: ${AUDIO_DIARIZATION_SYNC_PORT:-8029}
     ports:
@@ -216,7 +216,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${AUDIO_DIARIZATION_GPU_COUNT:-1}
+              device_ids: ["${AUDIO_DIARIZATION_GPU:-0}"]
               capabilities: [gpu]
 
   audio-classifier:
@@ -226,7 +226,7 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: audio_classifier
-      CUDA_VISIBLE_DEVICES: ${AUDIO_CLASSIFIER_GPU:-2}
+      CUDA_VISIBLE_DEVICES: "0"
       AUDIO_CLASSIFIER_SYNC_PORT: ${AUDIO_CLASSIFIER_SYNC_PORT:-8039}
     ports:
       - "${AUDIO_CLASSIFIER_SYNC_PORT:-8039}:${AUDIO_CLASSIFIER_SYNC_PORT:-8039}"
@@ -246,7 +246,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${AUDIO_CLASSIFIER_GPU_COUNT:-1}
+              device_ids: ["${AUDIO_CLASSIFIER_GPU:-2}"]
               capabilities: [gpu]
 
   audio-cleanup:
@@ -271,9 +271,9 @@ volumes:
   media-tmp:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      device: ":${NFS_MEDIA_TMP_PATH}"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/media/processing
 
 networks:
   raptor:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         env_prefix="GATEWAY_",
         case_sensitive=False,
         extra="ignore",
-        protected_namespaces=()
+        protected_namespaces=(),
     )
 
     api_version: str = Field("0.3", description="API version prefix used in all route paths (e.g. '0.3' → /api/0.3/...).")
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     )
 
     # ONLY for DEBUG and TESTING, if you want to DEPLOY PLEASE REMOVE "Optional"
-    kafka_bootstrap_servers: List[str] = Field(..., description="List of Kafka bootstrap servers.")
+    kafka_bootstrap_servers: str = Field(..., description="Comma-separated list of Kafka bootstrap servers.")
     kafka_topics: Dict[str, str] = Field(..., description="Mapping of file types to Kafka topics.")
 
     # Redis 快取配置
@@ -79,20 +79,6 @@ class Settings(BaseSettings):
         description="Base URL of the video frame sync analysis API (module 11).",
     )
 
-    # Keycloak 配置
-    keycloak_url: str = Field(
-        "http://raptor-keycloak:8080",
-        description="Keycloak server URL.",
-    )
-    keycloak_realm: str = Field(
-        "dhtsolution",
-        description="Keycloak realm name.",
-    )
-    keycloak_client_id: str = Field(
-        "raptor",
-        description="Keycloak client ID.",
-    )
-
     # 效能配置
     max_connections: int = Field(
         100,
@@ -128,10 +114,16 @@ class Settings(BaseSettings):
         description="Base URL of the training service."
     )
 
-    # Authentication Service (Keycloak wrapper)
+    # Authentication Service (Keycloak wrapper, module 06)
     auth_service_url: str = Field(
-        "http://keycloak-api:8800/SSO",
-        description="Base URL of the authentication service."
+        "http://keycloak-api:8800",
+        description="Base URL of the auth service (module 06).",
+    )
+
+    # Internal Keycloak URL for JWKS fetch (must be reachable from inside Docker)
+    keycloak_url: str = Field(
+        "http://keycloak:8080",
+        description="Internal Keycloak base URL used to fetch JWKS (token iss may use external IP).",
     )
 
     # Vision Analysis Service

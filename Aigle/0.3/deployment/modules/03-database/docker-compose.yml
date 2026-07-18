@@ -71,9 +71,11 @@ services:
     hostname: raptor-qdrant
     environment:
       TZ: ${TIMEZONE:-Asia/Taipei}
+      QDRANT__SERVICE__HTTP_PORT: ${QDRANT_PORT:-6333}
+      QDRANT__SERVICE__GRPC_PORT: ${QDRANT_GRPC_PORT:-6334}
     ports:
-      - "${QDRANT_PORT:-6333}:6333"
-      - "${QDRANT_GRPC_PORT:-6334}:6334"
+      - "${QDRANT_PORT:-6333}:${QDRANT_PORT:-6333}"
+      - "${QDRANT_GRPC_PORT:-6334}:${QDRANT_GRPC_PORT:-6334}"
     volumes:
       - qdrant-data:/qdrant/storage
       # - ./config/qdrant/config.yaml:/qdrant/config/config.yaml:ro
@@ -83,7 +85,7 @@ services:
           - "raptor-qdrant"  # 定義別名
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/${QDRANT_PORT:-6333}' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

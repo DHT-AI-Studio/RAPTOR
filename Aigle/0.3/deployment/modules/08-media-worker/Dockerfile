@@ -1,4 +1,5 @@
-FROM nvidia/cuda:12.6.0-cudnn-runtime-ubuntu22.04
+# CUDA 12.8 is the minimum runtime that ships sm_120 (Blackwell, RTX 50-series) kernels.
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
@@ -19,16 +20,19 @@ RUN apt-get update -qq && \
     ln -sf /usr/bin/python3.10 /usr/bin/python && \
     ln -sf /usr/bin/pip3 /usr/bin/pip
 
-# PyTorch GPU (cu126)
+# PyTorch GPU (cu128) — required for RTX 50-series (sm_120 / Blackwell).
 RUN pip install --no-cache-dir \
       torch==2.7.1 \
       torchaudio==2.7.1 \
       torchvision==0.22.1 \
-      --index-url https://download.pytorch.org/whl/cu126
+      --index-url https://download.pytorch.org/whl/cu128
 
-# PaddlePaddle GPU (cu123) — wheel is ~3.5 GB, needs extended socket timeout
-RUN pip install --no-cache-dir --timeout 600 paddlepaddle-gpu==3.1.0 \
-      -i https://www.paddlepaddle.org.cn/packages/stable/cu123/ \
+# PaddlePaddle GPU (cu129) — required for sm_120 (Blackwell / RTX 50-series).
+# paddlepaddle-gpu==3.3.0 is the first official release shipping sm_120 kernels;
+# CUDA 12.9 is the recommended wheel per PaddlePaddle docs (cu130 also works).
+# Wheel is ~3.5 GB, needs extended socket timeout.
+RUN pip install --no-cache-dir --timeout 600 paddlepaddle-gpu==3.3.0 \
+      -i https://www.paddlepaddle.org.cn/packages/stable/cu129/ \
       --extra-index-url https://pypi.org/simple
 
 # Remaining dependencies
@@ -52,7 +56,7 @@ RUN CT2_LIB=$(find / -name "libctranslate2*.so*" 2>/dev/null | head -n 1) && \
     [ -n "$CT2_LIB" ] && patchelf --clear-execstack "$CT2_LIB" || true
 
 # cuDNN v8 symlinks (pyannote.audio expects libcudnn_ops_infer.so.8 etc.)
-# nvidia/cuda:12.6.0-cudnn-runtime installs cuDNN 9 into /usr/lib/x86_64-linux-gnu/,
+# nvidia/cuda:12.8.0-cudnn-runtime installs cuDNN 9 into /usr/lib/x86_64-linux-gnu/,
 # so find by filename rather than by the old nvidia/cudnn/lib directory path.
 RUN CUDNN_LIB=$(find /usr/lib -name "libcudnn_ops.so.9" 2>/dev/null | head -n 1 | xargs -r dirname) && \
     if [ -n "$CUDNN_LIB" ]; then \

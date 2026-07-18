@@ -87,6 +87,24 @@ class AudioConverter:
             logger.error(f"Audio format conversion failed: {e}")
             raise RuntimeError(f"Audio format conversion failed: {e}")
     
+    def extract_audio_segment(self, file_path: str, start_time: float, end_time: float, output_path: str) -> str:
+        """
+        切出指定時間範圍的音頻段落（CPU only，不吃 VRAM）
+        輸出格式與 extract_audio_if_video 一致：16kHz mono WAV
+        """
+        duration = end_time - start_time
+        try:
+            (
+                ffmpeg
+                .input(file_path, ss=start_time, t=duration)
+                .output(output_path, ac=1, ar=16000)
+                .run(overwrite_output=True, quiet=True)
+            )
+            return output_path
+        except Exception as e:
+            logger.error(f"Audio segment extraction failed [{start_time:.2f}s-{end_time:.2f}s]: {e}")
+            raise RuntimeError(f"Audio segment extraction failed: {e}")
+
     def get_audio_info(self, audio_path: str) -> dict:
         """
         獲取音頻檔案資訊

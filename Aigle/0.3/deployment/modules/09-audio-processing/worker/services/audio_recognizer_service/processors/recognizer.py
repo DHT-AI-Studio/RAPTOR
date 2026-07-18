@@ -1,14 +1,16 @@
 import whisperx
 import torch
 import gc
+import threading
 from dotenv import load_dotenv
 import os
-load_dotenv('.env') 
+load_dotenv('.env')
 from langsmith import traceable
 
 import ffmpeg
 import logging
 from typing import Dict, Any, Tuple
+from config import ASYNC_PROCESSING_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +18,14 @@ class SpeechRecognizer:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.compute_type = "float16" if self.device == "cuda" else "int8"
-        
-        # 定義模型相關屬性
+
         self.model_name = "large-v3"
         self.batch_size = 16
-        
+        self._inference_sem = threading.Semaphore(ASYNC_PROCESSING_CONFIG["max_inference_concurrency"])
+        self._align_model_cache: Dict[str, Any] = {}
+
         logger.info(f"Loading WhisperX model '{self.model_name}' on {self.device}")
-        
+
         try:
             self.model = whisperx.load_model(self.model_name, self.device, compute_type=self.compute_type)
             logger.info("WhisperX model loaded successfully")
@@ -43,23 +46,43 @@ class SpeechRecognizer:
             audio = whisperx.load_audio(audio_path)
 
             logger.info("Starting transcription...")
-            result = self.model.transcribe(audio, batch_size=self.batch_size)
+            for batch_size in [self.batch_size, self.batch_size // 2, 1]:
+                try:
+                    with self._inference_sem:
+                        result = self.model.transcribe(audio, batch_size=batch_size)
+                    break
+                except torch.cuda.OutOfMemoryError:
+                    logger.warning(f"OOM at batch_size={batch_size}, retrying smaller")
+                    torch.cuda.empty_cache()
+            else:
+                raise RuntimeError("Transcription OOM at all batch sizes")
 
             language = result.get("language", "zh")
             logger.info(f"Transcription completed. Language detected: {language}")
 
             # Align for word-level timestamps
+            align_model = metadata = None
             try:
-                align_model, metadata = whisperx.load_align_model(
-                    language_code=language, device=self.device
-                )
-                result = whisperx.align(
-                    result["segments"], align_model, metadata, audio, self.device,
-                    return_char_alignments=False,
-                )
+                with self._inference_sem:
+                    if language not in self._align_model_cache:
+                        logger.info(f"Loading align model for language: {language}")
+                        self._align_model_cache[language] = whisperx.load_align_model(
+                            language_code=language, device=self.device
+                        )
+                    align_model, metadata = self._align_model_cache[language]
+                    result = whisperx.align(
+                        result["segments"], align_model, metadata, audio, self.device,
+                        return_char_alignments=False,
+                    )
                 logger.info("Word-level alignment completed")
             except Exception as align_err:
                 logger.warning(f"Alignment failed (word timestamps unavailable): {align_err}")
+            finally:
+                del align_model, metadata
+                self._align_model_cache.pop(language, None)
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
             # whisperx.align() drops language and has no top-level text/duration;
             # restore them so callers don't need to reconstruct from segments.
@@ -131,11 +154,17 @@ class SpeechRecognizer:
             
             # 執行轉錄
             result, audio_data = self.transcribe(audio_path)
-            
+            del audio_data
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
             return result
         except Exception as e:
             logger.error(f"Failed to process audio file {file_path}: {e}")
-            # 返回錯誤結果
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             return {
                 "error": str(e)
             }
@@ -154,6 +183,7 @@ class SpeechRecognizer:
         try:
             if hasattr(self, 'model'):
                 del self.model
+            self._align_model_cache.clear()
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()

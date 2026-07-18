@@ -33,7 +33,6 @@ from config import (
 import opencc
 from redis_manager import RedisStateManager 
 from dotenv import load_dotenv
-import os
 # 計算上層資料夾的路徑
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -52,7 +51,7 @@ class AudioOrchestratorKafkaHandler:
         self.group_id = KAFKA_GROUP_ID
         self.service_name = SERVICE_NAME
         self.seaweedfs_client = SeaweedFSClient()
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
         os.makedirs(MERGED_FILE_DIR, exist_ok=True)
         # # 處理狀態儲存 (簡單的記憶體儲存)
         # self.processing_states = {}
@@ -233,30 +232,33 @@ class AudioOrchestratorKafkaHandler:
             # 驗證消息格式
             if not self.validate_message(message):
                 await self.send_error_response(
-                    producer, message, 
-                    "Invalid message format", 
-                    "INVALID_FORMAT"
+                    producer, message,
+                    "Invalid message format",
+                    "INVALID_FORMAT",
+                    message.get("correlation_id")
                 )
                 return
-            
+
             # 檢查 TTL
             if self.is_message_expired(message):
                 await self.send_error_response(
                     producer, message,
                     "Message expired",
-                    "MESSAGE_EXPIRED"
+                    "MESSAGE_EXPIRED",
+                    message.get("correlation_id")
                 )
                 return
-            
+
             # 檢查目標服務
             if message["target_service"] != self.service_name:
                 await self.send_error_response(
                     producer, message,
                     f"Wrong target service: {message['target_service']}",
-                    "WRONG_TARGET"
+                    "WRONG_TARGET",
+                    message.get("correlation_id")
                 )
                 return
-            
+
             # 處理音頻處理請求
             if message["payload"]["action"] == "audio_processing":
                 await self.handle_audio_processing(message, producer)
@@ -264,7 +266,8 @@ class AudioOrchestratorKafkaHandler:
                 await self.send_error_response(
                     producer, message,
                     f"Unknown action: {message['payload']['action']}",
-                    "UNKNOWN_ACTION"
+                    "UNKNOWN_ACTION",
+                    message.get("correlation_id")
                 )
                 
         except Exception as e:
@@ -289,7 +292,8 @@ class AudioOrchestratorKafkaHandler:
                 await self.send_error_response(
                     producer, message,
                     "Missing required parameters",
-                    "MISSING_PARAMETERS"
+                    "MISSING_PARAMETERS",
+                    message.get("correlation_id")
                 )
                 return
 
@@ -336,7 +340,8 @@ class AudioOrchestratorKafkaHandler:
             await self.send_error_response(
                 producer, message,
                 f"Audio processing failed: {str(e)}",
-                "PROCESSING_FAILED"
+                "PROCESSING_FAILED",
+                message.get("correlation_id")
             )
     
     async def send_parallel_requests(self, message: Dict[str, Any], producer: AIOKafkaProducer, temp_file_path: str, primary_filename: str):
@@ -717,93 +722,88 @@ class AudioOrchestratorKafkaHandler:
                 await self.send_error_response(
                     producer, state.get("original_message"),
                     f"Failed to process save result: {str(e)}",
-                    "SAVE_RESULT_PROCESSING_FAILED"
+                    "SAVE_RESULT_PROCESSING_FAILED",
+                    correlation_id
                 )
     def validate_message(self, message: Dict[str, Any]) -> bool:
         """驗證消息格式"""
         required_fields = [
-            "message_id", "correlation_id", "timestamp", 
-            "source_service", "target_service", "message_type", 
-            "priority", "payload"
+            "message_id", "correlation_id", "timestamp",
+            "source_service", "target_service", "message_type",
+            "priority", "payload", "retry_count", "ttl"
         ]
-        
-        for field in required_fields:
-            if field not in message:
-                logger.error(f"Missing required field: {field}")
-                return False
-        
-        # 驗證 payload 必要欄位
+
+        if not all(field in message for field in required_fields):
+            return False
+
         payload = message.get("payload", {})
-        required_payload_fields = ["request_id", "action", "parameters"]
-        
-        for field in required_payload_fields:
-            if field not in payload:
-                logger.error(f"Missing required payload field: {field}")
+        if payload.get("action") == "audio_processing":
+            required_payload_fields = ["request_id", "action", "parameters"]
+            if not all(field in payload for field in required_payload_fields):
                 return False
-        
+
+            parameters = payload.get("parameters", {})
+            required_param_fields = ["asset_path", "version_id", "primary_filename"]
+            if not all(field in parameters for field in required_param_fields):
+                return False
+
         return True
-    
+
     def is_message_expired(self, message: Dict[str, Any]) -> bool:
         """檢查消息是否過期"""
         try:
-            from datetime import datetime, timezone
-            
-            timestamp_str = message.get("timestamp")
+            timestamp = datetime.fromisoformat(message["timestamp"].replace('Z', '+00:00'))
             ttl = message.get("ttl", 3600)
-            
-            if not timestamp_str:
-                return False
-            
-            message_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            current_time = datetime.now(timezone.utc)
-            
-            age_seconds = (current_time - message_time).total_seconds()
-            
-            return age_seconds > ttl
-            
-        except Exception as e:
-            logger.error(f"Error checking message expiration: {e}")
+            now = datetime.now(timezone.utc)
+            return (now - timestamp).total_seconds() > ttl
+        except:
             return False
     
     async def send_error_response(
-        self, 
-        producer: AIOKafkaProducer, 
-        message: Dict[str, Any], 
-        error_message: str, 
-        error_code: str
+        self,
+        producer: AIOKafkaProducer,
+        original_message: Dict[str, Any],
+        error_message: str,
+        error_code: str,
+        correlation_id: str = None
     ):
         """發送錯誤響應"""
         try:
             error_response = MessageBuilder.create_error_response(
-                original_message=message,
+                original_message=original_message,
                 error_message=error_message,
                 error_code=error_code
             )
-            
             await producer.send(KAFKA_TOPIC_FINAL_RESULT, error_response)
-            logger.info(f"Error response sent: {error_code} - {error_message}")
-            
+            logger.warning(f"Error response sent: {error_response['message_id']}")
+
+            if correlation_id:
+                payload = original_message.get("payload", {})
+                parameters = payload.get("parameters", {})
+                branch_id = (
+                    parameters.get("branch_id")
+                    or payload.get("asset_managemant_download_header", {}).get("X-Branch-ID")
+                    or ""
+                )
+                self.redis_manager.set_state(correlation_id, {
+                    "step": "error",
+                    "error_code": error_code,
+                    "error_message": error_message,
+                    "branch_id": branch_id,
+                })
         except Exception as e:
             logger.error(f"Failed to send error response: {e}")
     
-    async def send_to_dlq(
-        self, 
-        producer: AIOKafkaProducer, 
-        message: Dict[str, Any], 
-        error: str
-    ):
+    async def send_to_dlq(self, producer: AIOKafkaProducer, original_message: Dict[str, Any], error: str):
         """發送消息到 DLQ"""
         try:
-            retry_count = message.get("retry_count", 0)
             dlq_message = MessageBuilder.create_dlq_message(
-                original_message=message,
+                original_message=original_message,
                 error=error,
-                final_retry_count=retry_count
+                final_retry_count=original_message.get("retry_count", 0)
             )
-            
             await producer.send(KAFKA_TOPIC_DLQ, dlq_message)
-            logger.info(f"Message sent to DLQ: {message.get('message_id')}")
-            
+            logger.error(f"Message sent to DLQ: {dlq_message['message_id']}")
         except Exception as e:
             logger.error(f"Failed to send message to DLQ: {e}")
 

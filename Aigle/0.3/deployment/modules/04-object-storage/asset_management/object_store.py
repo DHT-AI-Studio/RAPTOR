@@ -36,19 +36,24 @@ class ObjectStore:
         self._lakefs_session.auth = (settings.lakefs_access_key, settings.lakefs_secret_key)
         # Async Redis cache for presigned URLs (TTL = 15 min, LakeFS expiry = 20 min).
         # Use redis.asyncio to avoid blocking the event loop during concurrent URL resolution.
-        try:
-            self._redis = aioredis.Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
-                db=settings.redis_db,
-                password=settings.redis_password or None,
-                socket_connect_timeout=1,
-                decode_responses=True,
-            )
-            logger.info("Redis cache configured for presigned URLs")
-        except Exception as _e:
-            logger.warning(f"Redis unavailable, presigned URL caching disabled: {_e}")
+        # Set PRESIGN_URL_CACHE_ENABLED=false in .env to disable caching (forces fresh URL on every request).
+        if not settings.presign_url_cache_enabled:
+            logger.info("Presigned URL cache disabled via PRESIGN_URL_CACHE_ENABLED=false")
             self._redis = None
+        else:
+            try:
+                self._redis = aioredis.Redis(
+                    host=settings.redis_host,
+                    port=settings.redis_port,
+                    db=settings.redis_db,
+                    password=settings.redis_password or None,
+                    socket_connect_timeout=1,
+                    decode_responses=True,
+                )
+                logger.info("Redis cache configured for presigned URLs")
+            except Exception as _e:
+                logger.warning(f"Redis unavailable, presigned URL caching disabled: {_e}")
+                self._redis = None
 
     async def _ensure_bucket(self, bucket: str = settings.s3_bucket):
         """
@@ -236,6 +241,38 @@ class ObjectStore:
             self._initialized = False
             logger.info("ObjectStore closed.")
 
+    def _sync_upload_and_commit(
+        self,
+        data: Union[str, BinaryIO, bytes],
+        key: str,
+        content_type: str,
+        branch: str,
+    ):
+        """Blocking lakefs SDK calls — must run in a thread pool via asyncio.to_thread."""
+        branch_ref = lakefs.repository(
+            repository_id=self.repository, client=self.client
+        ).branch(branch)
+
+        if isinstance(data, str):
+            if not os.path.exists(data):
+                raise HTTPException(status_code=400, detail=f"File not found: {data}")
+            with open(data, "rb") as f:
+                branch_ref.object(path=key).upload(
+                    data=f.read(), content_type=content_type, pre_sign=False
+                )
+        else:
+            if isinstance(data, bytes):
+                data = io.BytesIO(data)
+            data.seek(0)
+            branch_ref.object(path=key).upload(
+                data=data.read(), content_type=content_type, pre_sign=False
+            )
+
+        commit = branch_ref.commit(message=f"Upload file {key}")
+        checksum = commit.object(path=key).stat().checksum
+        commit_id = commit.get_commit().id
+        return checksum, commit_id
+
     async def upload_file(self, data: Union[str, BinaryIO, bytes], key: str, content_type: str, branch: Optional[str] = None) -> Dict:
         """
         Upload a file to the LakeFS repository and return the version ID.
@@ -258,45 +295,18 @@ class ObjectStore:
             if branch is None:
                 branch = self.branch
             else:
-                self.create_branch(self.repository, branch)
+                await asyncio.to_thread(self.create_branch, self.repository, branch)
 
-            branch_ref = lakefs.repository(repository_id=self.repository, client=self.client).branch(branch)
-
-            # Handle data input
-            if isinstance(data, str):
-                if not os.path.exists(data):
-                    raise HTTPException(status_code=400, detail=f"File not found: {data}")
-                with open(data, "rb") as f:
-                    branch_ref.object(path=key).upload(
-                        data=f.read(),
-                        content_type=content_type,
-                        pre_sign=True
-                    )
-            else:
-                if isinstance(data, bytes):
-                    data = io.BytesIO(data)
-                data.seek(0)
-                branch_ref.object(path=key).upload(
-                    data=data.read(),
-                    content_type=content_type,
-                    pre_sign=True
-                )
-                data.seek(0)
-
-            # Commit the upload
-            commit = branch_ref.commit(
-                message=f"Upload file {key}",
-                # metadata=metadata
+            checksum, commit_id = await asyncio.to_thread(
+                self._sync_upload_and_commit, data, key, content_type, branch
             )
-            checksum = commit.object(path=key).stat().checksum
-            commit_id = commit.get_commit().id
 
             logger.info(f"Uploaded file {key} with version ID {commit_id} to repository {self.repository}")
             return {"key": key, "version_id": commit_id, "checksum": checksum}
-        
+
         except Exception as e:
             if "commit: no changes" in str(e).lower():
-                raise HTTPException(status_code=400, detail=f"File already exists: {key}")
+                raise HTTPException(status_code=409, detail=f"LakeFS/DB inconsistency: file '{key}' is already committed in LakeFS but has no DB record. Delete the file from LakeFS and re-upload.")
             raise HTTPException(status_code=500, detail=f"Failed to upload file {key}: {str(e)}")
 
     async def get_file(self, key: str, version_id: Optional[str] = None, return_file_content: bool = False) -> Dict:

@@ -180,7 +180,7 @@ class OfficeDocumentProcessor:
         self.vlm_annotator = vlm_annotator or VLMAnnotator()
         self.max_chunk_tokens = max_chunk_tokens
         self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
-        self.cc = opencc.OpenCC('s2tw')
+        self.cc = opencc.OpenCC('s2twp')
         self.setup_docling()
         
     def setup_docling(self):

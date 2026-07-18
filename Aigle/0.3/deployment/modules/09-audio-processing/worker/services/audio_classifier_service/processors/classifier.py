@@ -1,6 +1,7 @@
 # services/audio_classifier_service/processors/classifier.py
 
 import torch
+import threading
 import librosa
 import numpy as np
 from panns_inference import AudioTagging, SoundEventDetection, labels
@@ -10,73 +11,64 @@ import os
 from typing import Dict, Any, List, Tuple
 from dotenv import load_dotenv
 
-load_dotenv('.env') 
+load_dotenv('.env')
 from langsmith import traceable
+from config import ASYNC_PROCESSING_CONFIG
 
 logger = logging.getLogger(__name__)
 
 class AudioClassifier:
     def __init__(self):
-        # 動態檢測 CUDA 是否可用，與 recognizer.py 保持一致
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        
+        self._inference_sem = threading.Semaphore(ASYNC_PROCESSING_CONFIG["max_inference_concurrency"])
+
         logger.info(f"Loading PANNs models on {self.device}")
-        
+
         try:
             self.audio_tagging_model = AudioTagging(checkpoint_path=None, device=self.device)
             self.sound_event_detection_model = SoundEventDetection(checkpoint_path=None, device=self.device)
-            
-            # 將 PANNs 提供的標籤列表儲存起來，方便後續查找
             self.labels = labels
-            
             logger.info("PANNs models loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load PANNs models: {e}")
             raise
 
     @traceable(run_type="tool", name="classify", project_name=os.getenv("LANGSMITH_PROJECT", "audioprocess"))
-    def classify(self, audio_path: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def classify(self, audio_path: str, top_k: int = 5, chunk_sec: float = 10.0) -> List[Dict[str, Any]]:
         """
         對音訊檔案進行分類，並返回可能性最高的幾個標籤。
-
-        Args:
-          audio_path (str): 音訊檔案的路徑。
-          top_k (int): 要返回的標籤數量。
-
-        Returns:
-          list: 一個包含 top_k 個最可能標籤的列表，每個元素包含 label 和 probability。
+        以 chunk_sec 為單位逐段載入推理後平均，避免大檔案撐爆 VRAM。
         """
+        SR = 32000
         try:
-            logger.info(f"Classifying audio: {audio_path}")
-            
-            # 使用 librosa 載入音訊
-            # 關鍵：sr=32000 指定了 PANNs 模型需要的取樣率，librosa 會自動進行重採樣
-            # mono=True 將音訊轉為單聲道
-            (waveform, _) = librosa.core.load(audio_path, sr=32000, mono=True)
+            logger.info(f"Classifying audio (chunk={chunk_sec}s): {audio_path}")
+            duration = self.get_audio_duration(audio_path)
+            num_chunks = max(1, int(np.ceil(duration / chunk_sec)))
 
-            # 為模型推理增加一個批次維度 (batch_size, segment_samples)
-            waveform = waveform[None, :]  
+            all_clipwise = []
+            for i in range(num_chunks):
+                chunk, _ = librosa.core.load(audio_path, sr=SR, mono=True, offset=i * chunk_sec, duration=chunk_sec)
+                if len(chunk) < SR * 20:  # 不足 20 秒捨棄，避免 CNN pooling 崩掉
+                    break
+                with self._inference_sem:
+                    (clipwise_output, _) = self.audio_tagging_model.inference(chunk[None, :])
+                all_clipwise.append(clipwise_output[0])
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
-            # 執行模型推理，返回的是 (clipwise_output, embedding)
-            (clipwise_output, _) = self.audio_tagging_model.inference(waveform)
-            
-            # clipwise_output 的形狀是 (batch_size, classes_num)，我們取第一筆資料
-            clipwise_output = clipwise_output[0]
+            if not all_clipwise:
+                logger.warning(f"Audio too short to classify (< 2s): {audio_path}")
+                return []
 
-            # 使用 np.argsort 找出機率值從高到低排序後的索引
-            sorted_indexes = np.argsort(clipwise_output)[::-1]
-
-            # 根據排序後的索引，從 labels 列表中取得對應的標籤名稱和機率
-            top_results = []
-            for i in sorted_indexes[:top_k]:
-                top_results.append({
-                    "label": self.labels[i],
-                    "probability": round(float(clipwise_output[i]), 4)
-                })
-            
-            logger.info(f"Classification completed. Top label: {top_results[0]['label']}")
+            mean_output = np.mean(all_clipwise, axis=0)
+            sorted_indexes = np.argsort(mean_output)[::-1]
+            top_results = [
+                {"label": self.labels[i], "probability": round(float(mean_output[i]), 4)}
+                for i in sorted_indexes[:top_k]
+            ]
+            logger.info(f"Classification completed ({num_chunks} chunks). Top label: {top_results[0]['label']}")
             return top_results
-            
+
         except Exception as e:
             logger.error(f"Classification failed: {e}")
             raise
@@ -84,61 +76,45 @@ class AudioClassifier:
     @traceable(run_type="tool", name="segmented_classify", project_name=os.getenv("LANGSMITH_PROJECT", "audioprocess"))
     def segmented_classify(self, audio_path: str, audio_duration_sec: float, segment_length_sec: float = 30.0) -> List[Dict[str, Any]]:
         """
-        將 framewise_output 合併為每 segment_length_sec 秒為一段，儲存每段的前三大類別與平均機率
-
-        Args:
-            audio_path (str): 音訊檔案的路徑
-            audio_duration_sec (float): 音訊的實際長度（秒）
-            segment_length_sec (float): 每個段落的秒數（預設 30 秒）
-
-        Returns:
-            list: 每段的開始時間、結束時間、前三大類別與平均機率
+        每 segment_length_sec 秒為一段逐段載入並推理，儲存每段前五大類別與平均機率。
+        逐段處理避免整部影片一次送進 VRAM。
         """
+        SR = 32000
         try:
-            logger.info(f"Performing segmented classification: {audio_path}")
-            
-            # 使用 librosa 載入音訊
-            # 關鍵：sr=32000 指定了 PANNs 模型需要的取樣率，librosa 會自動進行重採樣
-            # mono=True 將音訊轉為單聲道
-            (audio, _) = librosa.core.load(audio_path, sr=32000, mono=True)
-            
-            audio = audio[None, :]  # (batch_size, segment_samples)
-            
-            framewise_output = self.sound_event_detection_model.inference(audio)[0]  # 取第一筆資料的 framewise_output
-
-            time_steps, num_classes = framewise_output.shape
-
-            frame_duration = audio_duration_sec / time_steps
-            frames_per_segment = int(segment_length_sec / frame_duration)
-
+            logger.info(f"Performing segmented classification (segment={segment_length_sec}s): {audio_path}")
             segments = []
+            chunk_idx = 0
 
-            for seg_start_frame in range(0, time_steps, frames_per_segment):
-                seg_end_frame = min(seg_start_frame + frames_per_segment, time_steps)
-                segment = framewise_output[seg_start_frame:seg_end_frame, :]  # 這段的所有 frames
+            while True:
+                offset = chunk_idx * segment_length_sec
+                if offset >= audio_duration_sec:
+                    break
 
-                # 對這段中每個類別做平均（代表此段的整體機率）
-                mean_probs = np.mean(segment, axis=0)
+                chunk, _ = librosa.core.load(audio_path, sr=SR, mono=True, offset=offset, duration=segment_length_sec)
+                if len(chunk) < SR * 20:  # 不足 20 秒捨棄，避免 CNN pooling 崩掉
+                    break
 
-                # 找出前5大類別
+                with self._inference_sem:
+                    framewise_output = self.sound_event_detection_model.inference(chunk[None, :])[0]
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+                mean_probs = np.mean(framewise_output, axis=0)
                 top_indices = np.argsort(mean_probs)[::-1][:5]
                 top_classes = [
-                    {
-                        "label": labels[j],
-                        "probability": round(float(mean_probs[j]), 4)
-                    }
+                    {"label": labels[j], "probability": round(float(mean_probs[j]), 4)}
                     for j in top_indices
                 ]
-
                 segments.append({
-                    "segment_start": round(seg_start_frame * frame_duration, 2),
-                    "segment_end": round(seg_end_frame * frame_duration, 2),
+                    "segment_start": round(offset, 2),
+                    "segment_end": round(min(offset + segment_length_sec, audio_duration_sec), 2),
                     "top_classes": top_classes
                 })
+                chunk_idx += 1
 
             logger.info(f"Segmented classification completed. {len(segments)} segments processed")
             return segments
-            
+
         except Exception as e:
             logger.error(f"Segmented classification failed: {e}")
             raise

@@ -630,7 +630,7 @@ print(resp.json())
 |------|------|------|------|
 | `query` | string | 必填 | 搜尋文字 |
 | `top_k` | int | `10` | 最多回傳幾筆 |
-| `payload_schema` | string | `"contextual"` | `"contextual"` 或 `"temporal"` |
+| `payload_schema` | string | `"contextual"` | 目前僅支援 `"contextual"` |
 | `embedding_type` | string | null | `"text"` 或 `"summary"` |
 | `type` | string \| string[] | null | 資產類型過濾，如 `"videos"`、`["documents","audios"]` |
 | `filename` | string[] | null | 依檔名過濾 |
@@ -965,8 +965,7 @@ print("temporal_facts:", len(data.get("temporal_facts", [])))
 
 ### `POST /api/0.3/search/video_search`
 
-專為影片設計的搜尋，以「影片為單位」聚合回傳，而非片段（chunk）為單位。  
-使用多路召回（BM25 + Vector + GraphRAG）後經 cross-encoder rerank，每個影片回傳最相關的時間片段列表。
+專為影片設計的搜尋端點。先以多路召回（BM25 + Vector + GraphRAG + TKG）取得候選片段（chunk），經 RRF 融合後再以 cross-encoder rerank，最後以影片為單位聚合回傳，每部影片附帶最相關的時間片段列表。
 
 **Request Schema：**
 

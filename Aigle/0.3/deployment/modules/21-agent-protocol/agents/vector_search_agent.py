@@ -33,6 +33,8 @@ def _do_vector_search(req: VectorSearchRequest) -> SearchResult:
     body: dict = {"query": req.query, "top_k": req.top_k}
     if req.type is not None:
         body["type"] = req.type
+    if req.branch_id:
+        body["branch_id"] = req.branch_id
     url  = f"{hybrid_url}/api/v1/search/vector"
     logger.info("[VectorSearch] → {} body={}", url, body)
 

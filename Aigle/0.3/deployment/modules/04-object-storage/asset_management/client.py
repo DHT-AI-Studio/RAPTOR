@@ -72,7 +72,7 @@ class AssetManager:
             assoc_version_id = response.get("version_id")
             return (filename, assoc_version_id)
         except Exception as e:
-            if e.status_code == 400: # File no changed, return latest version
+            if getattr(e, 'status_code', None) in (400, 409):  # file unchanged, reuse existing version
                 metadata = await self.db.get_latest_asset(asset_path, branch)
                 if metadata:
                     associated_filenames = dict(metadata.associated_filenames)
@@ -154,10 +154,11 @@ class AssetManager:
             logger.info(f"Knowledge Hit: Content already active at {global_active.asset_path}")
 
             if associated_files:
-                tasks = [self._upload_assoc_task(data, global_active.asset_path, filename, branch) 
-                         for data, filename in associated_files]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                new_assocs = [r for r in results if r is not None and not isinstance(r, Exception)]
+                new_assocs = []
+                for data, filename in associated_files:
+                    result = await self._upload_assoc_task(data, global_active.asset_path, filename, branch)
+                    if result is not None:
+                        new_assocs.append(result)
 
                 current_assoc_dict = dict(global_active.associated_filenames)
                 current_assoc_dict.update(dict(new_assocs))
@@ -167,12 +168,26 @@ class AssetManager:
             else:
                 await self.db.log_access(username, global_active.asset_path, global_active.version_id, branch, "Upload", True, "Upload existing active asset, just return existing metadata")
 
-            global_active.existence_info = ExistenceInfo(
-                exists=True, 
-                message=f"Same content already exists at {global_active.asset_path} with version: {global_active.version_id}, reuse it and skipping upload.",
-                existing_asset_path=global_active.asset_path,
-                existing_version_id=global_active.version_id
+            is_indexed = await self.search_sync.check_indexed(
+                global_active.asset_path, global_active.version_id, branch
             )
+            if is_indexed:
+                global_active.existence_info = ExistenceInfo(
+                    exists=True,
+                    message=f"Same content already exists at {global_active.asset_path} with version: {global_active.version_id}, reuse it and skipping upload.",
+                    existing_asset_path=global_active.asset_path,
+                    existing_version_id=global_active.version_id,
+                )
+            else:
+                logger.warning(
+                    f"Knowledge Hit but not indexed: {global_active.asset_path}/{global_active.version_id}, flagging for re-analysis"
+                )
+                global_active.existence_info = ExistenceInfo(
+                    exists=False,
+                    message=f"Content exists at {global_active.asset_path} (version: {global_active.version_id}) but analysis is incomplete, re-triggering.",
+                    existing_asset_path=global_active.asset_path,
+                    existing_version_id=global_active.version_id,
+                )
             await self.db.save_metadata(global_active)
             return global_active
         
@@ -200,16 +215,20 @@ class AssetManager:
             if server_checksum != local_md5:
                 logger.error(f"Checksum mismatch! Local: {local_md5}, Server: {server_checksum}")
                 raise HTTPException(status_code=500, detail="Checksum mismatch after upload to LakeFS")
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"LakeFS Upload failed: {e}")
-            raise HTTPException(status_code=500, detail="Failed to upload file to storage")        
+            raise HTTPException(status_code=500, detail="Failed to upload file to storage")
         
         # Delete old associated files since primary file has changed
         await self.object_store.delete_associated_files(asset_path, primary_filename, branch)
         # Upload associated files
-        tasks = [self._upload_assoc_task(data, asset_path, filename, branch) for data, filename in associated_files]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        associated_filenames = [r for r in results if r is not None]
+        associated_filenames = []
+        for data, filename in associated_files:
+            result = await self._upload_assoc_task(data, asset_path, filename, branch)
+            if result is not None:
+                associated_filenames.append(result)
 
         # Global Archive Check within the same branch
         global_archived = await self.db.get_reusable_content(local_md5, branch, status="archived")
@@ -328,10 +347,12 @@ class AssetManager:
                 detail=f"Target asset version is not active (status: {metadata.status})"
             )
         
-        # Upload all associated files concurrently
-        tasks = [self._upload_assoc_task(file_data, asset_path, filename, branch) for file_data, filename in associated_files]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
-        new_associated_files = [r for r in results if r is not None]
+        # Upload associated files
+        new_associated_files = []
+        for file_data, filename in associated_files:
+            result = await self._upload_assoc_task(file_data, asset_path, filename, branch)
+            if result is not None:
+                new_associated_files.append(result)
 
         if not new_associated_files:
             raise HTTPException(status_code=500, detail="All associated file uploads failed")

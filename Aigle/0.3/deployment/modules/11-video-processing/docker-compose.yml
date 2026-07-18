@@ -12,7 +12,7 @@ x-worker-common: &worker-common
     REDIS_PORT: ${REDIS_PORT:-6379}
     REDIS_PASSWORD: ${REDIS_PASSWORD}
     INFERENCE_URL: ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
-    INFERENCE_MODEL: ${INFERENCE_MODEL:-qwen3.5:9b}
+    INFERENCE_MODEL: ${VIDEO_INFERENCE_MODEL:-qwen3.5:9b}
     HYBRID_SEARCH_INGEST_URL: ${HYBRID_SEARCH_INGEST_URL:-http://raptor-hybridsearch-api:8000/api/v1/ingest/file}
     HF_TOKEN: ${HF_TOKEN}
     HF_HOME: /hf_cache
@@ -97,7 +97,7 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: video_chunking
-      CUDA_VISIBLE_DEVICES: ${VIDEO_CHUNKING_GPU:-0}
+      CUDA_VISIBLE_DEVICES: "0"
       NVIDIA_DRIVER_CAPABILITIES: video,compute,utility
     networks:
       raptor:
@@ -111,7 +111,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${VIDEO_CHUNKING_GPU_COUNT:-1}
+              device_ids: ["${VIDEO_CHUNKING_GPU:-0}"]
               capabilities: [gpu]
 
   video-analysis:
@@ -138,7 +138,7 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: video_ocr_frame
-      CUDA_VISIBLE_DEVICES: ${VIDEO_OCR_GPU:-1}
+      CUDA_VISIBLE_DEVICES: "0"
       OCR_DET_MODEL: ${OCR_DET_MODEL:-PP-OCRv5_mobile_det}
       OCR_REC_MODEL: ${OCR_REC_MODEL:-PP-OCRv5_mobile_rec}
       OCR_PRECISION: ${OCR_PRECISION:-fp16}
@@ -157,7 +157,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${VIDEO_OCR_GPU_COUNT:-1}
+              device_ids: ["${VIDEO_OCR_GPU:-0}"]
               capabilities: [gpu]
 
   video-frame-description:
@@ -167,8 +167,8 @@ services:
     environment:
       <<: *worker-env
       WORKER_TYPE: video_frame_description
-      CUDA_VISIBLE_DEVICES: ${VIDEO_FRAME_DESC_GPU:-2}
-      VLM_MODEL_PATH: ${VLM_MODEL_PATH:-OpenGVLab/InternVL3_5-4B}
+      CUDA_VISIBLE_DEVICES: "0"
+      VLM_MODEL_PATH: ${VIDEO_VLM_MODEL_PATH:-OpenGVLab/InternVL3_5-4B}
       MAX_MEMORY_PER_GPU: ${MAX_MEMORY_PER_GPU:-36GiB}
       VIDEO_FRAME_SYNC_API_PORT: ${VIDEO_FRAME_SYNC_API_PORT:-8031}
       VIDEO_OCR_SYNC_URL: http://raptor-video-ocr-frame:${VIDEO_OCR_SYNC_PORT:-8032}
@@ -190,7 +190,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${VIDEO_FRAME_DESC_GPU_COUNT:-1}
+              device_ids: ["${VIDEO_FRAME_DESC_GPU:-2}"]
               capabilities: [gpu]
 
   video-summary:
@@ -289,9 +289,9 @@ volumes:
   media-tmp:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      device: ":${NFS_MEDIA_TMP_PATH}"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/media/processing
 
 networks:
   raptor:

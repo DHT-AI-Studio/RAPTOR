@@ -55,13 +55,13 @@ volumes:
   tmp:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      device: ":${NFS_AIML_TMP_PATH}"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/aiml/tmp
 
   data:
     driver: local
     driver_opts:
-      type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
-      device: ":${NFS_AIML_DATA_PATH}"
+      type: none
+      o: bind
+      device: /mnt/disk1/nfs/aiml/data

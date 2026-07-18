@@ -20,6 +20,8 @@ import asyncio
 import json
 import logging
 import os
+import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
@@ -28,17 +30,20 @@ from fastapi.responses import RedirectResponse
 
 from pipeline import run_ingest_pipeline
 from schemas import (
+    AsyncIngestAccepted,
     FulltextRequest,
     GraphRagRequest,
     GraphRagResponse,
     HealthResponse,
     IngestRequest,
     IngestResponse,
+    JobStatus,
     MomentFulltextRequest,
     StatsResponse,
     TkgQueryRequest,
     TkgQueryResponse,
 )
+from pydantic import BaseModel
 from tkg import (
     ExtractRequest,
     ExtractResponse,
@@ -60,6 +65,46 @@ logger = logging.getLogger("graph_service")
 
 state: Dict[str, Any] = {}
 
+# Async ingest job store: job_id → {status, result, error, created_at}
+_jobs: Dict[str, Dict[str, Any]] = {}
+
+# Limit concurrent pipeline runs to avoid overwhelming Neo4j
+_pipeline_sem = asyncio.Semaphore(2)
+
+
+async def _run_pipeline_task(
+    job_id: str,
+    records: List[Dict[str, Any]],
+    enable_per_moment_extraction: bool,
+    enable_moment_temporal: bool,
+    branch_id: str,
+) -> None:
+    async with _pipeline_sem:
+        _jobs[job_id]["status"] = "running"
+        try:
+            result = await run_ingest_pipeline(
+                records,
+                enable_per_moment_extraction=enable_per_moment_extraction,
+                enable_moment_temporal=enable_moment_temporal,
+                branch_id=branch_id,
+            )
+            _jobs[job_id].update({"status": "done", "result": result, "error": None})
+        except Exception as e:
+            logger.error(f"Pipeline failed for job {job_id}: {e}", exc_info=True)
+            _jobs[job_id].update({"status": "failed", "result": None, "error": str(e)})
+
+
+async def _job_cleanup_loop() -> None:
+    """Remove jobs older than 6 hours to prevent memory growth."""
+    while True:
+        await asyncio.sleep(3600)
+        cutoff = time.time() - 21600
+        stale = [jid for jid, j in list(_jobs.items()) if j.get("created_at", 0) < cutoff]
+        for jid in stale:
+            _jobs.pop(jid, None)
+        if stale:
+            logger.info(f"Cleaned up {len(stale)} stale ingest jobs")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,7 +117,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Neo4j connect failed: {e}")
         state["query_client"] = None
+    cleanup_task = asyncio.create_task(_job_cleanup_loop())
     yield
+    cleanup_task.cancel()
     if state.get("query_client"):
         await state["query_client"].close()
     logger.info("Graph Service shutdown")
@@ -142,20 +189,122 @@ async def stats():
 # GraphRAG — Ingest (write)
 # ---------------------------------------------------------------------------
 
-@app.post("/ingest/payload", response_model=IngestResponse,
-          status_code=status.HTTP_200_OK, tags=["graphrag:ingest"])
+@app.post("/ingest/payload", response_model=AsyncIngestAccepted,
+          status_code=status.HTTP_202_ACCEPTED, tags=["graphrag:ingest"])
 async def ingest_payload(req: IngestRequest):
-    """Qdrant payload records → Neo4j 建圖（Entity / Relation / APPEARS_IN / TemporalFact）。"""
-    try:
-        result = await run_ingest_pipeline(
-            req.records,
-            enable_per_moment_extraction=req.options.enable_per_moment_extraction,
-            enable_moment_temporal=req.options.enable_moment_temporal,
-            branch_id=req.branch_id or "",
+    """Qdrant payload records → Neo4j 建圖（非同步）。立即回傳 job_id，用 GET /ingest/jobs/{job_id} 查狀態。"""
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "pending", "result": None, "error": None, "created_at": time.time()}
+    asyncio.create_task(_run_pipeline_task(
+        job_id,
+        req.records,
+        req.options.enable_per_moment_extraction,
+        req.options.enable_moment_temporal,
+        req.branch_id or "",
+    ))
+    return AsyncIngestAccepted(job_id=job_id)
+
+
+@app.get("/ingest/jobs/{job_id}", response_model=JobStatus, tags=["graphrag:ingest"])
+async def get_ingest_job(job_id: str):
+    """查詢非同步 ingest job 狀態。status: pending → running → done | failed。"""
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return JobStatus(
+        job_id=job_id,
+        status=job["status"],
+        result=IngestResponse(**job["result"]) if job.get("result") else None,
+        error=job.get("error"),
+    )
+
+
+class DeleteSourceRequest(BaseModel):
+    asset_path: str
+    version_id: str
+    branch_id: str = ""
+
+
+class SetStatusRequest(BaseModel):
+    asset_path: str
+    version_id: str
+    branch_id: str = ""
+    status: str  # "active" | "archived"
+
+
+@app.post("/source/set_status", tags=["graphrag:ingest"])
+async def set_source_status(req: SetStatusRequest):
+    """Set Source node status (active / archived). Used by asset management on archive/reactivate."""
+    if req.status not in ("active", "archived"):
+        raise HTTPException(status_code=400, detail="status must be 'active' or 'archived'")
+    qc = _qc()
+    async with qc._driver.session() as session:
+        await session.run(
+            "MATCH (s:Source {version_id: $vid}) SET s.status = $status",
+            vid=req.version_id, status=req.status,
         )
-        return IngestResponse(**result)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    logger.info(f"[GraphSync] Source status={req.status}: version_id={req.version_id}")
+    return {"status": "ok", "version_id": req.version_id, "new_status": req.status}
+
+
+@app.post("/source/delete", tags=["graphrag:ingest"])
+async def delete_source(req: DeleteSourceRequest):
+    """
+    Delete all Neo4j data for a specific asset version:
+    Source node, Moment nodes (filtered by asset_path + version_id + branch_id),
+    RELATION edges from this document, and orphaned Entity/TemporalFact nodes.
+    """
+    qc = _qc()
+    driver = qc._driver
+
+    async with driver.session() as session:
+        # 1. Delete all Moment nodes for this asset version
+        await session.run(
+            """
+            MATCH (m:Moment {version_id: $vid, asset_path: $ap, branch_id: $bid})
+            DETACH DELETE m
+            """,
+            vid=req.version_id, ap=req.asset_path, bid=req.branch_id,
+        )
+
+        # 2. Delete the Source node for this asset version
+        await session.run(
+            """
+            MATCH (s:Source {version_id: $vid, asset_path: $ap, branch_id: $bid})
+            DETACH DELETE s
+            """,
+            vid=req.version_id, ap=req.asset_path, bid=req.branch_id,
+        )
+
+        # 3. Remove RELATION edges attributed to this source document
+        await session.run(
+            "MATCH ()-[r:RELATION {source_document_id: $vid}]->() DELETE r",
+            vid=req.version_id,
+        )
+
+        # 4. Delete TemporalFacts attributed to this source document
+        await session.run(
+            "MATCH (tf:TemporalFact {source_document_id: $vid}) DETACH DELETE tf",
+            vid=req.version_id,
+        )
+
+        # 5. Delete orphaned Entity nodes (no remaining content connections)
+        await session.run(
+            """
+            MATCH (e:Entity)
+            WHERE NOT (e)-[:MENTIONED_IN]->()
+              AND NOT (e)-[:APPEARS_IN]->()
+              AND NOT (e)-[:RELATION]->()
+              AND NOT ()-[:RELATION]->(e)
+            DETACH DELETE e
+            """
+        )
+
+    logger.info(
+        f"[GraphSync] Deleted Neo4j data: asset_path={req.asset_path} "
+        f"version_id={req.version_id} branch_id={req.branch_id}"
+    )
+    return {"status": "ok", "version_id": req.version_id, "asset_path": req.asset_path}
 
 
 @app.post("/ingest/upload", response_model=IngestResponse,
@@ -283,9 +432,25 @@ async def tkg_query(req: TkgQueryRequest):
                         "lvlm_description":  m.get("lvlm_description"),
                         "contextual_text":   m.get("contextual_text"),
                         "ocr_text":          m.get("ocr_text"),
+                        "filename":          m.get("filename"),
+                        "upload_time":       m.get("upload_time"),
                     }
         except Exception as exc:
             logger.warning(f"TKG moment fallback search failed: {exc}")
+
+    # Enrich moments with filename/upload_time from Source nodes in subgraph
+    source_map = {
+        nid: n["properties"]
+        for nid, n in all_nodes.items()
+        if "Source" in n.get("labels", [])
+    }
+    for m in all_moments.values():
+        src = source_map.get(m.get("version_id"), {})
+        if not m.get("filename"):
+            m["filename"] = src.get("filename")
+        if not m.get("upload_time"):
+            pa = src.get("processed_at")
+            m["upload_time"] = str(pa) if pa else None
 
     entity_ids = [e["id"] for e in entities]
     facts = await qc.collect_temporal_facts(entity_ids, req.time_start, req.time_end) if entity_ids else []
@@ -386,6 +551,8 @@ async def create_fact(fact: TemporalFactIn):
     """Upsert a single TemporalFact. Idempotent on (entity_id, relation, value, time_start)。"""
     try:
         return TemporalFactOut(**await upsert_fact(_qc()._driver, fact))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.exception("create_fact failed")
         raise HTTPException(status_code=500, detail=str(e))

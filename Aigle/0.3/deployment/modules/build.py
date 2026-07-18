@@ -517,7 +517,7 @@ MODULES: List[Module] = [
     Module(
         id="08",
         name="08-media-worker",
-        description="Shared GPU worker image (torch 2.7.1 cu126 + PaddlePaddle + WhisperX + docling) — used by modules 09 10 11 12",
+        description="Shared GPU worker image (torch 2.7.1 cu128 sm_120 / Blackwell + PaddlePaddle + WhisperX + docling) — used by modules 09 10 11 12",
         deps=[],
         health_images=["raptor/media-worker:0.3"],
         gpu=True,
