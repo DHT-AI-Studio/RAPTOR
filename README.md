@@ -58,7 +58,7 @@ This release continues the open-source RAPTOR framework, codenamed "Aigle". Rele
 
 See [`Aigle/0.3/README.md`](Aigle/0.3/README.md) for the module reference, [`Aigle/0.3/BUILD.md`](Aigle/0.3/BUILD.md) for the build guide, and [`Aigle/0.3/API_REFERENCE.md`](Aigle/0.3/API_REFERENCE.md) for the API reference.
 
-### 🧪 Evaluation and Testing API (Aigle 0.2)
+### 🧪 Evaluation and Testing API (Aigle 0.3)
 
 To help developers get started with the RAPTOR framework quickly and easily, we've deployed a **test run API** on DHT's development infrastructure. This evaluation API allows developers to:
 
@@ -70,9 +70,9 @@ To help developers get started with the RAPTOR framework quickly and easily, we'
 This is an excellent way to explore RAPTOR's features, build proof-of-concepts, and validate your use cases before deploying your own infrastructure.
 
 **🔗 Access the Evaluation API:**  
-[http://raptor_open_0_2_api.dhtsolution.com:8012/](http://raptor_open_0_2_api.dhtsolution.com:8012/)
+[http://raptor_open_0_3_api.dhtsolution.com:8012/](http://raptor_open_0_3_api.dhtsolution.com:8012/)
 
-For detailed API documentation, usage examples, and access instructions, please visit the link above.
+For detailed API documentation, usage examples, and access instructions, see [`Aigle/0.3/API_REFERENCE.md`](Aigle/0.3/API_REFERENCE.md) or visit the link above.
 
 > **Note:** This is a development environment intended for evaluation and testing purposes. For production deployments, please refer to the [Installation](#-installation) and [Development](#development) sections below.
 
