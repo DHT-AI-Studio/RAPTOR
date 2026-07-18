@@ -42,7 +42,7 @@
 
 ## 🚀 Current Release
 
-**Aigle 0.3** - Community Beta (July 2026)
+**Aigle 0.3** - Community Beta (June 2026)
 
 This release continues the open-source RAPTOR framework, codenamed "Aigle". Release 0.3 restructures the platform into **21 independently deployable Docker Compose modules** driven by a single build system (`Aigle/0.3/deployment/modules/build.py`), and delivers the v0.3 roadmap: advanced video understanding, Graph database & GraphRAG, A2A agent orchestration, temporal knowledge graph, BM25 hybrid retrieval, and contextual embeddings.
 
@@ -497,7 +497,7 @@ The following features are planned for upcoming releases to transform RAPTOR int
 - Create timeline-based navigation interface
 - *Note: Docker Compose deployment won't scale to production needs*
 
-### **2. Content Moderation & Compliance (v0.4 - Q2 2026)**
+### **2. Content Moderation & Compliance (v0.5)**
 
 - Train content moderation models (NSFW, violence, hate speech)
 - Implement automated flagging system
@@ -524,7 +524,7 @@ The following features are planned for upcoming releases to transform RAPTOR int
 
 - Embeddings that preserve richer context for retrieval and downstream reasoning
 
-### **8. AI LLM Interface - MCP Integration (v0.4 - Q1 2026)**
+### **8. AI LLM Interface - MCP Integration (v0.4)**
 
 Implement **Model Context Protocol (MCP)** interfaces for core services:
 
@@ -537,11 +537,48 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - Model Management
 - MCP Prompts
 
-### **9. Real-time audio processing (v0.4)**
+### **9. Memory Services (v0.4)**
+
+- **Persistent memory**: Stores complete per-user and per-session histories beyond Redis limits
+- **Two-tier architecture**: Uses Redis for speed and MemVID for durable storage
+- **Semantic retrieval**: Combines BM25, vector search, timelines, and context merging
+- **Multimodal memory**: Indexes video, audio, images, and documents using searchable embeddings
+- **Service APIs**: Support memory CRUD, search, export, statistics, and secure deletion
+- **Application integration**: Enables cross-session continuity, preference recall, entity tracking, and knowledge reuse
+
+### **10. Personal Database Service (v0.4)**
+
+- ArcadeDB replaces Neo4j, Qdrant, and OpenSearch, providing unified multi-model storage and efficient retrieval
+- Physically isolated per-user databases guarantee independent data privacy, seamless backups, exports, and deletions
+- ArcadeDB manages lifecycles securely through gateway authentication
+- Kafka asynchronously routes worker outputs into user-specific ArcadeDB databases through dedicated event topics
+- Redis actively prevents duplicate indexing while Module 07 generates necessary embeddings for records
+- Unified native SQL efficiently combines vector similarity, BM25 text, and complex graph traversals
+- The platform natively supports comprehensive temporal knowledge graphs and advanced GraphRAG query execution
+
+### **11. Real-time audio processing (v0.5)**
 
 - Low-latency audio ingestion, analysis, and pipeline integration
 
-### **10. Kubernetes Production Deployment (v1.0 - July 2026)**
+### **12. Guardrail Service (v0.5)**
+
+- Guardrail intercepts all LLM inputs and outputs to enforce safety policies globally
+- The system uses the Llama Guard 3 model for robust safety classification tasks
+- Transparent OpenAI-compatible proxy handles LLM requests directly for specific integrated modules
+- Administrators can define, upload, and activate custom safety policies stored securely within PostgreSQL
+- Policy violations automatically trigger immediate blocking, sensitive content redaction, or detailed audit logging
+- Redis caching enables administrators to instantly toggle the entire guardrail system without redeployment
+
+### **13. gRPC API Interface (v0.5)**
+
+- New gRPC interface optimizing backend communication and media streaming operations
+- A strictly versioned protobuf contract natively handles search, asset transfers, job tracking, and analysis
+- StreamVideoSegment dynamically transcodes media into fragmented MP4 formats for immediate client playback capabilities
+- The abstract client transparently switches between traditional REST and new gRPC transports using configurations
+- Browser clients receive seamless WebSocket job progress updates relayed directly from backend gRPC streams
+- Advanced gRPC interceptors enforce authentication, propagate backpressure, and guarantee constant memory during large transfers
+
+### **14. Kubernetes Production Deployment (v1.0)**
 
 - Production-ready Kubernetes deployment with Helm charts
 - Automated horizontal and vertical scaling
@@ -549,10 +586,10 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - Multi-environment support (dev/staging/prod)
 - *Critical: Docker Compose is not suitable for production scale*
 
-### **11. Centralized Logging & Observability (v1.0 - July 2026)**
+### **15. Centralized Logging & Observability (v1.0)**
 
 - Deploy ELK Stack (Elasticsearch, Logstash, Kibana)
-- Configure log shipping from all 25+ services
+- Configure log shipping from all 30+ services
 - Centralized log aggregation and retention
 - Advanced log search and analytics
 - Distributed tracing integration
@@ -561,14 +598,14 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 
 | Version    | Target    | Focus                       | Key Features                                                                            |
 | ---------- | --------- | --------------------------- | --------------------------------------------------------------------------------------- |
-| **v0.3**   | July 2026 ✅ | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings — **Delivered** |
-| **v0.4**   | Q4 2026   | Media & compliance          | Real-time audio processing, content moderation, GDPR/CCPA                              |
-| **v0.5**  | Q4 2026   | LLM interoperability        | MCP integration across all core services                                                |
-| **v1.0**   | 2027      | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
+| **v0.3**   | June 2026 ✅ | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings — **Delivered** |
+| **v0.4**   | Aug 2026  | LLM interoperability & memory | MCP integration across all core services, persistent session-based multimodal memory, per-user isolated multi-model databases with hybrid / graph / temporal search |
+| **v0.5**   | Sep 2026  | Interfaces, media & compliance | gRPC API interface, content moderation, Guardrail services integration, GDPR/CCPA, real-time audio processing |
+| **v1.0**   | Q4 2026   | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
 
-**Current Status**: Aigle 0.3 (Community Beta) - July 2026 ✅  
-**Next Milestone**: v0.4 (Q4 2026)  
-**Production Target**: v1.0 in 2027
+**Current Status**: Aigle 0.3 (Community Beta) - June 2026 ✅  
+**Next Milestone**: v0.4 (Aug 2026), v0.5 (Sep 2026)  
+**Production Target**: v1.0 in Q4 2026
 
 ---
 

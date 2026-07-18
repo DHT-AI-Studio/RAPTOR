@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Aigle 0.3] - 2026-07-18
+## [Aigle 0.3] - 2026-06
 
 ### 🚀 Community Beta — Modular Platform Release
 
