@@ -1135,6 +1135,8 @@ for video in data["results"]:
 
 ## RAG Query (A2A Protocol)
 
+This section covers only the plain REST proxy below. Raptor's Agent-to-Agent surface goes considerably further — JSON-RPC agent discovery/query, standard A2A `message/send` to five independently-callable specialist sub-agents, and a peer-agent registry — see [`A2A_REFERENCE.md`](A2A_REFERENCE.md) for the full interface definition and guide.
+
 ### `POST /api/0.4/a2a/query`
 
 Full RAG pipeline: intent classification → multi-path search → rerank → LLM-generated answer.  

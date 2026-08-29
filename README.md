@@ -257,6 +257,7 @@ For the complete endpoint list, request/response schemas, and Python client exam
 - 🛠️ **[Setup, Build & Configuration Guide (0.4)](Aigle/0.4/BUILD.md)** - Prerequisites, .env configuration, single/multi-host deployment, source maintenance
 - 📝 **[API Reference (0.4)](Aigle/0.4/API_REFERENCE.md)** - Complete endpoint documentation with examples
 - 🔌 **[MCP Reference (0.4)](Aigle/0.4/MCP_REFERENCE.md)** - Model Context Protocol tool catalog and client-authentication guide
+- 🤝 **[A2A Reference (0.4)](Aigle/0.4/A2A_REFERENCE.md)** - Agent-to-Agent protocol guide: orchestrator JSON-RPC, five spec-compliant specialist sub-agents, peer registration
 - 🚀 **[Quick Start Guide](#quick-start)** - Get started in minutes
 - 📖 **[System Design & Architecture](Aigle/0.1/CIE_System_Design_and_Architecture_1.8.pdf)** - High-level system design
 - 🔧 **[Technical Implementation Guide](Aigle/0.1/doc/CIE_System_Technical_Implementation_1.2.pdf)** - Detailed implementation
