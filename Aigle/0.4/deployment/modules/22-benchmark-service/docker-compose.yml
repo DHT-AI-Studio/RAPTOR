@@ -1,0 +1,42 @@
+services:
+  benchmark-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/benchmark-service:0.4
+    container_name: raptor-benchmark-service
+    hostname: raptor-benchmark-service
+    restart: unless-stopped
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./app:/app/app
+      # Shared AI-ML tmp (same NFS as Modules 07/16). Read-only: the planner only
+      # peeks a few real dataset rows to ground its auto-generated test cases.
+      - tmp:/app/tmp:ro
+    ports:
+      - "${PORT_BENCHMARK_SERVICE:-8022}:8000"
+    networks:
+      - raptor
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
+
+volumes:
+  tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_TMP_PATH}"

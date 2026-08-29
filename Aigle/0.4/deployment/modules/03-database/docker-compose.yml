@@ -1,0 +1,131 @@
+# Databases Module
+# Aigle Platform v0.2
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  # MySQL Database
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: raptor-mysql
+  #   hostname: raptor-mysql
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+  #     MYSQL_DATABASE: ${MYSQL_DATABASE:-aigle}
+  #     MYSQL_USER: ${MYSQL_USER:-aigle}
+  #     MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+  #     TZ: ${TIMEZONE:-Asia/Taipei}
+  #   ports:
+  #     - "${MYSQL_PORT:-3306}:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #     - ./config/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+  #     - ./init/mysql:/docker-entrypoint-initdb.d:ro
+  #   networks:
+  #     raptor-network: {}
+  #       # # ${MYSQL_IP:+ipv4_address: ${MYSQL_IP}}
+  #       # ipv4_address: ${MYSQL_IP}
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2g
+  #         cpus: '1'
+
+  # PostgreSQL Database
+  raptor-postgres:
+    image: postgres:15
+    container_name: raptor-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-raptor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raptor}
+      POSTGRES_DB: ${POSTGRES_DB:-raptor}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_POSTGRES:-5433}:5432"
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+      - ./init/postgresql:/docker-entrypoint-initdb.d:ro
+    networks:
+      raptor: {}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raptor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1'
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    container_name: raptor-qdrant
+    hostname: raptor-qdrant
+    environment:
+      TZ: ${TIMEZONE:-Asia/Taipei}
+      QDRANT__SERVICE__HTTP_PORT: "6333"
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+    ports:
+      - "${PORT_QDRANT:-6333}:6333"
+      - "${PORT_QDRANT_GRPC:-6334}:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+      # - ./config/qdrant/config.yaml:/qdrant/config/config.yaml:ro
+    networks:
+      raptor:
+        aliases:
+          - "raptor-qdrant"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '2'
+
+  # Adminer (Database Management UI)
+  # adminer:
+  #   image: adminer:latest
+  #   container_name: raptor-adminer
+  #   hostname: raptor-adminer
+  #   environment:
+  #     ADMINER_DEFAULT_SERVER: raptor-mysql
+  #     TZ: ${TIMEZONE:-Asia/Taipei}
+  #   ports:
+  #     - "${ADMINER_PORT:-8081}:8080"
+  #   depends_on:
+  #     - mysql
+  #     - postgresql
+  #   networks:
+  #     raptor-network: {}
+  #       # # ${ADMINER_IP:+ipv4_address: ${ADMINER_IP}}
+  #       # ipv4_address: ${ADMINER_IP}
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 256m
+  #         cpus: '0.25'
+
+volumes:
+  # mysql-data:
+  postgresql-data:
+  qdrant-data:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

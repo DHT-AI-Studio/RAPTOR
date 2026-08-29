@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+httpx
+pydantic>=2.0
+pydantic-settings
+prometheus-fastapi-instrumentator
+prometheus-client
+python-dotenv
+asyncpg
+redis==5.0.4
+pyyaml
+python-multipart

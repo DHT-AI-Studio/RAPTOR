@@ -1,0 +1,44 @@
+services:
+  query-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/query-orchestrator:0.4
+    container_name: raptor-query-orchestrator
+    hostname: raptor-query-orchestrator
+    restart: unless-stopped
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    environment:
+      HF_HOME: /hf_cache
+      TRANSFORMERS_OFFLINE: "1"
+      HF_DATASETS_OFFLINE: "1"
+      CUDA_VISIBLE_DEVICES: "0"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+      - ./app:/app/app
+    ports:
+      - "${PORT_QUERY_ORCHESTRATOR:-8843}:8000"
+    networks:
+      - raptor
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${QUERY_ORCHESTRATOR_GPU:-0}"]
+              capabilities: [gpu]
+              
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

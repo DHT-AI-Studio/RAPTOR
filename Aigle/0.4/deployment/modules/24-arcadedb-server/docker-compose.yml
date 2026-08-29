@@ -1,0 +1,51 @@
+# Module 24 — ArcadeDB Server
+# Multi-model engine (graph + vector + BM25) hosting one database per user
+# (user_{branch_id}). Managed by Module 25 (Personal DB Service).
+# Deploy: bash deploy.sh -m 24
+#
+# See README.md for the four upstream-doc discrepancies verified against 26.6.1.
+
+services:
+  arcadedb:
+    image: arcadedata/arcadedb:latest
+    container_name: raptor-arcadedb
+    hostname: raptor-arcadedb
+    environment:
+      # ARCADEDB_SERVER_ROOTPASSWORD is NOT honoured by this image — the password
+      # must go through JAVA_OPTS or startup hangs waiting on stdin (README §2).
+      # No default value: fail fast rather than ship a weak baked-in password.
+      JAVA_OPTS: >-
+        -Darcadedb.server.rootPassword=${ARCADEDB_ROOT_PASSWORD:?set ARCADEDB_ROOT_PASSWORD in deployment/modules/.env}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_ARCADEDB_HTTP:-2480}:2480"      # HTTP API — Module 25 connects here
+      - "${PORT_ARCADEDB_BINARY:-2424}:2424"    # binary protocol (optional)
+    volumes:
+      # /home/arcadedb/databases — NOT /arcadedb-ce/databases. Mounting the wrong
+      # path loses every user database on restart, silently (README §1).
+      - arcadedb_data:/home/arcadedb/databases
+    networks:
+      raptor:
+        aliases:
+          - "raptor-arcadedb"
+    restart: unless-stopped
+    healthcheck:
+      # wget, not curl — the image ships no curl (README §4).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:2480/api/v1/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '4'
+
+volumes:
+  arcadedb_data:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

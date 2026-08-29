@@ -1,0 +1,258 @@
+# Document Processing Module
+# Aigle Platform v0.2
+# All document pipeline workers in one image; WORKER_TYPE selects the service.
+# GPU required for document-analysis (InternVL OCR/VLM).
+# Deploy: docker compose -f docker-compose.yml up -d
+
+x-worker-common: &worker-common
+  image: raptor/media-worker:0.4
+  environment: &worker-env
+    KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+    REDIS_HOST: ${REDIS_HOST:-raptor-redis-standalone}
+    REDIS_PORT: ${REDIS_PORT:-6379}
+    REDIS_PASSWORD: ${REDIS_PASSWORD}
+    NEO4J_URI: ${NEO4J_URI:-bolt://raptor-neo4j:7687}
+    NEO4J_USER: ${NEO4J_USER:-neo4j}
+    NEO4J_PASSWORD: ${NEO4J_PASSWORD:-raptor0.3}
+    OLLAMA_URL: ${OLLAMA_HOST:-http://raptor-ollama:11434}
+    INFERENCE_MODEL: ${DOCUMENT_INFERENCE_MODEL:-qwen3.5:9b}
+    INFERENCE_URL: ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
+    INFERENCE_THINK: ${DOCUMENT_INFERENCE_THINK:-false}
+    HYBRID_SEARCH_INGEST_URL: ${HYBRID_SEARCH_INGEST_URL:-http://raptor-hybridsearch-api:8000/api/v1/ingest/file}
+    HF_TOKEN: ${HF_TOKEN}
+    HF_HOME: /hf_cache
+    TZ: ${TIMEZONE:-Asia/Taipei}
+  volumes: &worker-volumes
+    - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+    - media-tmp:/tmp/media_processing
+  restart: unless-stopped
+  networks:
+    - raptor
+
+services:
+  # ============================================================
+  # kafka-init-topics
+  # One-shot container: creates all document pipeline topics.
+  # Runs before workers start; exits 0 when done.
+  # ============================================================
+  kafka-init-topics:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-document-kafka-init
+    networks:
+      - raptor
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+    entrypoint: >
+      /bin/bash -c "
+        BS=$$(echo $$KAFKA_BOOTSTRAP_SERVERS | cut -d',' -f1);
+        echo \"Waiting for Kafka at $$BS...\";
+        until kafka-topics --bootstrap-server $$BS --list > /dev/null 2>&1; do
+          sleep 5;
+        done;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-processing-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-processing-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-analysis-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-analysis-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-summary-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-summary-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-indexer-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-indexer-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-graph-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-graph-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic opensearch-index-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-processing-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-analysis-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-summary-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-indexer-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic document-graph-dlq --partitions 1 --replication-factor 3;
+        echo 'Document topics ready.';
+      "
+    restart: "no"
+
+  # ============================================================
+  # document-orchestrator
+  # CPU only. Receives document-processing-requests from asset-
+  # management, fans out to analysis / summary / save pipelines.
+  # ============================================================
+  document-orchestrator:
+    <<: *worker-common
+    container_name: raptor-document-orchestrator
+    hostname: raptor-document-orchestrator
+    depends_on:
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: document_orchestrator
+    networks:
+      raptor:
+        aliases:
+          - raptor-document-orchestrator
+    deploy:
+      resources:
+        limits:
+          memory: ${DOCUMENT_ORCHESTRATOR_MEMORY_LIMIT:-2g}
+          cpus: '${DOCUMENT_ORCHESTRATOR_CPU_LIMIT:-1}'
+
+  # ============================================================
+  # document-analysis
+  # GPU: InternVL3.5-4B for OCR, layout parsing, contextual
+  # chunking. Reads CUDA_VISIBLE_DEVICES to select GPU.
+  # ============================================================
+  document-analysis:
+    <<: *worker-common
+    container_name: raptor-document-analysis
+    hostname: raptor-document-analysis
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: document_analysis
+      CUDA_VISIBLE_DEVICES: "0"
+      VLM_MODEL_PATH: ${DOCUMENT_ANALYSIS_VLM_MODEL:-OpenGVLab/InternVL3_5-4B}
+      MAX_CHUNK_TOKENS: ${DOCUMENT_ANALYSIS_MAX_CHUNK_TOKENS:-400}
+      DOCUMENT_ANALYSIS_MAX_WORKERS: ${DOCUMENT_ANALYSIS_MAX_WORKERS:-4}
+      DOCUMENT_ANALYSIS_CONTEXTUAL_TIMEOUT: ${DOCUMENT_ANALYSIS_CONTEXTUAL_TIMEOUT:-180}
+      DOCUMENT_ANALYSIS_CONTEXTUAL_BATCH_SIZE: ${DOCUMENT_ANALYSIS_CONTEXTUAL_BATCH_SIZE:-5}
+    ports:
+      - "${PORT_DOCUMENT_SYNC_API:-8020}:8020"
+    # Marks the container "unhealthy" when CUDA/NVML goes stale after extended
+    # uptime. The `gpu-watchdog` sidecar (below) restarts it on that signal.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import torch; exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null"]
+      interval: 60s
+      timeout: 40s
+      retries: 3
+      start_period: 120s
+    networks:
+      raptor:
+        aliases:
+          - raptor-document-analysis
+    deploy:
+      resources:
+        limits:
+          memory: ${DOCUMENT_ANALYSIS_MEMORY_LIMIT:-16g}
+          cpus: '${DOCUMENT_ANALYSIS_CPU_LIMIT:-4}'
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${DOCUMENT_ANALYSIS_GPU:-0}"]
+              capabilities: [gpu]
+
+  # ============================================================
+  # document-summary
+  # Calls external Ollama for LLM summarization + entity tags.
+  # GPU allocation optional (Ollama may run on separate host).
+  # ============================================================
+  document-summary:
+    <<: *worker-common
+    container_name: raptor-document-summary
+    hostname: raptor-document-summary
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: document_summary
+    networks:
+      raptor:
+        aliases:
+          - raptor-document-summary
+    deploy:
+      resources:
+        limits:
+          memory: ${DOCUMENT_SUMMARY_MEMORY_LIMIT:-8g}
+          cpus: '${DOCUMENT_SUMMARY_CPU_LIMIT:-2}'
+
+  # ============================================================
+  # document-indexer
+  # CPU only. Saves chunk vectors to Qdrant and emits side-
+  # output events to document-graph-requests and
+  # opensearch-index-requests topics.
+  # ============================================================
+  document-indexer:
+    <<: *worker-common
+    container_name: raptor-document-indexer
+    hostname: raptor-document-indexer
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: document_indexer
+    networks:
+      raptor:
+        aliases:
+          - raptor-document-indexer
+    deploy:
+      resources:
+        limits:
+          memory: ${DOCUMENT_INDEXER_MEMORY_LIMIT:-4g}
+          cpus: '${DOCUMENT_INDEXER_CPU_LIMIT:-2}'
+
+  # ============================================================
+  # document-graph
+  # CPU only. Consumes document-graph-requests side-output and
+  # writes entity relationships to Neo4j (module 16 required).
+  # ============================================================
+  document-graph:
+    <<: *worker-common
+    container_name: raptor-document-graph
+    hostname: raptor-document-graph
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: document_graph
+    networks:
+      raptor:
+        aliases:
+          - raptor-document-graph
+    deploy:
+      resources:
+        limits:
+          memory: ${DOCUMENT_GRAPH_MEMORY_LIMIT:-2g}
+          cpus: '${DOCUMENT_GRAPH_CPU_LIMIT:-1}'
+
+  document-cleanup:
+    image: busybox:1.36.1
+    container_name: raptor-document-cleanup
+    volumes:
+      - media-tmp:/tmp/media_processing
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          find /tmp/media_processing/document_processing -mindepth 2 -maxdepth 2 -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+          sleep 3600
+        done
+    restart: unless-stopped
+    networks:
+      - raptor
+
+  # GPU watchdog (sidecar) — restarts this module's GPU workers when their
+  # healthcheck (torch.cuda.is_available) reports "unhealthy" after CUDA/NVML
+  # goes stale on long-running hosts. Scoped to this module only so it starts/
+  # stops with it, independent of whether other modules are deployed on this
+  # host. Pattern ported from module 16's training-watchdog sidecar.
+  # NOTE: mounting docker.sock grants this container root-equivalent host
+  # control — it is intentionally minimal and only inspects/restarts.
+  gpu-watchdog:
+    image: docker:cli
+    container_name: raptor-document-gpu-watchdog
+    restart: unless-stopped
+    environment:
+      - WATCH_CONTAINERS=raptor-document-analysis
+      - CHECK_INTERVAL=30
+      - RECOVER_COOLDOWN=90
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./nvidia-gpu-watchdog.sh:/watchdog.sh:ro
+    entrypoint: ["/bin/sh", "/watchdog.sh"]
+    networks:
+      - raptor
+
+volumes:
+  media-tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_MEDIA_TMP_PATH}"
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

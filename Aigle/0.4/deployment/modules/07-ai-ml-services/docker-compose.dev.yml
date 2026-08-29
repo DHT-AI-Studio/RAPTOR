@@ -1,0 +1,164 @@
+# 單獨測試專用 compose 專案名稱，與運行中的 07-ai-ml-services 專案隔離，
+# 避免共用/誤刪 live 模組的容器與 volumes
+name: aiml-test
+
+volumes:
+  model_cache:
+  postgresql-data:
+  tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_TMP_PATH}"
+
+  data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_DATA_PATH}"
+networks:
+  # 單獨測試：建立自有 bridge 網路，不掛到運行中的 raptor overlay
+  raptor:
+    name: ${DOCKER_NETWORK:-aiml-test}
+    driver: bridge
+
+services:
+  # PostgreSQL Database
+  aiml-dev-postgres:
+    image: postgres:15
+    container_name: aiml-dev-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-raptor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raptor}
+      POSTGRES_DB: ${POSTGRES_DB:-raptor}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_POSTGRES:-5433}:5432"
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+      - ./init/postgresql:/docker-entrypoint-initdb.d:ro
+    networks:
+      raptor: {}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raptor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1'
+
+  mlflow:
+    # 與 docker-compose.yml 一致：改用 Dockerfile.mlflow 於 build 階段預裝
+    # psycopg2-binary / boto3，啟動時不再需要連網 pip install
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+      args:
+        MLFLOW_VERSION: ${MLFLOW_VERSION}
+    image: raptor/mlflow:${MLFLOW_VERSION}
+    container_name: aiml-test-mlflow
+    # 單獨測試：等 dev 專屬 postgres 就緒再啟動，避免 backend store 連線失敗
+    depends_on:
+      aiml-dev-postgres:
+        condition: service_healthy
+    environment:
+      # Backend store URI built from vars
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+
+      # S3 settings for lakeFS
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+
+      # Server host/port
+      MLFLOW_HOST: ${MLFLOW_HOST}
+      PORT_MLFLOW: ${PORT_MLFLOW}
+
+    dns:
+      - 8.8.8.8
+
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - ${MLFLOW_BACKEND_STORE_URI}
+      - --host
+      - ${MLFLOW_HOST}
+      - --port
+      - ${PORT_MLFLOW}
+    ports:
+      - "${PORT_MLFLOW}:${PORT_MLFLOW}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:${PORT_MLFLOW}/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      raptor:
+        aliases:
+          - "raptor-mlflow"
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/ai-lifecycle-api:0.3
+    container_name: aiml-test-api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${PORT_AI_LIFECYCLE_API}:${PORT_AI_LIFECYCLE_API}"
+    volumes:
+      # 開發模式：掛載 src 目錄實現熱加載
+      - ./src:/app/src:ro
+      # - ./tmp:/app/tmp
+      # - ./data:/app/data
+      - tmp:/app/tmp
+      - data:/app/data
+      - model_cache:/app/cache
+      # - ./logs:/app/logs
+    
+    env_file:
+      - .env.dev
+      - path: ../.env
+        required: false
+    environment:
+      # 確保這些環境變量在容器內可用
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+      HF_TOKEN: ${HF_TOKEN}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      INFERENCE_MAX_INPUT_LENGTH: ${INFERENCE_MAX_INPUT_LENGTH:-8192}
+      CUDA_VISIBLE_DEVICES: "0"
+    # environment:
+      # MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      # OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+    command: uvicorn src.main:app --host ${AI_LIFECYCLE_API_HOST:-0.0.0.0} --port ${PORT_AI_LIFECYCLE_API} --reload
+    networks:
+      raptor:
+        aliases:
+          - "raptor-ai-lifecycle-api"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${AI_LIFECYCLE_GPU:-0}"]
+              capabilities: [gpu]

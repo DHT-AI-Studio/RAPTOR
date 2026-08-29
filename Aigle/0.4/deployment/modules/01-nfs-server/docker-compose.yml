@@ -1,0 +1,61 @@
+# NFS Server Module
+# Aigle Platform v0.2 - Module 00
+# Provides NFS v4 server for SeaweedFS volume persistence
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  nfs-server:
+    image: itsthenetwork/nfs-server-alpine:latest
+    container_name: raptor-nfs-server
+    hostname: raptor-nfs-server
+    privileged: true
+    ports:
+      - "${PORT_NFS:-2049}:2049"   # NFS
+      # - "111:111"     # RPC portmapper
+      # - "32765:32765" # RPC status
+      # - "32767:32767" # RPC mountd
+    volumes:
+      - ./config/exports:/etc/exports:ro
+      - nfs-storage:/nfs-share
+      - ./logs:/var/log
+    environment:
+      - SHARED_DIRECTORY=/nfs-share
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        aliases:
+          - "raptor-nfs-server"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      # Verify RPC is registered AND the share is actually writable — a plain
+      # `rpcinfo` check reports "healthy" even while write I/O is stalled, which
+      # masked a real NFS hang. touch/rm exercises the export end-to-end.
+      test: ["CMD-SHELL", "rpcinfo -p localhost && touch /nfs-share/.healthcheck && rm -f /nfs-share/.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          # Raised from 0.5 CPU: nfsd helpers were throttled during large write
+          # bursts (checkpoint saves contending with SeaweedFS I/O), contributing
+          # to stalls. Memory bumped modestly too (write path is kernel-side, so
+          # this cap is not the main bottleneck, but headroom doesn't hurt).
+          memory: 1g
+          cpus: '2'
+    # Storage limit: 100GB (configured in config/storage.conf)
+    # See /opt/dht/apps/raptor/nfs/STORAGE_SETUP.md for setup instructions
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
+
+volumes:
+  nfs-storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NFS_BASE_PATH}

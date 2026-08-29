@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
   </a>
   <a href="https://github.com/DHT-AI-Studio/RAPTOR/releases">
-    <img src="https://img.shields.io/badge/version-Aigle%200.3%20(Community%20Beta)-orange.svg" alt="Version">
+    <img src="https://img.shields.io/badge/version-Aigle%200.4%20(Community%20Beta)-orange.svg" alt="Version">
   </a>
   <img src="https://img.shields.io/badge/status-Beta-yellow.svg" alt="Status">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python">
@@ -42,23 +42,22 @@
 
 ## 🚀 Current Release
 
-**Aigle 0.3** - Community Beta (June 2026)
+**Aigle 0.4** - Community Beta (August 2026)
 
-This release continues the open-source RAPTOR framework, codenamed "Aigle". Release 0.3 restructures the platform into **21 independently deployable Docker Compose modules** driven by a single build system (`Aigle/0.3/deployment/modules/build.py`), and delivers the v0.3 roadmap: advanced video understanding, Graph database & GraphRAG, A2A agent orchestration, temporal knowledge graph, BM25 hybrid retrieval, and contextual embeddings.
+This release continues the open-source RAPTOR framework, codenamed "Aigle". Release 0.4 grows the platform to **27 independently deployable Docker Compose modules** (three earlier modules — hybrid-search, graph-database, graph-service — are retired and kept only for rollback) driven by the same single build system (`Aigle/0.4/deployment/modules/build.py`), and delivers the v0.4 roadmap: MCP interfaces across core services, persistent multimodal memory, and a per-user isolated multi-model database that replaces the previous Qdrant/OpenSearch/Neo4j trio.
 
 **Highlights:**
 
-- 🎬 **Video Search 2.0** — multi-recall retrieval (BM25 + Vector + GraphRAG + TKG) fused with RRF, re-ranked by cross-encoder, aggregated per video with time-coded segments
-- 🕸️ **Knowledge Graph & GraphRAG** — Neo4j-backed entity/temporal-fact graph with LLM-powered graph reasoning (module 20)
-- 🤖 **Agent Protocol (A2A)** — agent discovery, orchestration and RAG pipeline over vector / keyword / GraphRAG / TKG agents (module 21)
-- 🌿 **Branch-aware data isolation** — `branch_id` propagated end-to-end: upload → processing → indexing → search → agents
-- 🖥️ **Demo Frontend** — React + Vite web UI for file upload, natural-language video search, and upload history (`Aigle/0.3/raptor-demo-frontend/`)
-- ⚡ **Blackwell-ready GPU stack** — CUDA 12.8 base image, PyTorch cu128, PaddlePaddle 3.3.0 (sm_120 / RTX 50-series support)
-- 🔐 **Reworked authentication** — Keycloak-backed auth module with group/account management, SMTP notifications, and gateway permission checks
+- 🔌 **MCP Server** — Raptor's search, RAG, asset, and memory APIs exposed as Model Context Protocol tools/resources for LLM clients (module 27)
+- 🧠 **Memory Service** — persistent per-user/per-session memory (facts, preferences, conversation history, multimedia) backed by MemVID, layered underneath the existing Redis short-term chat cache (module 26)
+- 🗄️ **Personal DB Service** — one physically isolated ArcadeDB database per user, replacing the old per-user Qdrant + OpenSearch + Neo4j trio with unified hybrid BM25 + vector + graph + temporal-fact search (modules 24/25)
+- 🛡️ **Guardrail Service** — LLM input/output content moderation with pluggable guard models (Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard) and a policy engine; ships disabled by default (module 23)
+- 📊 **Benchmark Service** — user-defined scoring schemas (keyword match, LLM-as-judge, cosine similarity) to regression-test chat/RAG/search/classification pipelines (module 22)
+- 🎬 **Video Search 2.0, GraphRAG, A2A, branch isolation** — carried over from Aigle 0.3 (see [Features](#-features) below)
 
-See [`Aigle/0.3/README.md`](Aigle/0.3/README.md) for the module reference, [`Aigle/0.3/BUILD.md`](Aigle/0.3/BUILD.md) for the build guide, and [`Aigle/0.3/API_REFERENCE.md`](Aigle/0.3/API_REFERENCE.md) for the API reference.
+See [`Aigle/0.4/README.md`](Aigle/0.4/README.md) for the module reference, [`Aigle/0.4/BUILD.md`](Aigle/0.4/BUILD.md) for the build guide, [`Aigle/0.4/API_REFERENCE.md`](Aigle/0.4/API_REFERENCE.md) for the API reference, and [`Aigle/0.4/MCP_REFERENCE.md`](Aigle/0.4/MCP_REFERENCE.md) for the new MCP reference.
 
-### 🧪 Evaluation and Testing API (Aigle 0.3)
+### 🧪 Evaluation and Testing API (Aigle 0.4)
 
 To help developers get started with the RAPTOR framework quickly and easily, we've deployed a **test run API** on DHT's development infrastructure. This evaluation API allows developers to:
 
@@ -70,9 +69,9 @@ To help developers get started with the RAPTOR framework quickly and easily, we'
 This is an excellent way to explore RAPTOR's features, build proof-of-concepts, and validate your use cases before deploying your own infrastructure.
 
 **🔗 Access the Evaluation API:**  
-[http://raptor_open_0_3_api.dhtsolution.com:8012/](http://raptor_open_0_3_api.dhtsolution.com:8012/)
+[http://raptor_open_0_4_api.dhtsolution.com:8012/](http://raptor_open_0_4_api.dhtsolution.com:8012/)
 
-For detailed API documentation, usage examples, and access instructions, see [`Aigle/0.3/API_REFERENCE.md`](Aigle/0.3/API_REFERENCE.md) or visit the link above.
+For detailed API documentation, usage examples, and access instructions, see [`Aigle/0.4/API_REFERENCE.md`](Aigle/0.4/API_REFERENCE.md) or visit the link above.
 
 > **Note:** This is a development environment intended for evaluation and testing purposes. For production deployments, please refer to the [Installation](#-installation) and [Development](#development) sections below.
 
@@ -110,13 +109,20 @@ For detailed API documentation, usage examples, and access instructions, see [`A
 
 ## ✨ Features
 
-### Version Aigle 0.3
+### Version Aigle 0.4
 
 New in this release:
 
-- **Modular Deployment System**: 21 independent Docker Compose modules with one build entry point (`build.py`) — start, stop, rebuild, or inspect any subset of the platform
-- **Hybrid Search**: OpenSearch BM25 + Qdrant vector retrieval with RRF fusion and cross-encoder re-ranking
-- **GraphRAG & Temporal Knowledge Graph**: Neo4j graph storage with LLM graph reasoning and time-aware facts
+- **MCP Interfaces**: Model Context Protocol tools/resources over search, RAG, asset, and memory APIs, plus MCP Prompts (module 27)
+- **Memory Service**: persistent per-user/per-session facts, preferences, conversation history, and multimedia memory on MemVID, with hybrid semantic + BM25 retrieval, layered under the existing Redis short-term chat cache (module 26)
+- **Personal DB Service**: one physically isolated ArcadeDB database per user — unified vector, BM25, and graph storage replacing the old per-user Qdrant + OpenSearch + Neo4j trio (modules 24/25)
+- **Guardrail Service**: LLM input/output safety checks (Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard) with a policy engine and violation audit logging; ships disabled by default (module 23)
+- **Benchmark Service**: schema-driven scoring (keyword match, exact/regex match, cosine similarity, LLM-as-judge) with run history and pairwise comparison (module 22)
+
+Carried over from Aigle 0.3:
+
+- **Modular Deployment System**: one build entry point (`build.py`) — start, stop, rebuild, or inspect any subset of the platform
+- **Hybrid Search & GraphRAG**: now served per-user through Module 25's ArcadeDB index (BM25 + vector + graph + temporal facts), replacing the original OpenSearch/Qdrant/Neo4j-backed implementation
 - **A2A Agent Orchestration**: JSON-RPC agent-to-agent discovery and multi-agent RAG pipelines
 - **Video-centric Search API**: results aggregated per video with the most relevant time segments
 - **Branch-based Multi-tenancy**: full `branch_id` isolation across upload, processing, indexing, and retrieval
@@ -153,7 +159,7 @@ For detailed release notes, see [CHANGELOG.md](CHANGELOG.md).
 
 ## 📦 Installation
 
-**Prerequisites** (full details, host sizing, and port matrix: [`Aigle/0.3/BUILD.md`](Aigle/0.3/BUILD.md) §1):
+**Prerequisites** (full details, host sizing, and port matrix: [`Aigle/0.4/BUILD.md`](Aigle/0.4/BUILD.md) §1):
 
 - **Software**: Docker Engine 24.0+, Docker Compose v2.20+, Python 3.10+, NVIDIA Container Toolkit on GPU hosts
 - **GPU**: NVIDIA driver supporting CUDA 12.8+ (media stack targets sm_120 / Blackwell); 24 GB+ VRAM, 36 GB+ recommended for video processing (InternVL)
@@ -164,7 +170,7 @@ For detailed release notes, see [CHANGELOG.md](CHANGELOG.md).
 ```bash
 # Clone the repository
 git clone https://github.com/DHT-AI-Studio/RAPTOR.git
-cd RAPTOR/Aigle/0.3
+cd RAPTOR/Aigle/0.4
 
 # Configure: copy the templates and fill in hosts, credentials, and model names
 cd deployment/modules
@@ -173,12 +179,12 @@ for m in */; do [ -f "$m/.env.example" ] && cp "$m/.env.example" "$m/.env"; done
 cd ../..
 ```
 
-See [`Aigle/0.3/BUILD.md`](Aigle/0.3/BUILD.md) for the full configuration reference.
+See [`Aigle/0.4/BUILD.md`](Aigle/0.4/BUILD.md) for the full configuration reference.
 
 ## Development
 
 ```bash
-cd Aigle/0.3
+cd Aigle/0.4
 
 # Build the shared GPU base image first (used by modules 09-12)
 bash deploy.sh -m 08 --build
@@ -202,7 +208,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 2. Log in through SSO to obtain a token (users/groups are managed by the authentication module, Keycloak-backed):
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.3/sso/login" \
+   curl -X POST "http://<host_ip>:8012/api/0.4/sso/login" \
      -H "Content-Type: application/json" \
      -d '{"username": "<user>", "password": "<password>"}'
    ```
@@ -210,7 +216,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 3. Upload a media file for automatic AI processing (transcription, OCR, frame description, summary, embeddings, knowledge graph):
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.3/asset/fileupload_analysis" \
+   curl -X POST "http://<host_ip>:8012/api/0.4/asset/fileupload_analysis" \
      -H "Authorization: Bearer <token>" \
      -F "file=@/path/to/video.mp4"
    ```
@@ -218,7 +224,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 4. Search — video-centric, multi-recall (BM25 + Vector + GraphRAG + TKG) with cross-encoder re-ranking:
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.3/search/video_search" \
+   curl -X POST "http://<host_ip>:8012/api/0.4/search/video_search" \
      -H "Authorization: Bearer <token>" \
      -H "Content-Type: application/json" \
      -d '{"query": "OpenAI announcement", "top_k": 5}'
@@ -227,7 +233,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 5. Ask questions over your content with RAG chat:
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.3/chat/" \
+   curl -X POST "http://<host_ip>:8012/api/0.4/chat/chat" \
      -H "Authorization: Bearer <token>" \
      -H "Content-Type: application/json" \
      -d '{"message": "Summarize the uploaded video"}'
@@ -236,20 +242,21 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 Or use the **demo frontend** instead of raw APIs:
 
 ```bash
-cd Aigle/0.3/raptor-demo-frontend
+cd Aigle/0.4/raptor-demo-frontend
 cp .env.example .env        # set API_TARGET / DEMO_PORT
 docker compose up -d --build
 ```
 
-For the complete endpoint list, request/response schemas, and Python client examples, see [`Aigle/0.3/API_REFERENCE.md`](Aigle/0.3/API_REFERENCE.md) and [`Aigle/0.3/raptor_client.py`](Aigle/0.3/raptor_client.py).
+For the complete endpoint list, request/response schemas, and Python client examples, see [`Aigle/0.4/API_REFERENCE.md`](Aigle/0.4/API_REFERENCE.md) and [`Aigle/0.4/raptor_client.py`](Aigle/0.4/raptor_client.py).
 
 ## 📚 Documentation
 
 ### Available Documentation
 
-- 🧩 **[Module Reference (0.3)](Aigle/0.3/README.md)** - 21-module architecture, testing status, service ports
-- 🛠️ **[Setup, Build & Configuration Guide (0.3)](Aigle/0.3/BUILD.md)** - Prerequisites, .env configuration, single/multi-host deployment, source maintenance
-- 📝 **[API Reference (0.3)](Aigle/0.3/API_REFERENCE.md)** - Complete endpoint documentation with examples
+- 🧩 **[Module Reference (0.4)](Aigle/0.4/README.md)** - 27-module architecture, deprecated/in-development modules, service ports
+- 🛠️ **[Setup, Build & Configuration Guide (0.4)](Aigle/0.4/BUILD.md)** - Prerequisites, .env configuration, single/multi-host deployment, source maintenance
+- 📝 **[API Reference (0.4)](Aigle/0.4/API_REFERENCE.md)** - Complete endpoint documentation with examples
+- 🔌 **[MCP Reference (0.4)](Aigle/0.4/MCP_REFERENCE.md)** - Model Context Protocol tool catalog and client-authentication guide
 - 🚀 **[Quick Start Guide](#quick-start)** - Get started in minutes
 - 📖 **[System Design & Architecture](Aigle/0.1/CIE_System_Design_and_Architecture_1.8.pdf)** - High-level system design
 - 🔧 **[Technical Implementation Guide](Aigle/0.1/doc/CIE_System_Technical_Implementation_1.2.pdf)** - Detailed implementation
@@ -530,7 +537,7 @@ The following features are planned for upcoming releases to transform RAPTOR int
 
 - Embeddings that preserve richer context for retrieval and downstream reasoning
 
-### **8. AI LLM Interface - MCP Integration (v0.4)**
+### **8. AI LLM Interface - MCP Integration (v0.4 — ✅ delivered)**
 
 Implement **Model Context Protocol (MCP)** interfaces for core services:
 
@@ -543,7 +550,7 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - Model Management
 - MCP Prompts
 
-### **9. Memory Services (v0.4)**
+### **9. Memory Services (v0.4 — ✅ delivered)**
 
 - **Persistent memory**: Stores complete per-user and per-session histories beyond Redis limits
 - **Two-tier architecture**: Uses Redis for speed and MemVID for durable storage
@@ -552,7 +559,7 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - **Service APIs**: Support memory CRUD, search, export, statistics, and secure deletion
 - **Application integration**: Enables cross-session continuity, preference recall, entity tracking, and knowledge reuse
 
-### **10. Personal Database Service (v0.4)**
+### **10. Personal Database Service (v0.4 — ✅ delivered)**
 
 - ArcadeDB replaces Neo4j, Qdrant, and OpenSearch, providing unified multi-model storage and efficient retrieval
 - Physically isolated per-user databases guarantee independent data privacy, seamless backups, exports, and deletions
@@ -566,14 +573,13 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 
 - Low-latency audio ingestion, analysis, and pipeline integration
 
-### **12. Guardrail Service (v0.5)**
+### **12. Guardrail Service (v0.4 — ✅ delivered)**
 
-- Guardrail intercepts all LLM inputs and outputs to enforce safety policies globally
-- The system uses the Llama Guard 3 model for robust safety classification tasks
-- Transparent OpenAI-compatible proxy handles LLM requests directly for specific integrated modules
-- Administrators can define, upload, and activate custom safety policies stored securely within PostgreSQL
-- Policy violations automatically trigger immediate blocking, sensitive content redaction, or detailed audit logging
-- Redis caching enables administrators to instantly toggle the entire guardrail system without redeployment
+- Guardrail (module 23) sits in front of LLM inference, ready to check inputs/outputs against configurable safety policies
+- Ships with pluggable guard-model classification (Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard) plus a separate regex/detector-based policy engine and LLM-judged policy checks
+- Administrators can define, upload, and activate custom safety policies stored securely within PostgreSQL, with violation audit logging
+- Redis-backed toggles let administrators enable/disable the whole system, or individual policies, without redeployment
+- **Disabled by default**: today's production traffic (Modules 07/13) only exercises the policy-free guard-model check — no policy has been activated yet
 
 ### **13. gRPC API Interface (v0.5)**
 
@@ -605,12 +611,12 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 | Version    | Target    | Focus                       | Key Features                                                                            |
 | ---------- | --------- | --------------------------- | --------------------------------------------------------------------------------------- |
 | **v0.3**   | June 2026 ✅ | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings — **Delivered** |
-| **v0.4**   | Aug 2026  | LLM interoperability & memory | MCP integration across all core services, persistent session-based multimodal memory, per-user isolated multi-model databases with hybrid / graph / temporal search |
+| **v0.4**   | Aug 2026 ✅ | LLM interoperability & memory | MCP integration across core services, persistent session-based multimodal memory, per-user isolated multi-model databases with hybrid/graph/temporal search, Guardrail content moderation, Benchmark scoring service — **Delivered** |
 | **v0.5**   | Sep 2026  | Interfaces, media & compliance | gRPC API interface, content moderation, Guardrail services integration, GDPR/CCPA, real-time audio processing |
 | **v1.0**   | Q4 2026   | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
 
-**Current Status**: Aigle 0.3 (Community Beta) - June 2026 ✅  
-**Next Milestone**: v0.4 (Aug 2026), v0.5 (Sep 2026)  
+**Current Status**: Aigle 0.4 (Community Beta) - August 2026 ✅  
+**Next Milestone**: v0.5 (Sep 2026)  
 **Production Target**: v1.0 in Q4 2026
 
 ---

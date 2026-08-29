@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+# for test_kafka (consumer imports these; also runtime deps of the Kafka consumer)
+aiokafka>=0.10.0
+redis>=5.0.0

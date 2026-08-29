@@ -1,0 +1,58 @@
+# Chat Service Module
+# Aigle Platform v0.2
+# Text-to-text LLM processing service for chatbot, translation, summarization, and text generation
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  # ============================================
+  # Chat Service
+  # Provides unified API for text-to-text LLM processing
+  # Supports: Chatbot, Translation, Summarization, Text Generation
+  # ============================================
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/chat-service:0.4
+    container_name: raptor-chat-service
+    hostname: raptor-chat-service
+    environment:
+      TZ: ${TIMEZONE:-Asia/Taipei}
+      PYTHONWARNINGS: "ignore"
+      # LLM -- via module 07 (ai-lifecycle-api), not the Ollama daemon directly
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://raptor-ai-lifecycle-api:8010/v1}
+      LLM_MODEL: ${CHAT_LLM_MODEL:-qwen2.5:7b}
+      TEMPERATURE: ${TEMPERATURE:-0.7}
+      LLM_NUM_CTX: ${LLM_NUM_CTX:-32768}
+      LLM_THINK: ${CHAT_LLM_THINK:-false}
+      # Personal DB Service (module 25) — per-user isolated search (was module 17, see search_service.py's commented-out old implementation)
+      PERSONAL_DB_SERVICE_URL: ${PERSONAL_DB_SERVICE_URL:-http://raptor-personal-db-service:8000}
+      # HYBRID_SEARCH_URL: ${HYBRID_SEARCH_URL:-http://raptor-hybridsearch-api:8000}
+      # Memory Service (module 26)
+      CHAT_MEMORY_SERVICE_URL: ${CHAT_MEMORY_SERVICE_URL:-http://raptor-memory-service:8026}
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      # Chat memory
+      MEMORY_CONTEXT_WINDOW: ${MEMORY_CONTEXT_WINDOW:-5}
+      MEMORY_TTL: ${MEMORY_TTL:-3600}
+      # HTTP
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-60.0}
+    ports:
+      - "${PORT_CHAT_SERVICE:-8021}:8021"
+    networks:
+      - raptor
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8021/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

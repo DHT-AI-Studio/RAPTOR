@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Raptor Demo</title>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/coi-serviceworker.js').then(reg => {
+          if (!crossOriginIsolated) {
+            reg.addEventListener('updatefound', () => {
+              reg.installing?.addEventListener('statechange', e => {
+                if (e.target.state === 'activated') location.reload()
+              })
+            })
+            if (reg.active) location.reload()
+          }
+        })
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,125 @@
+groups:
+  - name: raptor_basic
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} has been unreachable for more than 2 minutes"
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+          /
+          sum(rate(http_requests_total[5m])) by (job)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+  # Formerly a separate alert_rules_03.yml file (name was a leftover from the
+  # Raptor 0.3 era) -- merged into this one file since Prometheus rule_files
+  # supports multiple groups per file and there was no reason to keep two.
+  - name: raptor_extra_alerts
+    rules:
+
+      - alert: APILatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency (p95 > 2s)"
+          description: "Service {{ $labels.service }} p95 latency is {{ $value }}s"
+
+      # Metric name/label must match danielqsj/kafka-exporter's actual output
+      # (kafka_consumergroup_lag / consumergroup) -- the old
+      # kafka_consumer_group_lag / group names this used before never matched
+      # anything this exporter produces, so this rule silently never fired.
+      - alert: KafkaConsumerLag
+        expr: |
+          sum(kafka_consumergroup_lag) by (consumergroup, topic) > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag > 1000"
+          description: "Group {{ $labels.consumergroup }} on topic {{ $labels.topic }} lag = {{ $value }}"
+
+      # VIE01-190. Anything landing here is a message Module 25 gave up on after
+      # PD_KAFKA_MAX_ATTEMPTS, so the threshold is zero — a DLQ with traffic is
+      # already the incident. Metric names follow danielqsj/kafka-exporter, which
+      # emits kafka_consumergroup_lag with a `consumergroup` label -- same fix
+      # as KafkaConsumerLag above.
+      - alert: PersonalIndexDLQ
+        expr: |
+          sum(kafka_topic_partition_current_offset{topic="personal-index-requests-dlq"}) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Messages parked in the personal-index DLQ"
+          description: "{{ $value }} message(s) on personal-index-requests-dlq — Module 25 failed them 3 times. Inspect with: kafka-console-consumer --topic personal-index-requests-dlq --from-beginning"
+
+      - alert: PersonalIndexConsumerLag
+        expr: |
+          sum(kafka_consumergroup_lag{consumergroup="personal-db-service"}) by (topic) > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Personal DB consumer falling behind"
+          description: "Group personal-db-service on topic {{ $labels.topic }} lag = {{ $value }}"
+
+      # DCGM exporter emits DCGM_FI_DEV_* metrics, not nvidia_smi_* -- the old
+      # expr referenced a metric name no exporter running in this stack
+      # produces, so this rule silently never fired either.
+      - alert: GPUMemoryPressure
+        expr: |
+          (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU memory usage > 90%"
+          description: "GPU {{ $labels.gpu }} memory utilisation = {{ $value }}%"
+
+      - alert: QdrantSearchError
+        expr: |
+          sum(rate(http_requests_total{status=~"5..",service=~"qdrant.*"}[5m]))
+          /
+          sum(rate(http_requests_total{service=~"qdrant.*"}[5m]))
+          > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Qdrant search error rate > 1%"
+          description: "Error rate = {{ $value | humanizePercentage }}"
+
+      - alert: OpenSearchDown
+        expr: up{job="opensearch"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpenSearch node is down"
+          description: "OpenSearch target {{ $labels.instance }} is unreachable"
+
+      - alert: Neo4jDown
+        expr: up{job="neo4j"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Neo4j node is down"
+          description: "Neo4j target {{ $labels.instance }} is unreachable"

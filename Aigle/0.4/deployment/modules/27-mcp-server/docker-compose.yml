@@ -1,0 +1,23 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/mcp-server:0.4
+    container_name: raptor-mcp-server
+    restart: always
+    ports:
+      - "${PORT_MCP_SERVER:-8027}:8027"
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    networks:
+      - raptor
+    labels:
+      - "com.raptor.description=MCP Server — exposes Raptor APIs as MCP tools/resources"
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

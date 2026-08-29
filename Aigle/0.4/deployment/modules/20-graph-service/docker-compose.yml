@@ -1,0 +1,41 @@
+services:
+  graph-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/graph-service:0.4
+    container_name: raptor-graph-service
+    hostname: raptor-graph-service
+    environment:
+      NEO4J_URI: ${NEO4J_URI:-bolt://raptor-neo4j:7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-raptor0.3}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      CHAT_MODEL_NAME: ${CHAT_MODEL_NAME:-qwen2.5:7b}
+      # LLM calls now go through module 07 (think=false by default there,
+      # unlike the OpenAI-compat layer LLM_BASE_URL points at); LLM_BASE_URL
+      # kept above only because it's still read by the commented-out fallback
+      # code paths, not deleted.
+      INFERENCE_URL: ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
+      INFERENCE_THINK: ${GRAPH_INFERENCE_THINK:-false}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${PORT_GRAPH_SERVICE:-8843}:8843"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-graph-service"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8843/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

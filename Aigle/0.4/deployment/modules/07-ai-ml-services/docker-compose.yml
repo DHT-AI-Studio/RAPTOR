@@ -1,0 +1,117 @@
+volumes:
+  model_cache:
+  tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_TMP_PATH}"
+
+  data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_DATA_PATH}"
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
+
+services:
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    image: raptor/mlflow:0.4
+    container_name: raptor-mlflow
+    environment:
+      # Backend store URI built from vars
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+
+      # S3 settings for lakeFS
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+
+      # Server host/port
+      MLFLOW_HOST: ${MLFLOW_HOST}
+
+    command:
+      - /bin/bash
+      - -c
+      - |
+          exec mlflow server \
+            --backend-store-uri "${MLFLOW_BACKEND_STORE_URI}" \
+            --host "${MLFLOW_HOST}" \
+            --port "5555"
+    ports:
+      - "${PORT_MLFLOW:-5555}:5555"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5555/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      raptor:
+        aliases:
+          - "raptor-mlflow"
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/ai-lifecycle-api:0.4
+    container_name: raptor-ai-lifecycle-api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${PORT_AI_LIFECYCLE_API:-8010}:8010"
+    volumes:
+      # 開發模式：掛載 src 目錄實現熱加載
+      - ./src:/app/src:ro
+      # - ./tmp:/app/tmp
+      # - ./data:/app/data
+      - tmp:/app/tmp
+      - data:/app/data
+      - model_cache:/app/cache
+      # - ./logs:/app/logs
+    
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    environment:
+      # 確保這些環境變量在容器內可用
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+      HF_TOKEN: ${HF_TOKEN}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      INFERENCE_MAX_INPUT_LENGTH: ${INFERENCE_MAX_INPUT_LENGTH:-8192}
+      CUDA_VISIBLE_DEVICES: "0"
+    # environment:
+      # MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      # OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+    command: uvicorn src.main:app --host ${AI_LIFECYCLE_API_HOST:-0.0.0.0} --port 8010 --reload
+    networks:
+      raptor:
+        aliases:
+          - "raptor-ai-lifecycle-api"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${AI_LIFECYCLE_GPU:-0}"]
+              capabilities: [gpu]

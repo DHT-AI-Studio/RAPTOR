@@ -1,0 +1,5 @@
+<guardian>{think_or_nothink_instruction}
+
+### Criteria: {criteria_text}
+
+### Scoring Schema: If the last assistant's text meets the criteria, return 'yes'; otherwise, return 'no'.

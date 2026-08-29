@@ -1,0 +1,159 @@
+# MLflow latest (v3.14) 測試專用 compose 專案，與運行中的 07-ai-ml-services
+# 及 aiml-test(dev, mlflow v3.3.2)專案隔離，避免共用/誤刪 live 容器與 volumes。
+# 後端 postgres 沿用線上 aiml-dev-postgres（走 host 發布埠 15432），
+# lakeFS S3 沿用線上 host 發布埠 8003，皆由 .env.v3.14.dev 指定。
+# 用法: docker compose --env-file .env.v3.14.dev -f docker-compose.mlflow.v3.14.dev.yml up -d --build
+# docker compose --env-file .env.v3.14.dev -f docker-compose.mlflow.v3.14.dev.yml up -d --build
+name: aiml-v314
+
+volumes:
+  # 沿用線上 dev 版（aiml-test 專案）已下載的模型快取，避免重新下載；
+  # compose down -v 不會刪除 external volume
+  model_cache:
+    external: true
+    name: aiml-test_model_cache
+  tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_TMP_PATH}"
+
+  data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_DATA_PATH}"
+networks:
+  # 單獨測試：建立自有 bridge 網路，不掛到運行中的 raptor overlay，
+  # 也不加入 aiml-test 網路（避免 mlflow 服務名與 v3.3.2 dev 版 DNS 衝突）
+  raptor:
+    name: ${DOCKER_NETWORK:-aiml-v314}
+    driver: bridge
+
+services:
+  # 不再自建 postgres：沿用線上 aiml-dev-postgres（host 發布埠 15432），
+  # 但使用獨立資料庫（POSTGRES_DB=mlflow_v314），避免新版 MLflow schema
+  # migration 弄壞 v3.3.2 正在使用的 mlflow 資料庫
+  mlflow:
+    # 與 docker-compose.yml 一致：改用 Dockerfile.mlflow 於 build 階段預裝
+    # psycopg2-binary / boto3，啟動時不再需要連網 pip install
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+      args:
+        MLFLOW_VERSION: ${MLFLOW_VERSION}
+    image: raptor/mlflow:${MLFLOW_VERSION}
+    container_name: aiml-v314-mlflow
+    environment:
+      # Backend store URI built from vars
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+
+      # S3 settings for lakeFS
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+
+      # Server host/port
+      MLFLOW_HOST: ${MLFLOW_HOST}
+      PORT_MLFLOW: ${PORT_MLFLOW}
+
+      # v3.5+ 內建 CORS/Host 安全中介層（CVE-2025-14279 修補），兩層分開檢查：
+      #  1) CORS_ALLOWED_ORIGINS — 瀏覽器發出的 POST 帶 Origin header，預設只
+      #     放行 localhost，用 host IP 開 UI 時 /ajax-api 的 POST（runs/search
+      #     等，圖表資料來源）一律 403。
+      #  2) ALLOWED_HOSTS — 檢查所有請求的 Host header（含 SDK/server-to-server
+      #     呼叫），預設只放行 localhost 與純 IP 私網段；容器名（如
+      #     aiml-v314-mlflow:5557）不在預設清單內，會擋掉 mlflow_logger.py
+      #     這類用 tracking URI 打 REST API 的呼叫，即使是內網呼叫也一樣。
+      # v3.3.2 沒有這層檢查所以不受影響。這裡放行本機瀏覽器來源；
+      # ALLOWED_HOSTS 開 * 是因為這是隔離的內部測試網路、無外部曝露、
+      # 且會有多個容器別名（aiml-v314-mlflow / raptor-mlflow 等）連進來，
+      # 逐一列舉容易漏——正式對外環境不要這樣做，應列明確清單。
+      MLFLOW_SERVER_CORS_ALLOWED_ORIGINS: ${MLFLOW_SERVER_CORS_ALLOWED_ORIGINS:-http://localhost:5557}
+      MLFLOW_SERVER_ALLOWED_HOSTS: ${MLFLOW_SERVER_ALLOWED_HOSTS:-*}
+
+    dns:
+      - 8.8.8.8
+
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - ${MLFLOW_BACKEND_STORE_URI}
+      - --host
+      - ${MLFLOW_HOST}
+      - --port
+      - ${PORT_MLFLOW}
+    ports:
+      - "${PORT_MLFLOW}:${PORT_MLFLOW}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:${PORT_MLFLOW}/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks:
+      raptor:
+        aliases:
+          - "raptor-mlflow"
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # 使用獨立 tag，避免覆蓋線上 aiml-test-api 正在用的 raptor/ai-lifecycle-api:0.3
+    image: raptor/ai-lifecycle-api:0.3-v314
+    container_name: aiml-v314-api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${PORT_AI_LIFECYCLE_API}:${PORT_AI_LIFECYCLE_API}"
+    volumes:
+      # 開發模式：掛載 src 目錄實現熱加載
+      - ./src:/app/src:ro
+      # - ./tmp:/app/tmp
+      # - ./data:/app/data
+      - tmp:/app/tmp
+      - data:/app/data
+      - model_cache:/app/cache
+      # - ./logs:/app/logs
+    
+    env_file:
+      - .env.v3.14.dev
+      - path: ../.env
+        required: false
+    environment:
+      # 確保這些環境變量在容器內可用
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+      HF_TOKEN: ${HF_TOKEN}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      INFERENCE_MAX_INPUT_LENGTH: ${INFERENCE_MAX_INPUT_LENGTH:-8192}
+      CUDA_VISIBLE_DEVICES: "0"
+    # environment:
+      # MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      # OLLAMA_API_BASE: ${OLLAMA_API_BASE}
+    command: uvicorn src.main:app --host ${AI_LIFECYCLE_API_HOST:-0.0.0.0} --port ${PORT_AI_LIFECYCLE_API} --reload
+    networks:
+      raptor:
+        aliases:
+          - "raptor-ai-lifecycle-api"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${AI_LIFECYCLE_GPU:-0}"]
+              capabilities: [gpu]

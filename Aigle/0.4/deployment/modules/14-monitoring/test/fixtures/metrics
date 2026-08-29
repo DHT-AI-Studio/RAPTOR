@@ -1,0 +1,24 @@
+# Synthetic metrics for the Module 14 alert smoke test.
+#
+# Metric names and label names here are copied from what the real exporters emit.
+# If a rule in alert_rules.yml is ever changed to a name the exporters do NOT
+# produce, these series stop matching and the smoke test fails — which is the point.
+
+# ── danielqsj/kafka-exporter ──────────────────────────────────────────────────
+# Rule: sum(kafka_consumergroup_lag) by (consumergroup, topic) > 1000
+# Sum below is 4200 + 3800 = 8000 for the one (consumergroup, topic) pair.
+# HELP kafka_consumergroup_lag Current approximate lag of a ConsumerGroup at Topic/Partition
+# TYPE kafka_consumergroup_lag gauge
+kafka_consumergroup_lag{consumergroup="raptor-ingest",topic="raptor.documents",partition="0"} 4200
+kafka_consumergroup_lag{consumergroup="raptor-ingest",topic="raptor.documents",partition="1"} 3800
+
+# ── nvcr.io/nvidia/k8s/dcgm-exporter ──────────────────────────────────────────
+# Rule: (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)) * 100 > 90
+# 23000 / (23000 + 1000) = 95.83%. Both series carry identical labels so the
+# binary operation matches on every label once __name__ is dropped.
+# HELP DCGM_FI_DEV_FB_USED Framebuffer memory used (in MiB).
+# TYPE DCGM_FI_DEV_FB_USED gauge
+DCGM_FI_DEV_FB_USED{gpu="0",UUID="GPU-00000000-0000-0000-0000-000000000000",device="nvidia0",modelName="SMOKE-TEST-GPU",Hostname="raptor-dcgm-fixture"} 23000
+# HELP DCGM_FI_DEV_FB_FREE Framebuffer memory free (in MiB).
+# TYPE DCGM_FI_DEV_FB_FREE gauge
+DCGM_FI_DEV_FB_FREE{gpu="0",UUID="GPU-00000000-0000-0000-0000-000000000000",device="nvidia0",modelName="SMOKE-TEST-GPU",Hostname="raptor-dcgm-fixture"} 1000

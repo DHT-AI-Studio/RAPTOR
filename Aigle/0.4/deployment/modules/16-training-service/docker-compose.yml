@@ -1,0 +1,91 @@
+services:
+  # Training Service (GPU-enabled)
+  training-service:
+    build: .
+    image: raptor/training-service:0.4
+    container_name: raptor-training-service
+    restart: unless-stopped
+    ports:
+      - "${PORT_FASTAPI:-8009}:8009"
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8009 --reload --reload-dir src
+    # Marks container "unhealthy" when CUDA/NVML goes stale after extended uptime.
+    # The `training-watchdog` sidecar (below) watches this status and restarts
+    # the container to re-init the CUDA context. See nvidia-training-watchdog.sh.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import torch; exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 120s
+    volumes:
+      - ./src:/app/src
+      # - ./tmp:/app/tmp
+      # - ./data:/app/data
+      - tmp:/app/tmp
+      - data:/app/data
+      - ./logs:/app/logs
+      - ./checkpoints:/app/checkpoints
+      # Mount nvidia-persistenced socket so subprocesses can re-init NVML after days of uptime
+      - /var/run/nvidia-persistenced:/var/run/nvidia-persistenced
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      raptor:
+        aliases:
+          - "raptor-training-service"
+
+  # GPU watchdog (sidecar) — restarts training-service when its healthcheck
+  # (torch.cuda.is_available) reports "unhealthy" after CUDA/NVML goes stale.
+  # Replaces the former host cron watchdog: starts/stops with the module, no
+  # host sudo/cron needed. Talks to the Docker daemon via the mounted socket.
+  # NOTE: mounting docker.sock grants this container root-equivalent host
+  # control — it is intentionally minimal and only inspects/restarts.
+  training-watchdog:
+    image: docker:cli
+    container_name: raptor-training-watchdog
+    restart: unless-stopped
+    depends_on:
+      - training-service
+    environment:
+      - WATCH_CONTAINER=raptor-training-service
+      - CHECK_INTERVAL=30
+      - RECOVER_COOLDOWN=90
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./nvidia-training-watchdog.sh:/watchdog.sh:ro
+    entrypoint: ["/bin/sh", "/watchdog.sh"]
+    networks:
+      - raptor
+
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
+
+
+volumes:
+  tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_TMP_PATH}"
+
+  data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_AIML_DATA_PATH}"

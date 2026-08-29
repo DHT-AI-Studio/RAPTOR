@@ -1,0 +1,30 @@
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+httpx==0.27.0
+pydantic==2.9.2           # kept at the version bumped for langchain-ollama's own "ollama" dependency
+                          # (pydantic>=2.9); langchain-ollama itself is gone but no need to re-pin this
+pydantic-settings==2.5.2
+python-multipart==0.0.20
+
+# LangChain + LangGraph
+langchain==0.3.13
+langchain-core==0.3.28
+langchain-openai==0.2.14  # ChatOpenAI -> module 07's /v1/chat/completions (was ChatOllama -> Ollama
+                          # daemon directly; superseded once 07 gained num_ctx/think support)
+# langchain-ollama==0.2.2  -- ChatOllama retired, see chat_service.py's commented-out old __init__
+# ollama==0.4.4            -- was langchain-ollama's own dependency, no longer needed
+langgraph==0.2.62
+tiktoken==0.8.0
+
+# Redis
+redis==5.0.4
+
+# Logging
+python-json-logger==2.0.7
+
+# Chinese conversion
+opencc-python-reimplemented==0.1.7
+
+# Monitoring
+prometheus-fastapi-instrumentator==7.1.0

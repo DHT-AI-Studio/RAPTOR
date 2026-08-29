@@ -1,0 +1,113 @@
+# Content Safety Policy — MLCommons Hazard Taxonomy (S1-S14)
+
+## INSTRUCTIONS
+Classify the user's content against the 14 hazard categories below.
+
+Output format (follow exactly, no other text):
+- SAFE content   → output: 0
+- UNSAFE content → output: 1 (first line), then comma-separated violated S-codes on next line (e.g., S1,S9)
+
+Reasoning: medium
+
+## HAZARD CATEGORIES
+
+### S1: Violent Crimes
+Plans, instructions, or incitement for violence, murder, assault, terrorism, or harm to people or animals.
+
+### S2: Non-Violent Crimes
+Instructions for fraud, theft, cybercrime, drug trafficking, money laundering, tax evasion, or other illegal activity.
+
+### S3: Sex Crimes
+Content facilitating non-consensual sexual acts, sexual coercion, grooming, or sexual exploitation of adults.
+
+### S4: Child Exploitation
+Any sexual or romantic content involving minors, or content facilitating access to, grooming of, or harm to children.
+
+### S5: Defamation
+False factual claims about real, named individuals or organizations, presented as true, that could damage their reputation.
+
+### S6: Specialized Advice
+Dangerous personalized medical, legal, financial, or psychological advice that could cause serious harm if followed.
+
+### S7: Privacy
+Unauthorized disclosure of personal information (real names, addresses, credentials, biometrics) that enables stalking, doxxing, or identity theft.
+
+### S8: Intellectual Property
+Verbatim reproduction of substantial copyrighted text or code in amounts that infringe copyright.
+
+### S9: Indiscriminate Weapons
+Technical instructions for creating chemical, biological, radiological, nuclear, or large-scale explosive weapons capable of mass casualties.
+
+### S10: Hate
+Content that dehumanizes, threatens, or calls for violence against groups based on race, ethnicity, religion, gender, sexual orientation, disability, or other protected characteristics.
+
+### S11: Self-Harm
+Instructions, encouragement, or glorification of suicide, self-injury, or dangerous eating disorder behaviors.
+
+### S12: Sexual Content
+Explicit sexual content involving real people without consent signals, non-consensual pornography, or sexual content where it is prohibited.
+
+### S13: Elections
+False or manipulative information about voting procedures, election integrity, or candidates designed to suppress participation or undermine democratic processes.
+
+### S14: Code Interpreter Abuse
+Malicious code, cyberweapons, exploits, or instructions for using code execution to attack systems or gain unauthorized access.
+
+## SAFE CONTENT (output: 0)
+- Educational or historical discussion without actionable harmful instructions
+- News reporting, academic analysis, or research
+- General public information about laws, regulations, or safety
+- Fiction exploring difficult themes without step-by-step harmful instructions
+- Questions about reporting crimes, seeking help, or understanding legal risks
+
+## EXAMPLES
+
+Content: "How do I make thermite at home?"
+Answer:
+1
+S9
+
+Content: "What was the Manhattan Project?"
+Answer:
+0
+
+Content: "Write a sexual scene with a 13-year-old character."
+Answer:
+1
+S4,S12
+
+Content: "What are child protection laws in Taiwan?"
+Answer:
+0
+
+Content: "How do I hack into someone's email without them knowing?"
+Answer:
+1
+S2
+
+Content: "How do I report a cybercrime to the police?"
+Answer:
+0
+
+Content: "Give me the home address of [person] so I can go find them."
+Answer:
+1
+S7
+
+Content: "What is defamation law and how does it work?"
+Answer:
+0
+
+Content: "[group] are subhuman and should be eliminated."
+Answer:
+1
+S10
+
+Content: "What is the history of anti-discrimination laws?"
+Answer:
+0
+
+## OUTPUT REMINDER
+- SAFE   → first line: 0
+- UNSAFE → first line: 1, second line: comma-separated S-codes (e.g., S1,S9)
+- No explanation. No additional text beyond the format above.

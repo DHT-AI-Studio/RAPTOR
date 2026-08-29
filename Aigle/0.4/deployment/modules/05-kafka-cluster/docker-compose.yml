@@ -1,0 +1,302 @@
+# Kafka Cluster Module (KRaft Mode)
+# Aigle Platform v0.2
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  # KRaft Controllers (Consensus Layer)
+  kafka-controller1:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-kafka-controller1
+    hostname: raptor-kafka-controller1
+    user: "0"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller1:9193,2@kafka-controller2:9193,3@kafka-controller3:9193
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: CONTROLLER://kafka-controller1:9193
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      KAFKA_METADATA_LOG_DIR: /var/lib/kafka/data
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    volumes:
+      - kafka-controller1-data:/var/lib/kafka/data
+      - ./config/log4j.properties:/etc/kafka/custom-log4j.properties:ro
+      - ./scripts/update_run.sh:/tmp/update_run.sh:ro
+    command: "bash -c '/tmp/update_run.sh'"
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1'
+
+  kafka-controller2:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-kafka-controller2
+    hostname: raptor-kafka-controller2
+    user: "0"
+    environment:
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller1:9193,2@kafka-controller2:9193,3@kafka-controller3:9193
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: CONTROLLER://kafka-controller2:9193
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      KAFKA_METADATA_LOG_DIR: /var/lib/kafka/data
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    volumes:
+      - kafka-controller2-data:/var/lib/kafka/data
+      - ./config/log4j.properties:/etc/kafka/custom-log4j.properties:ro
+      - ./scripts/update_run.sh:/tmp/update_run.sh:ro
+    command: "bash -c '/tmp/update_run.sh'"
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1'
+
+  kafka-controller3:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-kafka-controller3
+    hostname: raptor-kafka-controller3
+    user: "0"
+    environment:
+      KAFKA_NODE_ID: 3
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller1:9193,2@kafka-controller2:9193,3@kafka-controller3:9193
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: CONTROLLER://kafka-controller3:9193
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT
+      KAFKA_METADATA_LOG_DIR: /var/lib/kafka/data
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    volumes:
+      - kafka-controller3-data:/var/lib/kafka/data
+      - ./config/log4j.properties:/etc/kafka/custom-log4j.properties:ro
+      - ./scripts/update_run.sh:/tmp/update_run.sh:ro
+    command: "bash -c '/tmp/update_run.sh'"
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1'
+
+  # Kafka Brokers (Message Storage)
+  kafka-broker1:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-kafka-broker1
+    hostname: raptor-kafka-broker1
+    user: "0"
+    environment:
+      KAFKA_NODE_ID: 4
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller1:9193,2@kafka-controller2:9193,3@kafka-controller3:9193
+      KAFKA_LISTENERS: BROKER://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka-broker1:9092,EXTERNAL://${HOST_IP}:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    ports:
+      - "${PORT_KAFKA_BROKER1:-19092}:19092"
+    volumes:
+      - kafka-broker1-data:/var/lib/kafka/data
+      - ./config/log4j.properties:/etc/kafka/custom-log4j.properties:ro
+      - ./scripts/update_run.sh:/tmp/update_run.sh:ro
+    command: "bash -c '/tmp/update_run.sh'"
+    depends_on:
+      - kafka-controller1
+      - kafka-controller2
+      - kafka-controller3
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '2'
+
+  kafka-broker2:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-kafka-broker2
+    hostname: raptor-kafka-broker2
+    user: "0"
+    environment:
+      KAFKA_NODE_ID: 5
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller1:9193,2@kafka-controller2:9193,3@kafka-controller3:9193
+      KAFKA_LISTENERS: BROKER://0.0.0.0:9092,EXTERNAL://0.0.0.0:19093
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka-broker2:9092,EXTERNAL://${HOST_IP}:19093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    ports:
+      - "${PORT_KAFKA_BROKER2:-19093}:19093"
+    volumes:
+      - kafka-broker2-data:/var/lib/kafka/data
+      - ./config/log4j.properties:/etc/kafka/custom-log4j.properties:ro
+      - ./scripts/update_run.sh:/tmp/update_run.sh:ro
+    command: "bash -c '/tmp/update_run.sh'"
+    depends_on:
+      - kafka-controller1
+      - kafka-controller2
+      - kafka-controller3
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '2'
+
+  kafka-broker3:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-kafka-broker3
+    hostname: raptor-kafka-broker3
+    user: "0"
+    environment:
+      KAFKA_NODE_ID: 6
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller1:9193,2@kafka-controller2:9193,3@kafka-controller3:9193
+      KAFKA_LISTENERS: BROKER://0.0.0.0:9092,EXTERNAL://0.0.0.0:19094
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka-broker3:9092,EXTERNAL://${HOST_IP}:19094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/custom-log4j.properties"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    ports:
+      - "${PORT_KAFKA_BROKER3:-19094}:19094"
+    volumes:
+      - kafka-broker3-data:/var/lib/kafka/data
+      - ./config/log4j.properties:/etc/kafka/custom-log4j.properties:ro
+      - ./scripts/update_run.sh:/tmp/update_run.sh:ro
+    command: "bash -c '/tmp/update_run.sh'"
+    depends_on:
+      - kafka-controller1
+      - kafka-controller2
+      - kafka-controller3
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '2'
+
+  # Kafka UI Tools
+  akhq:
+    image: tchiotludo/akhq:0.22.0
+    container_name: raptor-akhq
+    hostname: raptor-akhq
+    user: "0"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            raptor-kafka-cluster:
+              properties:
+                bootstrap.servers: "kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092"
+    ports:
+      - "${PORT_AKHQ:-8180}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/ || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - kafka-broker1
+      - kafka-broker2
+      - kafka-broker3
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: raptor-kafdrop
+    hostname: raptor-kafdrop
+    environment:
+      KAFKA_BROKERCONNECT: "kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092"
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    ports:
+      - "${PORT_KAFDROP:-9010}:9000"
+    depends_on:
+      - kafka-broker1
+      - kafka-broker2
+      - kafka-broker3
+    networks:
+      raptor:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.25'
+
+
+  # One-shot topic provisioning (VIE01-190). The brokers leave auto-create on, so
+  # this is not about existence — it is about the DLQ getting explicit settings.
+  # An auto-created DLQ inherits the broker default retention (7 days), which
+  # would silently discard parked messages before anyone investigates them.
+  topic-init:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-kafka-topic-init
+    depends_on:
+      - kafka-broker1
+      - kafka-broker2
+      - kafka-broker3
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        for i in $$(seq 1 60); do
+          kafka-broker-api-versions --bootstrap-server kafka-broker1:9092 >/dev/null 2>&1 && break
+          sleep 2
+        done
+        kafka-topics --bootstrap-server kafka-broker1:9092 --create --if-not-exists \
+          --topic personal-index-requests --partitions 3 --replication-factor 3
+        # 30-day retention: a parked message is a bug report, and bugs are not
+        # always looked at within a week.
+        kafka-topics --bootstrap-server kafka-broker1:9092 --create --if-not-exists \
+          --topic personal-index-requests-dlq --partitions 3 --replication-factor 3 \
+          --config retention.ms=2592000000
+        kafka-topics --bootstrap-server kafka-broker1:9092 --list | grep personal-index
+    networks:
+      raptor:
+    restart: "no"
+
+volumes:
+  kafka-controller1-data:
+  kafka-controller2-data:
+  kafka-controller3-data:
+  kafka-broker1-data:
+  kafka-broker2-data:
+  kafka-broker3-data:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

@@ -1,0 +1,26 @@
+# Prometheus config for the alert smoke test ONLY.
+#
+# Deliberately minimal: one scrape job pointed at the synthetic fixture. The rule
+# file it loads is the REAL deployment/modules/14-monitoring/config/prometheus/
+# alert_rules.yml, bind-mounted unmodified, so the test exercises the shipped
+# expressions and the shipped `for:` durations. The raptor_basic group in that
+# same file (ServiceDown/HighErrorRate) also loads but stays inactive here --
+# this test only asserts on GPUMemoryPressure/KafkaConsumerLag.
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  - job_name: "fixture"
+    static_configs:
+      - targets: ["fixture:8080"]
+    metrics_path: /metrics

@@ -1,0 +1,346 @@
+# Video Processing Module
+# Raptor Platform v0.3
+# WORKER_TYPE selects the service.
+# GPU required for: video-frame-description (InternVL 3.5-4B), video-ocr-frame (PaddleOCR).
+# Deploy: docker compose -f docker-compose.yml up -d
+
+x-worker-common: &worker-common
+  image: raptor/media-worker:0.4
+  environment: &worker-env
+    KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+    REDIS_HOST: ${REDIS_HOST:-raptor-redis-standalone}
+    REDIS_PORT: ${REDIS_PORT:-6379}
+    REDIS_PASSWORD: ${REDIS_PASSWORD}
+    INFERENCE_URL: ${INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
+    INFERENCE_MODEL: ${VIDEO_INFERENCE_MODEL:-qwen3.5:9b}
+    INFERENCE_THINK: ${VIDEO_INFERENCE_THINK:-false}
+    VIDEO_NORMALIZE_TIMEOUT_SEC: ${VIDEO_NORMALIZE_TIMEOUT_SEC:-600}
+    HYBRID_SEARCH_INGEST_URL: ${HYBRID_SEARCH_INGEST_URL:-http://raptor-hybridsearch-api:8000/api/v1/ingest/file}
+    HF_TOKEN: ${HF_TOKEN}
+    HF_HOME: /hf_cache
+    TZ: ${TIMEZONE:-Asia/Taipei}
+  volumes: &worker-volumes
+    - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+    - media-tmp:/tmp/media_processing
+  restart: unless-stopped
+  networks:
+    - raptor
+
+services:
+  kafka-init-topics:
+    image: confluentinc/cp-kafka:7.9.0
+    container_name: raptor-video-kafka-init
+    networks:
+      - raptor
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+    entrypoint: >
+      /bin/bash -c "
+        BS=$$(echo $$KAFKA_BOOTSTRAP_SERVERS | cut -d',' -f1);
+        echo \"Waiting for Kafka at $$BS...\";
+        until kafka-topics --bootstrap-server $$BS --list > /dev/null 2>&1; do
+          sleep 5;
+        done;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-processing-requests --partitions 12 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-processing-results --partitions 12 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-analysis-requests --partitions 12 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-analysis-results --partitions 12 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-chunking-requests --partitions 9 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-chunking-results --partitions 9 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-ocr-frame-requests --partitions 9 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-ocr-frame-results --partitions 9 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-frame-description-requests --partitions 9 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-frame-description-results --partitions 9 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-summary-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-summary-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-contextualize-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-contextualize-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-indexer-requests --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-indexer-results --partitions 6 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-processing-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-analysis-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-chunking-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-ocr-frame-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-frame-description-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-summary-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-contextualize-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-indexer-dlq --partitions 1 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-graph-ingest-results --partitions 3 --replication-factor 3;
+        kafka-topics --bootstrap-server $$BS --create --if-not-exists --topic video-graph-ingest-dlq --partitions 1 --replication-factor 3;
+        echo 'Video topics ready.';
+      "
+    restart: "no"
+
+  video-orchestrator:
+    <<: *worker-common
+    container_name: raptor-video-orchestrator
+    hostname: raptor-video-orchestrator
+    depends_on:
+      kafka-init-topics:
+        condition: service_completed_successfully
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_orchestrator
+      ASSET_MANAGEMENT_URL: ${ASSET_MANAGEMENT_URL:-http://raptor-asset-management:8000}
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-orchestrator
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_ORCHESTRATOR_MEMORY_LIMIT:-2g}
+          cpus: '${VIDEO_ORCHESTRATOR_CPU_LIMIT:-1}'
+
+  video-chunking:
+    <<: *worker-common
+    container_name: raptor-video-chunking
+    hostname: raptor-video-chunking
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_chunking
+      CUDA_VISIBLE_DEVICES: "0"
+      NVIDIA_DRIVER_CAPABILITIES: video,compute,utility
+    # Marks the container "unhealthy" when CUDA/NVML goes stale after extended
+    # uptime. The shared `gpu-watchdog` sidecar (below) restarts it on that signal.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import torch; exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null"]
+      interval: 60s
+      timeout: 40s
+      retries: 3
+      start_period: 120s
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-chunking
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_CHUNKING_MEMORY_LIMIT:-4g}
+          cpus: '${VIDEO_CHUNKING_CPU_LIMIT:-2}'
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${VIDEO_CHUNKING_GPU:-0}"]
+              capabilities: [gpu]
+
+  video-analysis:
+    <<: *worker-common
+    container_name: raptor-video-analysis
+    hostname: raptor-video-analysis
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_analysis
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-analysis
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_ANALYSIS_MEMORY_LIMIT:-4g}
+          cpus: '${VIDEO_ANALYSIS_CPU_LIMIT:-2}'
+
+  video-ocr-frame:
+    <<: *worker-common
+    container_name: raptor-video-ocr-frame
+    hostname: raptor-video-ocr-frame
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_ocr_frame
+      CUDA_VISIBLE_DEVICES: "0"
+      OCR_DET_MODEL: ${OCR_DET_MODEL:-PP-OCRv5_mobile_det}
+      OCR_REC_MODEL: ${OCR_REC_MODEL:-PP-OCRv5_mobile_rec}
+      OCR_PRECISION: ${OCR_PRECISION:-fp16}
+    ports:
+      - "${PORT_VIDEO_OCR_SYNC:-8032}:8032"
+    # Marks the container "unhealthy" when CUDA/NVML goes stale after extended
+    # uptime. The shared `gpu-watchdog` sidecar (below) restarts it on that signal.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import torch; exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null"]
+      interval: 60s
+      timeout: 40s
+      retries: 3
+      start_period: 120s
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-ocr-frame
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_OCR_MEMORY_LIMIT:-8g}
+          cpus: '${VIDEO_OCR_CPU_LIMIT:-2}'
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${VIDEO_OCR_GPU:-0}"]
+              capabilities: [gpu]
+
+  video-frame-description:
+    <<: *worker-common
+    container_name: raptor-video-frame-description
+    hostname: raptor-video-frame-description
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_frame_description
+      CUDA_VISIBLE_DEVICES: "0"
+      VLM_MODEL_PATH: ${VIDEO_VLM_MODEL_PATH:-OpenGVLab/InternVL3_5-4B}
+      MAX_MEMORY_PER_GPU: ${MAX_MEMORY_PER_GPU:-36GiB}
+      VIDEO_OCR_SYNC_URL: http://raptor-video-ocr-frame:8032
+      AUDIO_SYNC_URL: ${AUDIO_SYNC_URL:-http://raptor-audio-recognizer:8019}
+      CROSS_SERVICE_TIMEOUT: ${CROSS_SERVICE_TIMEOUT:-600}
+      SUMMARY_MAX_TOKENS: ${SUMMARY_MAX_TOKENS:-4000}
+      SUMMARY_MAX_LENGTH: ${SUMMARY_MAX_LENGTH:-300}
+    ports:
+      - "${PORT_VIDEO_FRAME_SYNC_API:-8031}:8031"
+    # Marks the container "unhealthy" when CUDA/NVML goes stale after extended
+    # uptime. The shared `gpu-watchdog` sidecar (below) restarts it on that signal.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import torch; exit(0 if torch.cuda.is_available() else 1)' 2>/dev/null"]
+      interval: 60s
+      timeout: 40s
+      retries: 3
+      start_period: 120s
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-frame-description
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_FRAME_DESC_MEMORY_LIMIT:-20g}
+          cpus: '${VIDEO_FRAME_DESC_CPU_LIMIT:-4}'
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${VIDEO_FRAME_DESC_GPU:-2}"]
+              capabilities: [gpu]
+
+  video-summary:
+    <<: *worker-common
+    container_name: raptor-video-summary
+    hostname: raptor-video-summary
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_summary
+      SUMMARY_MAX_TOKENS: ${SUMMARY_MAX_TOKENS:-4000}
+      SUMMARY_MAX_LENGTH: ${SUMMARY_MAX_LENGTH:-300}
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-summary
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_SUMMARY_MEMORY_LIMIT:-4g}
+          cpus: '${VIDEO_SUMMARY_CPU_LIMIT:-2}'
+
+  video-contextualize:
+    <<: *worker-common
+    container_name: raptor-video-contextualize
+    hostname: raptor-video-contextualize
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_contextualize
+      CONTEXTUALIZE_MODEL_NAME: ${CONTEXTUALIZE_MODEL_NAME:-}
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-contextualize
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_CONTEXTUALIZE_MEMORY_LIMIT:-2g}
+          cpus: '${VIDEO_CONTEXTUALIZE_CPU_LIMIT:-1}'
+
+  video-indexer:
+    <<: *worker-common
+    container_name: raptor-video-indexer
+    hostname: raptor-video-indexer
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_indexer
+      DEBUG_DUMP_PAYLOAD: ${DEBUG_DUMP_PAYLOAD:-false}
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-indexer
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_INDEXER_MEMORY_LIMIT:-2g}
+          cpus: '${VIDEO_INDEXER_CPU_LIMIT:-1}'
+
+  video-graph:
+    <<: *worker-common
+    container_name: raptor-video-graph
+    hostname: raptor-video-graph
+    environment:
+      <<: *worker-env
+      WORKER_TYPE: video_graph
+      GRAPH_SERVICE_URL: ${GRAPH_SERVICE_URL:-http://raptor-graph-service:8843}
+    networks:
+      raptor:
+        aliases:
+          - raptor-video-graph
+    deploy:
+      resources:
+        limits:
+          memory: ${VIDEO_GRAPH_MEMORY_LIMIT:-512m}
+          cpus: '${VIDEO_GRAPH_CPU_LIMIT:-0.5}'
+
+  video-cleanup:
+    image: busybox:1.36.1
+    container_name: raptor-video-cleanup
+    volumes:
+      - media-tmp:/tmp/media_processing
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          find /tmp/media_processing/video_processing -mindepth 2 -maxdepth 2 -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+          find /tmp/media_processing/video_chunking -mindepth 1 -maxdepth 1 -type d -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+          sleep 3600
+        done
+    restart: unless-stopped
+    networks:
+      - raptor
+
+  # GPU watchdog (sidecar) — restarts this module's GPU workers when their
+  # healthcheck (torch.cuda.is_available) reports "unhealthy" after CUDA/NVML
+  # goes stale on long-running hosts. Scoped to this module only so it starts/
+  # stops with it and works whether or not modules 09/10/12 are deployed on
+  # this host. Pattern ported from module 16's training-watchdog sidecar.
+  # NOTE: mounting docker.sock grants this container root-equivalent host
+  # control — it is intentionally minimal and only inspects/restarts.
+  gpu-watchdog:
+    image: docker:cli
+    container_name: raptor-video-gpu-watchdog
+    restart: unless-stopped
+    environment:
+      - WATCH_CONTAINERS=raptor-video-chunking,raptor-video-ocr-frame,raptor-video-frame-description
+      - CHECK_INTERVAL=30
+      - RECOVER_COOLDOWN=90
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./nvidia-gpu-watchdog.sh:/watchdog.sh:ro
+    entrypoint: ["/bin/sh", "/watchdog.sh"]
+    networks:
+      - raptor
+
+volumes:
+  hf_cache: {}
+  media-tmp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4,port=${PORT_NFS}"
+      device: ":${NFS_MEDIA_TMP_PATH}"
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

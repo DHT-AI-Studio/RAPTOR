@@ -1,0 +1,47 @@
+# Raptor Demo Frontend
+# Usage:
+#   docker compose up -d --build
+# Custom API target:
+#   API_TARGET=http://<host_ip>:8012 docker compose up -d --build
+
+services:
+  raptor-demo-v1:
+    build: .
+    container_name: raptor-demo-frontend-v1
+    ports:
+      - "${DEMO_PORT:-3001}:80"
+    environment:
+      API_TARGET: ${API_TARGET:-http://raptor-api-gateway:8012}
+    restart: unless-stopped
+    depends_on:
+      - transcode
+    networks:
+      - raptor
+
+  transcode:
+    build: ./transcode
+    container_name: raptor-demo-transcode
+    restart: unless-stopped
+    environment:
+      TRANSCODE_GPU_ENABLE: ${TRANSCODE_GPU_ENABLE:-false}
+    volumes:
+      - transcode_cache:/cache
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video, compute]
+    networks:
+      - raptor
+
+volumes:
+  transcode_cache:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

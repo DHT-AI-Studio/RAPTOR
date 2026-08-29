@@ -1,0 +1,32 @@
+# src/core/configs/inference.yaml
+#
+# v3 InferenceService 只消費 engines.* 段 — 由 service.py 在 init 時讀取後
+# 傳入對應 adapter（OllamaAdapter / HFTransformersAdapter）。
+#
+# v2 時代的 task_to_models / fixed_inference / memory_manager 已隨重構移除：
+#   - task → 模型 → adapter 的對應改由 MLflow tag (runtime / task_family / ...) 直接決定，
+#     不再需要 yaml 白名單；
+#   - 模型快取由 adapter 內部 LRU 管理；
+#   - 不再區分 fixed / dynamic 推理路徑。
+
+engines:
+  ollama:
+    # 讀環境變數 OLLAMA_API_BASE（.env / docker-compose 注入）；未設時退回 localhost
+    base_url: "${OLLAMA_API_BASE:-http://localhost:11434}"
+    timeout: 300
+    auto_pull: true                     # daemon 上沒有時自動 pull
+    keep_alive: 300                     # daemon 端模型存活秒數（透傳給 /api/generate、/api/chat；
+                                        # 負值 = 常駐；逐請求可用 options.keep_alive 覆寫）
+  transformers:
+    device: "auto"                      # auto | cuda | cpu
+    torch_dtype: "auto"                 # auto | fp16 | bf16 | fp32
+    trust_remote_code: true             # 預設信任 HF 上的 custom code
+    max_cached_models: 2                # adapter LRU 容量
+    idle_timeout: 300                   # 閒置多少秒後自動卸載並釋放 GPU（<=0 = 不自動卸載；
+                                        # 逐請求可用 options.keep_alive 覆寫）
+
+# 閒置回收（ollama 式 GPU 釋放）：背景執行緒定期掃描各 adapter，
+# 卸載超過 idle_timeout / keep_alive 未使用的模型並清 GPU cache。
+idle_reaper:
+  enabled: true
+  interval: 30                          # 掃描間隔（秒）

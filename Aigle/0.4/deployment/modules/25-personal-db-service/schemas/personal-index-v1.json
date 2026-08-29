@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raptor.dhtsolution.group/schemas/personal-index-v1.json",
+  "title": "personal-index-requests v1",
+  "description": "Envelope published by Modules 09-12 onto `personal-index-requests` after their global indexing step succeeds, and consumed by Module 25 to build the per-user ArcadeDB index. Enforced at publish time: an invalid event is rejected by the publisher, not by the consumer, so a malformed payload never reaches the topic. Entry payloads are deliberately open (`additionalProperties: true`) — Module 25 maps the fields it knows and ignores the rest, so a worker can add a field without a coordinated schema bump.",
+
+  "type": "object",
+  "required": ["event_id", "payload"],
+  "additionalProperties": true,
+
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256(asset_path + version_id + user_id), lowercase hex. The consumer's deduplication key: replays of the same asset version for the same user are acknowledged and dropped rather than reindexed."
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "personal-index-v1",
+      "description": "Pinned by V04-2. Present so a future v2 consumer can route by version instead of guessing."
+    },
+    "source_module": {
+      "type": "string",
+      "enum": ["09-audio", "10-image", "11-video", "12-document"],
+      "description": "Which worker published this. Diagnostic only — the consumer routes on entry `type`, not on this."
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+
+    "payload": {
+      "type": "object",
+      "required": ["branch_id", "parameters"],
+      "additionalProperties": true,
+      "properties": {
+        "branch_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The owning user (JWT `sub`). Routes to database `user_{branch_id}`. Without it the consumer cannot place the data and skips the entry."
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "version_id": {
+              "type": "string",
+              "description": "Asset version. Used for delete-by-version and as part of event_id."
+            },
+            "asset_path": {
+              "type": "string",
+              "description": "Object-storage path of the source asset. Part of event_id."
+            },
+            "chunks": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/entry" },
+              "description": "Document/audio chunks. Each entry needs `type` and content (`text` or `summary`); `embedding` is optional — the consumer embeds with BGE-M3 when absent."
+            },
+            "moments": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/entry" },
+              "description": "Video moments. Merged with `chunks` by the consumer."
+            },
+            "entities": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+            "relationships": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+            "temporal_facts": { "type": "array", "items": { "$ref": "#/$defs/entry" } }
+          }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Chunk id. Also the Redis per-chunk dedup key, which is a finer layer than event_id: event_id stops a whole replayed message, `id` stops a single chunk that arrives twice across different messages."
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Entry fields. May be nested here or flat on the entry itself — the consumer accepts both."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["documents", "videos", "images", "audios"]
+        }
+      }
+    }
+  }
+}

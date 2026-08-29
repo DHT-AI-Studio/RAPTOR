@@ -1,0 +1,92 @@
+# Module 25 — Personal DB Service
+# Per-user ArcadeDB database lifecycle + search (FastAPI).
+# Depends on Module 24 (raptor-arcadedb). Deploy: bash deploy.sh -m 25
+
+services:
+  personal-db-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/personal-db-service:0.4
+    container_name: raptor-personal-db-service
+    hostname: raptor-personal-db-service
+    environment:
+      PD_ARCADEDB_URL: ${PD_ARCADEDB_URL:-http://raptor-arcadedb:2480}
+      PD_ARCADEDB_USER: ${ARCADE_USER:-root}
+      # No default: a wrong password only surfaces as connection failures at
+      # request time, so fail at startup instead.
+      PD_ARCADEDB_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:?set ARCADEDB_ROOT_PASSWORD in deployment/modules/.env}
+      PD_VECTOR_DIM: ${PD_VECTOR_DIM:-1024}
+      # Deletion audit trail — Module 03, database `personal_db`. With
+      # PD_AUDIT_REQUIRED=1 a DELETE is refused (503) when this is unreachable.
+      PD_POSTGRES_DSN: postgresql://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deployment/modules/.env}@${POSTGRES_HOST:-raptor-postgres}:5432/personal_db
+      PD_AUDIT_REQUIRED: ${PD_AUDIT_REQUIRED:-1}
+      # Neither was previously wired here, so both silently fell back to
+      # config.py's defaults ("kafka:9092" / "raptor-redis:6379") — hostnames
+      # that don't exist on this platform (real ones are kafka-broker1/2/3 from
+      # Module 05, and raptor-redis-standalone from Module 02) — causing the
+      # Kafka consumer to fail DNS resolution and personal-index sync to never
+      # run at all. PD_KAFKA_BOOTSTRAP/PD_REDIS_URL resolve from root .env's
+      # KAFKA_BOOTSTRAP_SERVERS/REDIS_HOST via ${...} interpolation there (see
+      # deployment/modules/.env.example's "25 — personal-db-service" section),
+      # same pattern as PD_VECTOR_DIM/PD_AUDIT_REQUIRED above.
+      PD_KAFKA_BOOTSTRAP: ${PD_KAFKA_BOOTSTRAP:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+      # raptor-redis-standalone runs with --requirepass — a URL without
+      # credentials fails NOAUTH on the first command.
+      PD_REDIS_URL: ${PD_REDIS_URL:-redis://:${REDIS_PASSWORD}@raptor-redis-standalone:6379}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+      # Embedder (BAAI/bge-m3) + reranker (BAAI/bge-reranker-v2-m3) both load
+      # here — same GPU + HF cache wiring as module 17's api container, which
+      # runs the same pair of model families. Unlike 17, this service has no
+      # `env_file:` passthrough, so each var must be listed explicitly here to
+      # actually reach the container — setting it in .env alone does nothing.
+      PD_EMBEDDING_MODEL: ${PD_EMBEDDING_MODEL:-BAAI/bge-m3}
+      PD_EMBEDDING_DEVICE: ${PD_EMBEDDING_DEVICE:-auto}
+      PD_RERANKER_MODEL: ${PD_RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      PD_RERANKER_DEVICE: ${PD_RERANKER_DEVICE:-auto}
+      PD_RERANKER_TEMPERATURE: ${PD_RERANKER_TEMPERATURE:-0.25}
+      PD_RERANK_DEPTH: ${PD_RERANK_DEPTH:-15}
+      # Personal-graph entity/relationship/temporal-fact extraction (video
+      # only for now) -- same Ollama chat-completions endpoint Module 20
+      # (graph-service) already talks to, but configured under this
+      # service's own PD_ vars rather than reading 20's LLM_BASE_URL/
+      # CHAT_MODEL_NAME directly, same as every other setting in this file.
+      PD_LLM_BASE_URL: ${PD_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      PD_CHAT_MODEL_NAME: ${PD_CHAT_MODEL_NAME:-qwen2.5:7b}
+      # Extraction calls actually go through this (module 07), not
+      # PD_LLM_BASE_URL directly -- see graph_extractor.py's _call_llm().
+      PD_INFERENCE_URL: ${PD_INFERENCE_URL:-http://raptor-ai-lifecycle-api:8010}
+      PD_INFERENCE_THINK: ${PD_INFERENCE_THINK:-false}
+      PD_GRAPH_EXTRACTION_ENABLED: ${PD_GRAPH_EXTRACTION_ENABLED:-1}
+      PD_GRAPH_EXTRACTION_MAX_MOMENTS: ${PD_GRAPH_EXTRACTION_MAX_MOMENTS:-10}
+      PD_GRAPH_EXTRACTION_MAX_CONCURRENCY: ${PD_GRAPH_EXTRACTION_MAX_CONCURRENCY:-1}
+      PD_GRAPH_EXTRACTION_BATCH_CONCURRENCY: ${PD_GRAPH_EXTRACTION_BATCH_CONCURRENCY:-2}
+      CUDA_VISIBLE_DEVICES: "0"
+      HF_HOME: /hf_cache
+    volumes:
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+    ports:
+      - "${PORT_PERSONAL_DB:-8025}:8000"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-personal-db-service"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${PERSONAL_DB_GPU:-0}"]
+              capabilities: [gpu]
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

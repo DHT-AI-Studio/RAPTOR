@@ -1,0 +1,45 @@
+global:
+  resolve_timeout: 5m
+
+# Alertmanager 的設定檔和 prometheus.yml 一樣，不支援 ${VAR} 環境變數展開，
+# 而 build.py 也不會對 config 做任何 template 渲染（只是把 --env-file 傳給
+# docker compose）。所以通知目標一律走 *_file 形式，從掛載進來的檔案讀取，
+# 不要把 webhook URL 或密碼寫死在這個檔案裡。
+
+route:
+  receiver: 'oncall'
+  group_by: ['alertname', 'job']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+    # critical 用同一個 receiver，只是重送間隔縮短
+    - matchers:
+        - severity="critical"
+      receiver: 'oncall'
+      repeat_interval: 4h
+
+receivers:
+  - name: 'oncall'
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+        send_resolved: true
+
+    # Email 通知（選用）：取消註解並填入 deployment/modules/.env 的 SMTP_* 值。
+    # 注意 auth_password 同樣要用 auth_password_file，密碼檔請勿進 git。
+    #
+    # email_configs:
+    #   - to: '<SMTP_TO_EMAIL>'
+    #     from: '<SMTP_FROM>'
+    #     smarthost: '<SMTP_HOST>:<SMTP_PORT>'
+    #     auth_username: '<SMTP_USER>'
+    #     auth_password_file: /etc/alertmanager/smtp_password
+    #     require_tls: true
+    #     send_resolved: true
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal: ['alertname', 'job']

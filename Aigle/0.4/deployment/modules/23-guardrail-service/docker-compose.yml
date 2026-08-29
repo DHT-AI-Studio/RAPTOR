@@ -1,0 +1,61 @@
+# Guardrail Service — Raptor Platform module 23
+# Content moderation via Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard,
+# a policy engine, and audit logging.
+# Deploy: docker compose -f docker-compose.yml up -d
+#
+# Uses module 03's shared PostgreSQL (database "guardrails", created by
+# 03-database/init/postgresql/001_init.sql) and module 02's shared Redis
+# (raptor-redis-standalone, DB index 0 -- same index most other modules
+# share, safe because every key this service touches is namespaced under
+# the "guardrail:" prefix, see app/services/state.py / policy_store.py).
+# No dedicated DB containers here, matching the platform's normal
+# convention (04/13/15/21/25/26 all connect to the shared 02/03 instances
+# rather than running their own) -- module 23 used to be the outlier here,
+# alongside module 06's Keycloak, which has its own dedicated Postgres for
+# reasons specific to that identity provider.
+
+services:
+  guardrail_service:
+    build: .
+    image: raptor/guardrail-service:0.4
+    container_name: raptor-guardrail-service
+    hostname: raptor-guardrail-service
+    environment:
+      OLLAMA_URL:                  ${OLLAMA_HOST}
+      REQUEST_TIMEOUT:             ${GUARDRAIL_REQUEST_TIMEOUT:-120.0}
+      LOG_LEVEL:                   ${LOG_LEVEL:-INFO}
+      TZ:                          ${TIMEZONE:-Asia/Taipei}
+      PROXY_MODEL:                 ${PROXY_MODEL:-qwen2.5:7b}
+      PROXY_MODE:                  ${PROXY_MODE:-monitor}
+      PROXY_CONFIDENCE_THRESHOLD:  ${PROXY_CONFIDENCE_THRESHOLD:-0.7}
+      DEFAULT_MODEL:               ${DEFAULT_MODEL:-gemma4:31b}
+      GUARD_MODEL:                 ${GUARD_MODEL:-llama-guard3:8b}
+      GUARD_MODEL_2:               ${GUARD_MODEL_2:-}
+      GUARD_MODEL_3:               ${GUARD_MODEL_3:-}
+      POSTGRES_HOST:               ${POSTGRES_HOST:-raptor-postgres}
+      POSTGRES_PORT:               ${POSTGRES_PORT:-5432}
+      POSTGRES_USER:               ${POSTGRES_USER:-raptor}
+      POSTGRES_PASSWORD:           ${POSTGRES_PASSWORD}
+      POSTGRES_DB:                 guardrails
+      REDIS_HOST:                  ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT:                  ${REDIS_PORT:-6379}
+      REDIS_PASSWORD:              ${REDIS_PASSWORD}
+      REDIS_DB:                    0
+    ports:
+      - "${PORT_GUARDRAIL_SERVICE:-8023}:8026"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-guardrail-service"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8026/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
