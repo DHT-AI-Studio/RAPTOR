@@ -1,5 +1,5 @@
 # Audio Processing Module
-# Aigle Platform v0.2
+# Aigle Platform v0.4
 # Full audio pipeline. WORKER_TYPE selects the service.
 # GPU required for: audio-recognizer, audio-diarization, audio-classifier
 # Deploy: docker compose -f docker-compose.yml up -d

@@ -1,5 +1,5 @@
 # NFS Server Module
-# Aigle Platform v0.2 - Module 00
+# Aigle Platform v0.4 - Module 00
 # Provides NFS v4 server for SeaweedFS volume persistence
 # Deploy: docker-compose -f docker-compose.yml up -d
 

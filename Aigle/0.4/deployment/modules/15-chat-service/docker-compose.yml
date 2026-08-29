@@ -1,5 +1,5 @@
 # Chat Service Module
-# Aigle Platform v0.2
+# Aigle Platform v0.4
 # Text-to-text LLM processing service for chatbot, translation, summarization, and text generation
 # Deploy: docker-compose -f docker-compose.yml up -d
 

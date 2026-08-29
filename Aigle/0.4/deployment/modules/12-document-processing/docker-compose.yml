@@ -1,5 +1,5 @@
 # Document Processing Module
-# Aigle Platform v0.2
+# Aigle Platform v0.4
 # All document pipeline workers in one image; WORKER_TYPE selects the service.
 # GPU required for document-analysis (InternVL OCR/VLM).
 # Deploy: docker compose -f docker-compose.yml up -d

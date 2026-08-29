@@ -1,6 +1,6 @@
 # Asset Management Service API Documentation
 
-This service provides comprehensive lifecycle management for assets, including uploading, version control, associated file management, and automated archiving or destruction. It integrates **LakeFS** (Version Control), **SeaweedFS** (Object Storage), **PostgreSQL** (Metadata), and **Qdrant** (Vector Database).
+This service provides comprehensive lifecycle management for assets, including uploading, version control, associated file management, and automated archiving or destruction. It integrates **LakeFS** (Version Control), **SeaweedFS** (Object Storage), and **PostgreSQL** (Metadata); index-completion status is checked against Module 25 (ArcadeDB) rather than the retired Qdrant/OpenSearch (module 17).
 
 ---
 
@@ -41,13 +41,13 @@ The system identifies duplicates based on the combination of **File Content (Che
 
 #### Upload Logic Matrix
 
-| Scenario | Content (Checksum) | Asset Path | Branch DB Status (Latest) | System Action | Qdrant/Analysis Handling |
+| Scenario | Content (Checksum) | Asset Path | Branch DB Status (Latest) | System Action | Analysis/Index Handling |
 | --- | --- | --- | --- | --- | --- |
-| **1. New Upload** | New in Branch | New Path | No Record | **Upload & Analyze** | Create new **Active** Point |
-| **2. Version Update** | **Different** | Same Path | `active` or `archived` | **Upload & Analyze (New Version)** | Create new **Active** Points |
+| **1. New Upload** | New in Branch | New Path | No Record | **Upload & Analyze** | Create new **Active** index entry (Module 25) |
+| **2. Version Update** | **Different** | Same Path | `active` or `archived` | **Upload & Analyze (New Version)** | Create new **Active** index entries (Module 25) |
 | **3. Global Active Hit** | **Same** in Branch | Any Path | `active` | **Merge/Return Info** | No Change (Return active metadata) |
 | **4. Archive Lock** | **Same** in Branch | Same Path | **`archived`** | **Reject (400 Error)** | Forbidden (Cannot reactivate archived records, Integrity protection) |
-| **5. Cross-Path Reuse** | **Same** in Branch | **Different Path** | **`archived`** | **Upload & Reuse** | **Clone Point**: Reuse vectors/analysis for new **Active** Point |
+| **5. Cross-Path Reuse** | **Same** in Branch | **Different Path** | **`archived`** | **Upload & Reuse** | **Clone entry**: reuse the existing analysis for a new **Active** index entry (Module 25) |
 
 > **Business Rule**: Within a specific **Branch**, if an asset at the asset path is already `archived` and the uploaded content is identical, the operation is rejected. This ensures the integrity of the archival state. To re-use the same path with the same content, the archived record must be explicitly deleted first.
 

@@ -1,6 +1,6 @@
 # RAPTOR Training Service
 
-AI Model Training and Fine-tuning Service for Aigle Platform v0.2
+AI Model Training and Fine-tuning Service for Aigle Platform v0.4
 
 ## Overview
 

@@ -1,5 +1,5 @@
 # Databases Module
-# Aigle Platform v0.2
+# Aigle Platform v0.4
 # Deploy: docker-compose -f docker-compose.yml up -d
 
 services:

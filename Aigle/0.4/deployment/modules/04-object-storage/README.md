@@ -1,10 +1,10 @@
-# 🚀 Asset Management Service (v0.2.0)
+# 🚀 Asset Management Service (v0.4.0)
 
 ---
 
 ## Overview
 
-This project is an **Asset Management Service** designed to handle the storage, retrieval, and management of digital assets with versioning, access control, and lifecycle management (upload, archive, destroy). It uses a microservices architecture with FastAPI, **PostgreSQL**, Qdrant, lakeFS, and SeaweedFS for object storage, all orchestrated using Docker Compose.
+This project is an **Asset Management Service** designed to handle the storage, retrieval, and management of digital assets with versioning, access control, and lifecycle management (upload, archive, destroy). It uses a microservices architecture with FastAPI, **PostgreSQL**, lakeFS, and SeaweedFS for object storage, all orchestrated using Docker Compose.
 
 The system includes a full observability stack (Prometheus, Grafana, Alertmanager, Node Exporter) for monitoring and alerting, ensuring high reliability and operational visibility.
 
@@ -17,11 +17,10 @@ In version 0.2.0, the service has been refactored to support **API Gateway authe
 * **Multi-Format Asset Storage**: Upload images, videos, documents, audio, and other files with automatic MIME type detection.
 * **Versioning & Replication**: Full file versioning is supported by lakeFS, with high availability provided by a 3-master, 4-volume SeaweedFS cluster using 011 replication.
 * **Metadata & Access Control**: Store structured metadata and enforce role-based access control (RBAC) in PostgreSQL.
-* **Vector Search**: Store and query asset metadata using Qdrant for vector-based search capabilities.
 * **Authentication & Authorization**: JWT-based authentication with role-based access control (RBAC) for managing permissions (read, archive, destroy, list).
 * **Automated Lifecycle Management**: Automatically archive and destroy assets based on configurable TTL (time-to-live) settings using APScheduler.
 * **RESTful API**: Expose endpoints for uploading, downloading, archiving, destroying, and managing access policies for assets.
-* **Scalable Architecture**: Deployed using Docker Compose with services for the application, PostgreSQL, Qdrant, and SeaweedFS (master, volume, filer, and S3).
+* **Scalable Architecture**: Deployed using Docker Compose with services for the application, PostgreSQL, and SeaweedFS (master, volume, filer, and S3).
 * **Production-Grade Monitoring**: Full observability with Prometheus metrics, Grafana dashboards, and Alertmanager alerts.
 * **Centralized Backup**: Continuous backup of SeaweedFS filer metadata to the `./backup` directory.
 
@@ -44,7 +43,6 @@ flowchart LR
 
   subgraph Persistence
     DB[(PostgreSQL<br/>commit_history, users, audit_log)]
-    QS[(Qdrant<br/>collections: documents, audios, videos, images)]
   end
 
   subgraph Storage
@@ -64,7 +62,6 @@ flowchart LR
   EP --> AM
   SCHED --> AM
   AM --> DB
-  AM --> QS
   AM --> LF
   LF <-->|Blockstore| S3
 
@@ -88,7 +85,7 @@ flowchart LR
 │   ├── models.py               # Data models
 │   ├── object_store.py         # S3-compatible storage logic
 │   ├── utils.py                # Utility functions
-│   └── search_sync.py          # Qdrant + OpenSearch lifecycle sync
+│   └── search_sync.py          # Checks index-completion status against Module 25 (ArcadeDB); Qdrant/OpenSearch (module 17) client code retired, kept commented out for rollback
 │
 ├── docker-compose.yaml         # Full service orchestration
 ├── Dockerfile                  # Application container definition
@@ -261,7 +258,7 @@ The application uses environment variables defined in the `.env` file, managed b
 | `MAX_NUMBER_OF_VOLUMES`                                                    | Maximum number of volumes allowed per SeaweedFS volume server. Example: 100.                                                                                                  |
 | `POSTGRES_HOST` / `POSTGRES_PORT`                                                | Hostname and port for the PostgreSQL database service. Within Docker network, host is typically `postgres`.                                                                           |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | PostgreSQL application user, user password, and database name used by the application.                                                                              |
-| `QDRANT_HOST` / `PORT_QDRANT`                                              | Hostname and port for the Qdrant vector database. Within Docker network, host is typically `qdrant`.                                                                          |
+| `QDRANT_HOST` / `PORT_QDRANT`                                              | **Unused** — module 17 (Qdrant) is retired; `search_sync.py`'s Qdrant client is commented out. Left in `.env.example` only for rollback, not read by any live code path.                                                                          |
 | `TIMEZONE`                                        | Used to unify time definition across services. Example: Asia/Taipei                                                           |
 | `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD`                    | Username and password for Grafana dashboard login.                                                                                                                            |
 | `LAKEFS_ENDPOINT`                                                          | Internal endpoint for the application to connect to lakeFS within Docker network.                                                                                             |

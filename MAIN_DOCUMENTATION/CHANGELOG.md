@@ -15,6 +15,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Aigle 0.4] - 2026-08
+
+### 🚀 Community Beta — LLM Interoperability & Persistent Memory
+
+### Added
+
+- **MCP Server** (module 27): Raptor's search/RAG/asset/memory APIs exposed as Model Context Protocol tools (22), resources (3), and prompts (10) over Streamable HTTP and stdio — see `Aigle/0.4/MCP_REFERENCE.md`
+- **Memory Service** (module 26): persistent per-user/per-session memory on a two-tier Redis (hot) + MemVID (durable) architecture — semantic (BM25 + HNSW) search, multimodal (video/audio/image) indexing, automatic LLM-driven entity/preference extraction, GDPR erasure endpoint; integrated into both module 15 (chat) and module 21 (agent-protocol)
+- **Personal DB Service** (modules 24/25): one physically isolated ArcadeDB database per user, replacing the per-user Qdrant + OpenSearch + Neo4j trio with unified hybrid BM25 + vector + graph + temporal-fact search
+- **Guardrail Service** (module 23): pluggable LLM input/output content moderation (Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard) plus a separate regex/detector policy engine and violation audit logging; ships disabled by default
+- **Benchmark Service** (module 22): user-defined scoring schemas (keyword match, exact/regex match, cosine similarity, LLM-as-judge) with run history and pairwise comparison, for regression-testing chat/RAG/search/classification pipelines
+- **A2A protocol documentation**: `Aigle/0.4/A2A_REFERENCE.md` — full write-up of module 21's JSON-RPC orchestrator surface and its five independent, spec-compliant `a2a-sdk` specialist sub-agents (vector/keyword/GraphRAG/TKG/reranker)
+- **Module count grows to 27** (from 21 in Aigle 0.3): modules 22–27 above, plus scaffolding/design docs for a still-in-development module 29 (doc-processing-agent, not yet wired into `build.py`)
+
+### Changed
+
+- **Hybrid search & GraphRAG re-platformed onto module 25**: modules 17 (hybrid-search, OpenSearch/Qdrant) and 19/20 (graph-database/graph-service, Neo4j) are now deprecated, kept only for rollback
+- Root README, `API_REFERENCE.md`, and `BUILD.md` updated throughout for the 27-module architecture and new service ports
+
+### Known Limitations
+
+- Module 21's A2A `agent.delegate` JSON-RPC method is a stub (accepts and echoes a task without dispatching it); the peer-agent registry doesn't yet feed automatic delegation — tracked in [#21](https://github.com/DHT-AI-Studio/RAPTOR/issues/21)
+- MCP tool coverage doesn't yet include a Model Management or Vector DB tool category — tracked in [#19](https://github.com/DHT-AI-Studio/RAPTOR/issues/19)
+- Module 11 (video-processing)'s default VLM was downsized (InternVL3.5-4B → 1B) but not yet re-verified on a constrained GPU, and its documented VRAM guidance wasn't updated to match — tracked in [#17](https://github.com/DHT-AI-Studio/RAPTOR/issues/17)
+- Docker Compose deployment is still not intended for production scale (Kubernetes planned for v1.0)
+
+---
+
 ## [Aigle 0.3] - 2026-06
 
 ### 🚀 Community Beta — Modular Platform Release
@@ -129,7 +157,10 @@ Special thanks to the DHT Taiwan Team for developing this first release.
 
 | Version | Codename | Release Date | Type | Status |
 |---------|----------|--------------|------|--------|
-| 0.1.0-beta | Aigle | 2025-10-22 | Beta | Current |
+| 0.4 | Aigle | 2026-08 | Community Beta | Current |
+| 0.3 | Aigle | 2026-06 | Community Beta | Superseded |
+| 0.2 | Aigle | 2026-02 | Community Beta | Superseded |
+| 0.1.0-beta | Aigle | 2025-10-22 | Beta | Superseded |
 
 ---
 
