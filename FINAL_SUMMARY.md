@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**RAPTOR** (Robust AI-Powered Toolkit for Operational Robots) is an **AI-Powered Content Insight Engine** that transforms passive media storage into intelligent knowledge through automated analysis, hybrid semantic search, knowledge-graph reasoning, and agent orchestration.
+**RAPTOR** is an open-source **multimodal AI framework and agent harness** — an enterprise AI runtime for building agentic applications over video, audio, images, documents, and organizational knowledge, providing MCP tools, A2A orchestration, persistent memory, hybrid RAG, GraphRAG, evaluation, guardrails, and model lifecycle services.
 
 **Current release: Aigle 0.4 (Community Beta) — August 2026** — pushed to `main`; not yet cut as a GitHub Release/tag (the [latest tagged release](https://github.com/DHT-AI-Studio/RAPTOR/releases) is still `v0.3`).
 
@@ -11,8 +11,7 @@
 ## 📌 Project Information
 
 **Project**: RAPTOR
-**Full Name**: Robust AI-Powered Toolkit for Operational Robots
-**Type**: AI-Powered Content Insight Engine
+**Type**: Open-Source Multimodal AI Framework & Agent Harness
 **Current Version**: Aigle 0.4 (Community Beta, August 2026)
 **License**: Apache 2.0
 **Developer**: DHT Taiwan Team
@@ -21,6 +20,7 @@
 **Evaluation API**: http://raptor_open_0_4_api.dhtsolution.com:8012/
 
 **Key Value Propositions**:
+- Agent-native: every capability is callable via MCP tools, A2A orchestration, or plain REST
 - 85% reduction in manual content tagging
 - 10x faster content discovery
 - 60% improvement in content reuse efficiency

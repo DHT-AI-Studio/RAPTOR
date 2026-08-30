@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/DHT-AI-Studio/Raptor_0.4/actions/workflows/ci.yml/badge.svg)
 
-Multimedia intelligence platform for processing video, audio, documents, and images through AI/ML pipelines. Provides hybrid search, RAG question-answering, knowledge graph reasoning, and A2A agent orchestration. Built entirely in Python with Docker microservices.
+Multimodal AI framework and agent harness for building agentic applications over video, audio, documents, and images. Provides MCP tools, A2A orchestration, persistent memory, hybrid BM25/vector RAG, GraphRAG, pipeline evaluation, LLM guardrails, and model lifecycle management — all as independently deployable Docker microservices, built entirely in Python.
 
 API Reference: [`API_REFERENCE.md`](API_REFERENCE.md) · MCP Reference: [`MCP_REFERENCE.md`](MCP_REFERENCE.md) · Setup, Build & Configuration: [`BUILD.md`](BUILD.md) · Demo Frontend: [`raptor-demo-frontend/`](raptor-demo-frontend/)
 

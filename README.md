@@ -1,12 +1,12 @@
-# RAPTOR AI Framework
+# RAPTOR — Open-Source Multimodal AI Framework & Agent Harness
 
 <p align="center">
   <img src="RAPTOR_LOGO.png" alt="RAPTOR Logo" width="200"/>
 </p>
 
 <p align="center">
-  <strong>Robust AI-Powered Toolkit for Operational Robots</strong><br>
-  Open-Source Content Insight Engine for Enterprise AI Applications
+  <strong>Open-Source Multimodal AI Framework &amp; Agent Harness</strong><br>
+  An enterprise AI runtime for building agentic applications over video, audio, images, documents, and organizational knowledge
 </p>
 
 <p align="center">
@@ -38,7 +38,7 @@
 
 ---
 
-**RAPTOR** is an advanced AI framework developed by the **DHT Taiwan Team** at [DHT Solutions](https://dhtsolution.com/).
+**RAPTOR** is an enterprise AI runtime for building agentic applications over video, audio, images, documents, and organizational knowledge — providing MCP tools, A2A orchestration, persistent memory, hybrid RAG, GraphRAG, evaluation, guardrails, and model lifecycle services. Developed by the **DHT Taiwan Team** at [DHT Solutions](https://dhtsolution.com/).
 
 ## 🚀 Current Release
 
@@ -89,7 +89,7 @@ For detailed API documentation, usage examples, and access instructions, see [`A
 
 ## 🎯 About RAPTOR
 
-**RAPTOR (Robust AI-Powered Toolkit for Operational Robots)** is a Content Insight Engine that represents a paradigm shift in digital asset management, transforming passive media storage into an intelligent knowledge platform. By leveraging cutting-edge AI technologies including large language models, vector search, and semantic understanding, RAPTOR enables organizations to unlock the full value of their media assets through automated analysis, intelligent search, and actionable insights.
+**RAPTOR** is an open-source **multimodal AI framework and agent harness** — an enterprise AI runtime for building agentic applications over video, audio, images, documents, and organizational knowledge. Rather than a single content-search product, RAPTOR is a platform of composable services that an agent (or a human developer) can call directly: MCP tools and A2A orchestration for agent interoperability, persistent multimodal memory, hybrid BM25/vector RAG, GraphRAG and temporal knowledge graphs, pipeline evaluation and benchmarking, LLM guardrails, and model lifecycle management — all exposed as REST, MCP, and A2A interfaces over the same per-user isolated index.
 
 ### Business Value Proposition
 
@@ -97,15 +97,16 @@ For detailed API documentation, usage examples, and access instructions, see [`A
 - **10x faster** content discovery through semantic search
 - **60% improvement** in content reuse and operational efficiency
 - **Real-time insights** from video, audio, and document content
-- **Enterprise-grade** security, scalability, and integration capabilities
+- **Agent-ready by default** — every capability above is callable by an LLM agent (MCP), another agent framework (A2A), or a human developer (REST), not locked behind a single interface
 
 ### Strategic Differentiators
 
-1. **AI-Native Architecture**: Built from the ground up around LLM orchestration and vector search
-2. **Multi-Modal Understanding**: Unified analysis across video, audio, image, and text
-3. **Semantic Intelligence**: Context-aware search that understands intent, not just keywords
-4. **Open + Enterprise Model**: Open-source core with premium enterprise features
-5. **Production-Ready**: Kubernetes-native with auto-scaling, fault tolerance, and 99.9% uptime
+1. **Agent-Native Interfaces**: MCP tools and A2A orchestration (agent cards, JSON-RPC, five spec-compliant sub-agents) expose the platform to LLM agents and other agent frameworks, not just human API callers
+2. **AI-Native Architecture**: Built from the ground up around LLM orchestration and vector search
+3. **Multi-Modal Understanding**: Unified analysis across video, audio, image, and text
+4. **Semantic Intelligence**: Hybrid BM25 + vector search plus GraphRAG and temporal knowledge graphs for context-aware retrieval, not just keyword matching
+5. **Composable Enterprise Services**: Persistent memory, LLM guardrails, pipeline benchmarking, and model lifecycle management as first-class, independently deployable services
+6. **Open + Enterprise Model**: Open-source core with premium enterprise features; Docker Compose today, with a Kubernetes-native production path planned for v1.0
 
 ## ✨ Features
 

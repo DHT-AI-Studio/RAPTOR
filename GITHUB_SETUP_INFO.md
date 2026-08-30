@@ -10,7 +10,7 @@ Use this information when setting up the RAPTOR repository on GitHub.
 
 **Short Description** (max 350 characters):
 ```
-AI-powered Content Insight Engine transforming passive media into intelligent knowledge. 85% reduction in manual tagging, 10x faster discovery through semantic search. Multi-modal analysis (video/audio/image/text), LLM-powered insights. Open source, production-ready, Kubernetes-native. Apache 2.0 | DHT Taiwan
+Open-source multimodal AI framework & agent harness — an enterprise AI runtime for building agentic applications over video, audio, images, documents, and organizational knowledge. MCP tools, A2A orchestration, persistent memory, hybrid RAG, GraphRAG, evaluation, guardrails, model lifecycle. Apache 2.0 | DHT Taiwan
 ```
 
 **Website**: `https://dhtsolution.com/`
@@ -22,9 +22,13 @@ Add these topics to help discovery:
 ```
 ai
 artificial-intelligence
+agentic-ai
+ai-agents
+agent-orchestration
+mcp
+model-context-protocol
+multimodal-ai
 machine-learning
-content-management
-digital-asset-management
 semantic-search
 vector-database
 llm
@@ -35,12 +39,11 @@ natural-language-processing
 multimedia-processing
 video-analysis
 audio-transcription
-metadata-generation
 knowledge-graph
 rag
 retrieval-augmented-generation
 graphrag
-ai-agents
+guardrails
 kafka
 docker
 python
@@ -49,8 +52,6 @@ apache2
 open-source
 content-intelligence
 media-analysis
-dam
-cms
 ```
 
 ### About Section
@@ -60,8 +61,10 @@ cms
 **Topics**: (Use the tags above - select most relevant 10-15)
 - ai
 - artificial-intelligence
-- machine-learning
-- content-management
+- agentic-ai
+- ai-agents
+- mcp
+- multimodal-ai
 - semantic-search
 - vector-database
 - llm
@@ -69,33 +72,36 @@ cms
 - nlp
 - kubernetes
 - python
-- digital-asset-management
-- metadata-generation
+- graphrag
+- guardrails
 
 ### Social Preview Image
 
 Create a 1200x630px image with:
 - RAPTOR logo
-- Tagline: "AI-Powered Content Insight Engine"
+- Tagline: "Open-Source Multimodal AI Framework & Agent Harness"
 - Key stats: "85% faster tagging | 10x better discovery"
 - DHT Solutions branding
-- Tech icons: AI, Video, Audio, Image, Text
+- Tech icons: AI, Agent, Video, Audio, Image, Text
 
 ### Repository Description (Long)
 
 ```markdown
-# RAPTOR - AI-Powered Content Insight Engine
+# RAPTOR — Open-Source Multimodal AI Framework & Agent Harness
 
-Transform passive media storage into an intelligent knowledge platform.
+An enterprise AI runtime for building agentic applications over video, audio, images, documents, and organizational knowledge.
 
 ## What is RAPTOR?
 
-RAPTOR (Robust AI-Powered Toolkit for Operational Robots) is a Content Insight Engine 
-that revolutionizes digital asset management through AI-native architecture, 
-multi-modal understanding, and semantic intelligence.
+RAPTOR is a multimodal AI framework and agent harness — a platform of composable
+services (not a single content-search product) that an agent or a human developer
+can call directly: MCP tools and A2A orchestration for agent interoperability,
+persistent multimodal memory, hybrid RAG, GraphRAG, pipeline evaluation, LLM
+guardrails, and model lifecycle management.
 
 ## Key Benefits
 
+- Agent-native: every capability is callable via MCP, A2A, or plain REST
 - **85% reduction** in manual content tagging
 - **10x faster** content discovery
 - **60% improvement** in content reuse efficiency
@@ -104,10 +110,13 @@ multi-modal understanding, and semantic intelligence.
 ## Core Capabilities
 
 ✨ Multi-modal content analysis (video, audio, image, text)
+🔌 MCP tools and resources for any MCP-compatible AI client
+🤝 A2A orchestration — agent cards, JSON-RPC, five spec-compliant sub-agents
 🔍 Hybrid search — BM25 + vector with RRF fusion and cross-encoder rerank
-🕸️ Knowledge graph, GraphRAG, and temporal reasoning (Neo4j)
-🤖 A2A agent orchestration and RAG question-answering
-🎯 LLM-powered metadata generation and entity extraction
+🕸️ Per-user knowledge graph, GraphRAG, and temporal reasoning (ArcadeDB)
+🧠 Persistent multimodal memory (Redis + MemVID) with GDPR erasure
+🛡️ LLM guardrails and pluggable content moderation
+📊 Pipeline evaluation and benchmarking
 🖥️ Demo web frontend for upload, video search, and history
 🔒 Keycloak-backed authentication and authorization
 
@@ -115,10 +124,10 @@ multi-modal understanding, and semantic intelligence.
 
 ```bash
 git clone https://github.com/DHT-AI-Studio/RAPTOR.git
-cd RAPTOR/Aigle/0.3
+cd RAPTOR/Aigle/0.4
 # configure .env files from .env.example (see BUILD.md), then:
 bash deploy.sh -m 08 --build   # shared GPU base image
-bash deploy.sh                 # start all 21 modules
+bash deploy.sh                 # start all 27 modules
 ```
 
 Developed by DHT Taiwan Team | Apache 2.0 License
@@ -233,11 +242,11 @@ When creating releases, use this template:
 ---
 
 **Full changelog:** [MAIN_DOCUMENTATION/CHANGELOG.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/MAIN_DOCUMENTATION/CHANGELOG.md)
-**Build guide:** [Aigle/<version>/BUILD.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.3/BUILD.md)
-**API reference:** [Aigle/<version>/API_REFERENCE.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.3/API_REFERENCE.md)
+**Build guide:** `Aigle/<version>/BUILD.md` (e.g. [Aigle/0.4/BUILD.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.4/BUILD.md))
+**API reference:** `Aigle/<version>/API_REFERENCE.md` (e.g. [Aigle/0.4/API_REFERENCE.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.4/API_REFERENCE.md))
 ```
 
-Release checklist (see also `Aigle/0.3/BUILD.md` §5 Source Maintenance):
+Release checklist (see also `Aigle/<version>/BUILD.md` §9 Source Maintenance Process):
 
 1. `.env.example` in sync with `.env` keys for every module; no secrets or internal IPs in the tree
 2. `MAIN_DOCUMENTATION/CHANGELOG.md` updated; README version badge, evaluation API, and Release Timeline updated
@@ -289,9 +298,9 @@ Enable these insights:
 ### Twitter/X Bio
 
 ```
-🚀 RAPTOR - AI-Powered Content Insight Engine
-Transform media into intelligence
-85% ⬇️ tagging | 10x ⬆️ discovery
+🚀 RAPTOR - Open-Source Multimodal AI Framework & Agent Harness
+Build agentic apps over video, audio, images & docs
+MCP • A2A • RAG • GraphRAG • Guardrails
 Open source | Apache 2.0
 By @DHT_Taiwan
 🔗 github.com/DHT-AI-Studio/RAPTOR
@@ -300,17 +309,19 @@ By @DHT_Taiwan
 ### LinkedIn Description
 
 ```
-RAPTOR (Robust AI-Powered Toolkit for Operational Robots) is an open-source 
-Content Insight Engine that transforms passive media storage into an 
-intelligent knowledge platform.
+RAPTOR is an open-source multimodal AI framework and agent harness — an
+enterprise AI runtime for building agentic applications over video, audio,
+images, documents, and organizational knowledge.
 
-Leveraging cutting-edge AI including LLMs, vector search, and multi-modal 
-analysis, RAPTOR delivers:
+RAPTOR exposes every capability — search, RAG, GraphRAG, memory, guardrails,
+model lifecycle — as MCP tools, A2A-orchestrated agents, and plain REST, so
+LLM agents and human developers can build on the same platform:
+• Agent-native: MCP tools + A2A orchestration out of the box
 • 85% reduction in manual content tagging
 • 10x faster content discovery
 • Real-time insights from video, audio, images, and documents
 
-Built for enterprise scale with Kubernetes-native architecture.
+Docker Compose today, with a Kubernetes-native production path planned.
 
 Developed by DHT Taiwan Team | Apache 2.0 License
 Visit: github.com/DHT-AI-Studio/RAPTOR
@@ -319,9 +330,9 @@ Visit: github.com/DHT-AI-Studio/RAPTOR
 ### Instagram Bio
 
 ```
-🤖 AI-Powered Content Insight Engine
+🤖 Open-Source Multimodal AI Framework & Agent Harness
 📹 Video | 🎵 Audio | 🖼️ Image | 📄 Text
-🔍 Semantic Search | 🏷️ Auto-Tagging
+🔌 MCP Tools | 🤝 A2A Agents | 🔍 Hybrid RAG
 ⚡ 10x Faster Discovery
 🌐 Open Source | Apache 2.0
 👉 github.com/DHT-AI-Studio/RAPTOR
