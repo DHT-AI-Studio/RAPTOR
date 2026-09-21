@@ -52,7 +52,7 @@ async def graph(req: GraphSearchRequest, x_branch_id: str = Header(None, alias="
 
 
 @search_router.post("/tkg", response_model=TKGResponse,
-                    summary="Temporal knowledge graph query (facts by confidence)")
+                    summary="Temporal knowledge graph query (facts ordered by time_start)")
 async def tkg(req: TKGRequest, x_branch_id: str = Header(None, alias="X-Branch-ID")):
     branch_id = _require_branch(x_branch_id)
     return await _guard(searcher.tkg_search(client, branch_id, req))
