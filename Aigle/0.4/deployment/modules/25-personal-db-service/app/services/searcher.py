@@ -452,6 +452,34 @@ def _moment_for_response(m: dict) -> dict:
     return out
 
 
+def _temporal_fact_window(time_start: str | None, time_end: str | None) -> tuple[list[str], dict]:
+    """WHERE fragments + params that restrict TemporalFact rows to a window.
+
+    `time_start` is a lower bound on fact.time_start and `time_end` an upper bound
+    on fact.time_end (the window is containment, not overlap), and a NULL endpoint
+    imposes no constraint on *that* side.
+
+    A NULL endpoint must not, however, let a fact escape the *other* bound of the
+    window: an open-ended fact (no time_end) that starts after the window's end, or
+    a fact with no time_start that ended before the window's start, lies entirely
+    outside the window. That is what the two `... <= :te` / `... >= :ts` clauses on
+    the opposite endpoint are for. For a fact with both endpoints they are implied
+    by the other two clauses (time_start <= time_end), so only facts with a NULL
+    endpoint are affected; a fact with both endpoints NULL still passes.
+    """
+    clauses: list[str] = []
+    params: dict = {}
+    if time_start is not None:
+        clauses.append("(time_start IS NULL OR time_start >= :ts)")
+        clauses.append("(time_end IS NULL OR time_end >= :ts)")
+        params["ts"] = time_start
+    if time_end is not None:
+        clauses.append("(time_end IS NULL OR time_end <= :te)")
+        clauses.append("(time_start IS NULL OR time_start <= :te)")
+        params["te"] = time_end
+    return clauses, params
+
+
 async def tkg_search(client: ArcadeDBClient, branch_id: str, req: TKGRequest) -> TKGResponse:
     """TKG (Batch 5 of the graph/TKG parity plan): natural-language query ->
     entity fulltext search -> subgraph expansion -> time-windowed TemporalFacts
@@ -504,12 +532,9 @@ async def tkg_search(client: ArcadeDBClient, branch_id: str, req: TKGRequest) ->
         # created before it existed have no way to backfill it, so NULL means
         # "predates the migration", not "archived".
         clauses, params = ["entity_id IN :eids", "(status IS NULL OR status = 'active')"], {"eids": entity_ids}
-        if req.time_start is not None:
-            clauses.append("(time_start IS NULL OR time_start >= :ts)")
-            params["ts"] = req.time_start
-        if req.time_end is not None:
-            clauses.append("(time_end IS NULL OR time_end <= :te)")
-            params["te"] = req.time_end
+        window_clauses, window_params = _temporal_fact_window(req.time_start, req.time_end)
+        clauses += window_clauses
+        params.update(window_params)
         sql = (f"SELECT fact_id, entity, entity_id, relation, value, time_start, time_end, "
                f"confidence, source_version_id FROM TemporalFact WHERE {' AND '.join(clauses)} "
                f"ORDER BY time_start ASC")

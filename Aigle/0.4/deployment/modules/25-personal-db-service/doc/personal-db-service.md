@@ -134,11 +134,18 @@ All return `IndexResponse{rid, status:"indexed"}` (201).
 | Method | Path | Body | Response |
 |---|---|---|---|
 | POST | `/personal/search/graph` | `GraphSearchRequest{entity_name, max_depth=2, query?}` | `{entities, edges, paths}` |
-| POST | `/personal/search/tkg` | `TKGRequest{entity_name?, time_start?, time_end?, top_k=50}` | `{facts}` (conf. desc) |
+| POST | `/personal/search/tkg` | `TKGRequest{query, time_start?, time_end?, max_depth=2, limit=50, score_threshold=0.5}` | `{query, matched_entities, subgraph_nodes, subgraph_edges, temporal_facts, moment_ids}` (`temporal_facts` by `time_start` asc) |
 | POST | `/personal/search/graphrag` | `GraphRAGRequest{query, top_k=10}` | `{results, timing}` |
 | GET | `/personal/graph/entities` | query `type?, limit=50, offset=0` | `{entities, total, limit, offset}` |
 | GET | `/personal/graph/entities/{name}` | — | `{entity, outgoing, incoming}` (404) |
 | POST | `/personal/graph/query` | `RawGraphQueryRequest{query}` (**read-only SELECT**) | `{result}` |
+
+**TKG time window.** `query` is fulltext-matched against entity names; the matched entities' `TemporalFact`s are then filtered by the window.
+`time_start` is a lower bound on `fact.time_start` and `time_end` an upper bound on `fact.time_end` — the fact must lie *inside* the window
+(a fact that only overlaps it is not returned). `time_start` / `time_end` are STRING properties compared lexicographically, so pass the same ISO 8601
+format the facts were indexed with. A NULL endpoint (open-ended fact, unknown start) imposes no constraint on its own side, but never lets a fact escape the
+opposite bound: an open-ended fact that starts after `time_end`, or a fact without `time_start` that ended before `time_start`, is not returned.
+A fact with both endpoints NULL always passes.
 
 `max_depth` is clamped 1..5. The raw-query endpoint and the `graph` query-override are validated by a read-only guard (see [§8](#8-behaviors--caveats)).
 

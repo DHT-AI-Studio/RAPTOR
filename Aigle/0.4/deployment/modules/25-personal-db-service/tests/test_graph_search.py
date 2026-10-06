@@ -106,33 +106,130 @@ async def test_graph_search_query_override_must_be_select():
 
 
 # ----------------------------------------------------------- TKG query
+async def _stub_entity_search(monkeypatch, entities):
+    """tkg_search() = entity fulltext search -> subgraph -> TemporalFact SQL. Only the last step is
+    under test here, so stub the first two and let FakeClient record the TemporalFact query."""
+    async def fulltext_search_entities(client, branch_id, query, limit=10, score_threshold=None):
+        return entities
+
+    async def get_subgraph(client, branch_id, entity_id, max_depth=2, limit=50):
+        return {"nodes": [], "edges": []}
+
+    async def fulltext_search_moments(client, branch_id, query, limit=10, score_threshold=None):
+        return []
+
+    monkeypatch.setattr(searcher.graph_query, "fulltext_search_entities", fulltext_search_entities)
+    monkeypatch.setattr(searcher.graph_query, "get_subgraph", get_subgraph)
+    monkeypatch.setattr(searcher.graph_query, "fulltext_search_moments", fulltext_search_moments)
+
+
+def _temporal_fact_sql(client):
+    return next((sql, params) for sql, params in client.calls if "FROM TemporalFact" in sql)
+
+
 @pytest.mark.asyncio
-async def test_tkg_search_applies_filters_and_orders_by_confidence():
-    facts = [
-        {"fact_id": "tf1", "entity": "Samsung", "relation": "strike_ruling",
-         "value": "production must continue", "time_start": "2026-05",
-         "confidence": 0.95, "@props": "confidence:4"},
-    ]
+async def test_tkg_search_applies_time_window_and_orders_by_time_start(monkeypatch):
+    await _stub_entity_search(monkeypatch, [{"entity_id": "e1", "name": "Samsung", "type": "ORG"}])
+    facts = [{"fact_id": "tf1", "entity": "Samsung", "entity_id": "e1", "relation": "strike_ruling",
+              "value": "production must continue", "time_start": "2026-05",
+              "confidence": 0.95, "@props": "confidence:4"}]
     client = FakeClient([("FROM TemporalFact", facts)])
-    req = TKGRequest(entity_name="Samsung", time_start="2026-01", time_end="2026-12", top_k=10)
+    req = TKGRequest(query="Samsung", time_start="2026-01", time_end="2026-12")
     resp = await searcher.tkg_search(client, "demo", req)
 
-    sql, params = client.calls[0]
-    assert "entity = :en" in sql
+    sql, params = _temporal_fact_sql(client)
+    assert "entity_id IN :eids" in sql
     assert "time_start IS NULL OR time_start >= :ts" in sql
     assert "time_end IS NULL OR time_end <= :te" in sql
-    assert "ORDER BY confidence DESC" in sql
-    assert "LIMIT 10" in sql
-    assert params == {"en": "Samsung", "ts": "2026-01", "te": "2026-12"}
+    assert "ORDER BY time_start ASC" in sql
+    assert params == {"eids": ["e1"], "ts": "2026-01", "te": "2026-12"}
     # returned facts are cleaned of record metadata
-    assert resp.facts[0]["fact_id"] == "tf1"
-    assert "@props" not in resp.facts[0]
+    assert resp.temporal_facts[0]["fact_id"] == "tf1"
+    assert "@props" not in resp.temporal_facts[0]
 
 
 @pytest.mark.asyncio
-async def test_tkg_search_no_filters_has_no_where():
+async def test_tkg_search_without_window_adds_no_time_clauses(monkeypatch):
+    await _stub_entity_search(monkeypatch, [{"entity_id": "e1", "name": "Samsung", "type": "ORG"}])
     client = FakeClient([("FROM TemporalFact", [])])
-    await searcher.tkg_search(client, "demo", TKGRequest())
-    sql = client.calls[0][0]
-    assert "WHERE" not in sql
-    assert "ORDER BY confidence DESC" in sql
+    await searcher.tkg_search(client, "demo", TKGRequest(query="Samsung"))
+    sql, params = _temporal_fact_sql(client)
+    assert ":ts" not in sql and ":te" not in sql
+    assert params == {"eids": ["e1"]}
+
+
+@pytest.mark.asyncio
+async def test_tkg_search_without_matched_entities_skips_the_fact_query(monkeypatch):
+    await _stub_entity_search(monkeypatch, [])
+    client = FakeClient([("FROM TemporalFact", [{"fact_id": "never"}])])
+    resp = await searcher.tkg_search(client, "demo", TKGRequest(query="nobody"))
+    assert resp.temporal_facts == []
+    assert not any("FROM TemporalFact" in sql for sql, _ in client.calls)
+
+
+# --- window semantics: run the generated WHERE fragment for real (SQLite speaks the same
+# --- `IS NULL` / string-comparison subset as ArcadeDB SQL, and time_* are STRING properties)
+_FACTS = [  # (fact_id, time_start, time_end)
+    ("inside", "2005-03-01", "2005-09-30"),
+    ("exactly_window", "2005-01-01", "2005-12-31"),
+    ("straddles_start", "2004-06-01", "2005-06-01"),
+    ("straddles_end", "2005-06-01", "2006-06-01"),
+    ("before", "2001-01-01", "2002-01-01"),
+    ("after", "2009-01-01", "2010-01-01"),
+    ("open_started_inside", "2005-06-01", None),
+    ("open_started_after", "2008-01-01", None),
+    ("open_started_before", "2001-01-01", None),
+    ("no_start_ended_inside", None, "2005-05-01"),
+    ("no_start_ended_before", None, "2003-01-01"),
+    ("no_start_ended_after", None, "2009-01-01"),
+    ("no_bounds", None, None),
+]
+
+
+def _facts_in_window(clauses, params):
+    import sqlite3
+    con = sqlite3.connect(":memory:")
+    con.execute("CREATE TABLE TemporalFact (fact_id TEXT, time_start TEXT, time_end TEXT)")
+    con.executemany("INSERT INTO TemporalFact VALUES (?, ?, ?)", _FACTS)
+    where = " AND ".join(clauses) or "1 = 1"
+    return {r[0] for r in con.execute(f"SELECT fact_id FROM TemporalFact WHERE {where}", params)}
+
+
+def test_time_window_returns_only_facts_inside_the_window():
+    got = _facts_in_window(*searcher._temporal_fact_window("2005-01-01", "2005-12-31"))
+    assert got == {"inside", "exactly_window", "open_started_inside", "no_start_ended_inside", "no_bounds"}
+
+
+def test_open_ended_fact_starting_after_the_window_is_not_returned():
+    got = _facts_in_window(*searcher._temporal_fact_window("2005-01-01", "2005-12-31"))
+    assert "open_started_after" not in got          # no time_end used to bypass the upper bound
+    assert "open_started_inside" in got             # ...but one that starts inside the window still counts
+
+
+def test_fact_without_start_that_ended_before_the_window_is_not_returned():
+    got = _facts_in_window(*searcher._temporal_fact_window("2005-01-01", "2005-12-31"))
+    assert "no_start_ended_before" not in got       # no time_start used to bypass the lower bound
+    assert "no_start_ended_inside" in got
+
+
+def test_only_time_start_bound():
+    got = _facts_in_window(*searcher._temporal_fact_window("2005-01-01", None))
+    assert got == {"inside", "exactly_window", "straddles_end", "after", "open_started_inside", "open_started_after",
+                   "no_start_ended_inside", "no_start_ended_after", "no_bounds"}
+
+
+def test_only_time_end_bound():
+    got = _facts_in_window(*searcher._temporal_fact_window(None, "2005-12-31"))
+    assert got == {"inside", "exactly_window", "straddles_start", "before", "open_started_inside",
+                   "open_started_before", "no_start_ended_inside", "no_start_ended_before", "no_bounds"}
+
+
+def test_no_window_returns_everything():
+    assert _facts_in_window(*searcher._temporal_fact_window(None, None)) == {f[0] for f in _FACTS}
+
+
+def test_previous_clauses_leaked_facts_through_a_null_endpoint():
+    """Documents the bug: the original two clauses let a NULL endpoint bypass the opposite bound."""
+    legacy = ["(time_start IS NULL OR time_start >= :ts)", "(time_end IS NULL OR time_end <= :te)"]
+    got = _facts_in_window(legacy, {"ts": "2005-01-01", "te": "2005-12-31"})
+    assert {"open_started_after", "no_start_ended_before"} <= got
