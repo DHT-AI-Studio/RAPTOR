@@ -95,96 +95,157 @@ cd RAPTOR
 git remote add upstream https://github.com/DHT-AI-Studio/RAPTOR.git
 ```
 
-### 2. Set Up Development Environment
+### 2. Find Your Way Around
 
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+Each release lives in its own folder under `Aigle/`. **New contributions should target the latest release folder** (currently `Aigle/0.4/`) unless the issue says otherwise.
 
-# Install dependencies
-cd Aigle/0.1
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # Development dependencies
-
-# Install in editable mode
-pip install -e .
+```
+Aigle/0.4/
+├── deploy.sh                  # deploy / stop / status helper
+├── deployment/modules/
+│   ├── build.py               # module registry and build orchestration
+│   ├── .env.example           # configuration template (placeholders only)
+│   └── <id>-<name>/           # one directory per module, e.g. 25-personal-db-service
+│       ├── docker-compose.yml
+│       ├── Dockerfile
+│       ├── requirements.txt
+│       └── tests/unit/
+├── API_REFERENCE.md, MCP_REFERENCE.md, A2A_REFERENCE.md
+└── BUILD.md                   # full build and deployment guide
 ```
 
-### 3. Create a Branch
+See `Aigle/0.4/BUILD.md` for prerequisites (Docker, Docker Compose, NVIDIA drivers for GPU modules).
+
+### 3. Set Up a Module for Development
 
 ```bash
-# Update your local main branch
+cd Aigle/0.4/deployment/modules
+cp .env.example .env                  # fill in your own local values — never commit .env
+
+# Work on one module in a virtual environment
+cd 25-personal-db-service             # example module
+python -m venv .venv
+source .venv/bin/activate             # Windows: .venv\Scripts\activate
+pip install -r requirements.txt pytest pytest-asyncio
+
+# Or build and run modules with Docker
+cd ..
+python3 build.py -m 25 --build-only   # build only
+bash ../../deploy.sh -m 25            # deploy selected module(s)
+```
+
+### 4. Create a Branch
+
+```bash
 git checkout main
 git pull upstream main
-
-# Create a feature branch
-git checkout -b feature/your-feature-name
-# or
-git checkout -b fix/your-bug-fix
+git checkout -b feat/123-short-description   # 123 = the GitHub issue number
 ```
 
-### 4. Make Your Changes
+See [Branch Naming Convention](#branch-naming-convention).
 
-Write your code, following our [coding standards](#coding-standards).
+### 5. Make Your Changes
 
-### 5. Test Your Changes
+Write your code following our [coding standards](#coding-standards) and the [module conventions](#module-conventions).
+
+### 6. Test Your Changes
 
 ```bash
-# Run tests
-pytest
+# Unit tests for the module you changed
+cd Aigle/0.4/deployment/modules/<id>-<name>
+python -m pytest tests/unit/ -v
 
-# Run linting
-flake8 .
-pylint raptor/
+# Lint
+pip install ruff && ruff check .
 
-# Run type checking (if using type hints)
-mypy .
-
-# Check test coverage
-pytest --cov=raptor tests/
+# Validate the module's compose file resolves with .env.example
+docker compose config --quiet
 ```
 
-### 6. Commit and Push
+### 7. Commit and Push
 
 ```bash
-# Stage your changes
-git add .
-
-# Commit with a meaningful message
-git commit -m "Add feature: description of your feature"
-
-# Push to your fork
-git push origin feature/your-feature-name
+git add <files>
+git commit -m "feat(25): add temporal-only TKG retrieval"
+git push origin feat/123-short-description
 ```
 
-### 7. Open a Pull Request
+### 8. Open a Pull Request
 
-Go to the [RAPTOR repository](https://github.com/DHT-AI-Studio/RAPTOR) and click "New Pull Request".
+Go to the [RAPTOR repository](https://github.com/DHT-AI-Studio/RAPTOR) and click "New Pull Request". Use `main` as the base branch.
 
 ## 🔄 Development Workflow
 
+### How Changes Flow
+
+```
+main ──●──────────●──────────●──────▶  (always the latest state)
+        \                   ↑
+         └─ feat/123-…──────┘  squash-merged by a maintainer via PR
+```
+
+- `main` is the only long-lived branch and always reflects the latest state.
+- Every change — from maintainers too — goes through a Pull Request.
+- One issue = one branch = one PR. Small, focused PRs are reviewed fastest.
+- Maintainers merge with **Squash and merge**, so your PR becomes a single commit on `main`.
+
 ### Branch Naming Convention
 
-- `feature/feature-name` - New features
-- `fix/bug-description` - Bug fixes
-- `docs/what-changed` - Documentation updates
-- `refactor/what-refactored` - Code refactoring
-- `test/what-tested` - Test additions or modifications
-- `perf/what-optimized` - Performance improvements
+```
+<type>/<issue-number>-<short-description>
+```
+
+| Type | Use for | Example |
+|---|---|---|
+| `feat` | New feature | `feat/123-graphrag-route` |
+| `fix` | Bug fix | `fix/456-null-window-bound` |
+| `docs` | Documentation only | `docs/789-mcp-reference` |
+| `refactor` | Restructuring without behavior change | `refactor/321-orchestrator-plumbing` |
+| `test` | Tests only | `test/654-asset-e2e` |
+| `perf` | Performance improvement | `perf/987-warm-embedder` |
+| `chore` | Config, cleanup, dependencies | `chore/111-env-example-order` |
+| `ci` | CI/CD workflow changes | `ci/222-docker-build-gate` |
+
+Lowercase, hyphen-separated, 2–5 words. Including the issue number links your branch to the discussion.
 
 ### Keep Your Branch Updated
 
+If `main` moves while your PR is open, rebase rather than merging `main` into your branch:
+
 ```bash
-# Fetch latest changes from upstream
 git fetch upstream
-
-# Rebase your branch on upstream/main
 git rebase upstream/main
-
-# Force push to your fork (if already pushed)
-git push --force-with-lease origin feature/your-feature-name
+# resolve any conflicts: edit files → git add <files> → git rebase --continue
+git push --force-with-lease origin feat/123-short-description
 ```
+
+Always use `--force-with-lease`, never `--force`, so you can't overwrite commits you haven't seen.
+
+### Versions and Tags
+
+| Tag / folder | Meaning |
+|---|---|
+| `Aigle/0.x/` | Source for release 0.x |
+| `v0.x.0` | Final release |
+| `v0.x.0-rc.N` | Release candidate |
+| `v0.x.N` (N > 0) | Patch release for 0.x |
+
+Tags are created only by maintainers and are never moved or deleted.
+
+### Module Conventions
+
+- Keep changes inside the module's own directory: `Aigle/0.4/deployment/modules/<id>-<name>/`.
+- Changes to shared files (`build.py`, `.env.example`, `deploy.sh`) affect every module — submit them as their own small PR and say so in the title.
+- **Adding a new module?** Open an issue first so maintainers can assign the module ID. A new module needs: a `build.py` entry, its variables in `.env.example`, a `README.md`, a `docker-compose.yml` that passes `docker compose config`, and a health endpoint.
+- Modules **17, 19 and 20** (OpenSearch hybrid search, Neo4j, graph service) are **retired since 0.4** and kept only for rollback. Don't add features or new dependencies on them — use Module 25 (`/personal/search/*`) instead.
+- Don't commit model weights, datasets or large media files.
+
+### Secrets and Configuration
+
+- **Never commit** `.env` files, credentials, API keys, tokens or private keys.
+- `.env.example` contains **placeholders only**, e.g. `DB_PASSWORD=<your_db_password>`.
+- Add every new environment variable to `.env.example`.
+- Accidentally committed a secret? Don't just delete it in a new commit — it stays in Git history. Report it privately as described in [SECURITY.md](SECURITY.md) so it can be rotated.
 
 ## 💻 Coding Standards
 
@@ -290,95 +351,59 @@ def test_my_function_raises_on_invalid_input():
 <footer>
 ```
 
-### Types
+- **type** — `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
+- **scope** — the module ID(s) you changed, comma-separated (`25`, `04,13,25`), or `docs`, `build`, `ci`
+- **subject** — imperative mood, lowercase, no trailing period, ≤ 72 characters
 
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, no logic change)
-- `refactor`: Code refactoring
-- `perf`: Performance improvements
-- `test`: Adding or updating tests
-- `chore`: Maintenance tasks, dependency updates
+Because PRs are squash-merged, **your PR title becomes the commit message on `main`** — write it in this format.
 
 ### Examples
 
 ```
-feat(core): add support for custom model loading
+feat(25): add temporal-only TKG retrieval
 
-Implement new ModelLoader class that supports loading custom
-AI models from various sources including local files and remote URLs.
+Generic temporal questions with no named entity now return facts
+from the TKG instead of an empty result.
 
 Closes #123
 ```
 
 ```
-fix(utils): resolve memory leak in data preprocessing
-
-Fixed memory leak caused by unreleased resources in the
-preprocess_data function. Added proper cleanup in finally block.
+fix(04,13,25): stop false-negative re-analysis on duplicate uploads
 
 Fixes #456
 ```
 
 ### Commit Best Practices
 
-- Use the imperative mood ("Add feature" not "Added feature")
-- Keep the subject line under 50 characters
-- Separate subject from body with a blank line
-- Wrap body at 72 characters
-- Reference issues and pull requests in the footer
+- Use the imperative mood ("Add feature", not "Added feature")
+- Separate subject from body with a blank line; wrap the body at 72 characters
+- Reference issues in the footer (`Closes #123`, `Fixes #456`)
+- Commit as often as you like on your branch — commits are squashed on merge
 
 ## 🔃 Pull Request Process
 
 ### Before Submitting
 
-- [ ] Code follows project style guidelines
-- [ ] All tests pass locally
-- [ ] New tests added for new features
-- [ ] Documentation updated (if needed)
-- [ ] No merge conflicts with main branch
-- [ ] Commit messages follow guidelines
-- [ ] Self-review of code completed
+- [ ] Branch is rebased on the latest `main`
+- [ ] Unit tests added or updated under `<module>/tests/unit/`, and they pass locally
+- [ ] Module's `docker-compose.yml` still validates (`docker compose config --quiet`)
+- [ ] New environment variables added to `.env.example` (placeholders only)
+- [ ] README / API reference updated if behavior or endpoints changed
+- [ ] No secrets, `.env` files, model weights or large binaries committed
+- [ ] PR title follows the [commit format](#commit-message-format)
+- [ ] Self-review of the diff completed
 
 ### Pull Request Template
 
-```markdown
-## Description
-Brief description of what this PR does.
-
-## Type of Change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
-
-## Related Issues
-Closes #(issue number)
-
-## How Has This Been Tested?
-Describe the tests that you ran to verify your changes.
-
-## Checklist
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
-
-## Screenshots (if applicable)
-
-## Additional Notes
-```
+The repository's [pull request template](../.github/pull_request_template.md) is filled in automatically when you open a PR. Please complete every section, especially **Related Issues**, **How Has This Been Tested?** and the module(s) touched.
 
 ### Review Process
 
-1. **Automated Checks**: CI/CD will run tests and linting
-2. **Code Review**: At least one maintainer will review your code
-3. **Feedback**: Address any requested changes
-4. **Approval**: Once approved, a maintainer will merge your PR
+1. **Checks**: Make sure your own tests and validation pass; maintainers may run additional checks.
+2. **Code Review**: At least one maintainer reviews every PR.
+3. **Feedback**: Push follow-up commits to the same branch; rebase if `main` has moved.
+4. **Merge**: A maintainer squash-merges the PR and the branch is deleted.
 
 ### Response Times
 
