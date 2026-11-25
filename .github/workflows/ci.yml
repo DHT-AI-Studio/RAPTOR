@@ -18,13 +18,13 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
       # Scans only the commits in this push / pull request, so secrets that are
       # already in old history do not fail every build. Revoke those separately.
-      - uses: trufflesecurity/trufflehog@main
+      - uses: trufflesecurity/trufflehog@4ef51f69ca6347aaa76a5e64a87eac9c0c909f71 # v3.100.1
         with:
           extra_args: --results=verified,unknown
 
@@ -32,12 +32,12 @@ jobs:
     name: Docs link check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Offline mode checks relative links between files in the repo only, so
       # the job never fails because an external website is slow or down.
       # Scope: root docs, community guidelines, and the current release (Aigle 0.5).
-      - uses: lycheeverse/lychee-action@v2
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           fail: true
           args: >-
