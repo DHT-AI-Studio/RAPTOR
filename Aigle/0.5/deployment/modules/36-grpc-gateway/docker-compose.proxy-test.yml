@@ -1,0 +1,69 @@
+# docker-compose override adding nginx + Envoy in front of grpc-gateway,
+# both proxying HTTP/2 gRPC end to end. Not part of the normal deployment --
+# this exists to document/exercise the proxy configuration real reverse
+# proxies need for this service (see proxy-test/nginx.conf, envoy.yaml).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.proxy-test.yml up -d --build
+#   grpcurl -plaintext -H "authorization: Bearer x" -d '{"message":"hi"}' \
+#     localhost:8826 raptor.v1.RaptorService/Ping   # via nginx
+#   grpcurl -plaintext -H "authorization: Bearer x" -d '{"message":"hi"}' \
+#     localhost:8827 raptor.v1.RaptorService/Ping   # via Envoy
+services:
+  nginx-proxy-test:
+    image: nginx:1.27-alpine
+    container_name: raptor-grpc-gateway-nginx-proxy-test
+    volumes:
+      - ./proxy-test/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8826:8826"
+    networks:
+      - raptor
+    depends_on:
+      - grpc-gateway
+
+  envoy-proxy-test:
+    image: envoyproxy/envoy:v1.31-latest
+    container_name: raptor-grpc-gateway-envoy-proxy-test
+    volumes:
+      - ./proxy-test/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "8827:8827"
+      - "9901:9901"
+    networks:
+      - raptor
+    depends_on:
+      - grpc-gateway
+
+  # TLS-terminating variants (certificates: bash proxy-test/make_certs.sh first)
+  nginx-tls-proxy-test:
+    image: nginx:1.27-alpine
+    container_name: raptor-grpc-gateway-nginx-tls-proxy-test
+    volumes:
+      - ./proxy-test/nginx-tls.conf:/etc/nginx/nginx.conf:ro
+      - ./proxy-test/certs:/certs:ro
+    ports:
+      - "8828:8828"
+    networks:
+      - raptor
+    depends_on:
+      - grpc-gateway
+
+  envoy-tls-proxy-test:
+    image: envoyproxy/envoy:v1.31-latest
+    container_name: raptor-grpc-gateway-envoy-tls-proxy-test
+    volumes:
+      - ./proxy-test/envoy-tls.yaml:/etc/envoy/envoy.yaml:ro
+      - ./proxy-test/certs:/certs:ro
+    ports:
+      - "8829:8829"
+      - "9902:9902"
+    networks:
+      - raptor
+    depends_on:
+      - grpc-gateway
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

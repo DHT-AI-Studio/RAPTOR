@@ -1,0 +1,15 @@
+# Optional GPU image dependencies, shared by every clone backend. CPU unit
+# tests use requirements.txt only. Backend-specific deps live in
+# requirements-xtts.txt / requirements-chatterbox.txt, installed conditionally
+# by Dockerfile.voice based on the CLONE_BACKENDS_BUILD build arg.
+-r requirements.txt
+numpy>=1.24,<2
+soundfile>=0.12
+pyannote.audio==3.3.2
+whisperx==3.3.1
+transformers==4.55.4
+huggingface-hub>=0.24,<1
+PyYAML>=6
+# Preserve Module 08's SM_120-enabled CUDA wheels.
+torch==2.7.1
+torchaudio==2.7.1

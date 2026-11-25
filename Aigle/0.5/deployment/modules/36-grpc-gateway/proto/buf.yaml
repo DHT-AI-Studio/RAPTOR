@@ -1,0 +1,23 @@
+# buf configuration for the gRPC contract (VIE01-239). `buf` is run with this
+# directory as the module root: `buf lint proto`, `buf breaking proto --against ...`.
+version: v2
+lint:
+  use:
+    - STANDARD
+  except:
+    # RaptorService shares response messages across RPCs on purpose (ClipHit,
+    # MediaChunk, Job, ...) and its streaming RPCs return the item type rather
+    # than a *Response wrapper. Renaming them would change the generated
+    # classes every shipped client imports, so these three naming rules are
+    # off. Everything else in STANDARD is enforced. Adding to this list is a
+    # contract decision, not a convenience.
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+breaking:
+  use:
+    # FILE is the strictest category: it flags field/message/enum removal,
+    # type changes and number reuse, i.e. anything that can break a client's
+    # generated code, not only the wire format. Deliberately removing a field
+    # therefore needs a maintainer-approved exception.
+    - FILE

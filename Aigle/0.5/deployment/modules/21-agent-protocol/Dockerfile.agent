@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    "uvicorn[standard]" \
+    httpx \
+    "pydantic>=2.0" \
+    loguru \
+    python-dotenv \
+    "a2a-sdk[http-server]==0.3.26" \
+    sentence-transformers
+
+# shared modules (models + a2a_helpers)
+COPY app/models.py .
+COPY app/a2a_helpers.py .
+
+# all agent scripts
+COPY agents/ .
+
+# CMD is overridden per-agent in docker-compose.yml

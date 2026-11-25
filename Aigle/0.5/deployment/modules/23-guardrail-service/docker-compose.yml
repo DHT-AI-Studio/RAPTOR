@@ -1,0 +1,109 @@
+# Guardrail Service — Raptor Platform module 23
+# Content moderation via Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard,
+# a policy engine, and audit logging.
+# Deploy: docker compose -f docker-compose.yml up -d
+#
+# Uses module 03's shared PostgreSQL (database "guardrails", created by
+# 03-database/init/postgresql/001_init.sql) and module 02's shared Redis
+# (raptor-redis-standalone, DB index 0 -- same index most other modules
+# share, safe because every key this service touches is namespaced under
+# the "guardrail:" prefix, see app/services/state.py / policy_store.py).
+# No dedicated DB containers here, matching the platform's normal
+# convention (04/13/15/21/25/26 all connect to the shared 02/03 instances
+# rather than running their own) -- module 23 used to be the outlier here,
+# alongside module 06's Keycloak, which has its own dedicated Postgres for
+# reasons specific to that identity provider.
+
+services:
+  guardrail_service:
+    # Build context is deployment/modules/ (not this directory) so the image
+    # can also copy the shared CF-4 audit library from common/raptor_audit,
+    # the same way module 36 copies module 13's code.
+    build:
+      context: ..
+      dockerfile: 23-guardrail-service/Dockerfile
+    image: raptor/guardrail-service:${RAPTOR_VERSION}
+    container_name: raptor-guardrail-service-${RAPTOR_VERSION}
+    hostname: raptor-guardrail-service
+    environment:
+      OLLAMA_URL:                  ${OLLAMA_HOST}
+      REQUEST_TIMEOUT:             ${GUARDRAIL_REQUEST_TIMEOUT:-120.0}
+      LOG_LEVEL:                   ${LOG_LEVEL:-INFO}
+      TZ:                          ${TIMEZONE:-Asia/Taipei}
+      PROXY_MODEL:                 ${PROXY_MODEL:-gemma4:12b}
+      PROXY_MODE:                  ${PROXY_MODE:-monitor}
+      PROXY_CONFIDENCE_THRESHOLD:  ${PROXY_CONFIDENCE_THRESHOLD:-0.7}
+      DEFAULT_MODEL:               ${DEFAULT_MODEL:-gemma4:31b}
+      # OpenAI-compatible proxy upstream (/v1/*): module 07, see .env.example
+      PROXY_UPSTREAM_URL:          ${PROXY_UPSTREAM_URL:-http://raptor-ai-lifecycle-api:8010}
+      PROXY_UPSTREAM_TIMEOUT:      ${PROXY_UPSTREAM_TIMEOUT:-120.0}
+      GUARD_MODEL:                 ${GUARD_MODEL:-llama-guard3:8b}
+      GUARD_MODEL_2:               ${GUARD_MODEL_2:-}
+      GUARD_MODEL_3:               ${GUARD_MODEL_3:-}
+      GUARD_CONFLICT_STRATEGY:     ${GUARD_CONFLICT_STRATEGY:-strict}
+      POSTGRES_HOST:               ${POSTGRES_HOST:-raptor-postgres}
+      POSTGRES_PORT:               ${POSTGRES_PORT:-5432}
+      POSTGRES_USER:               ${POSTGRES_USER:-raptor}
+      POSTGRES_PASSWORD:           ${POSTGRES_PASSWORD}
+      POSTGRES_DB:                 guardrails
+      REDIS_HOST:                  ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT:                  ${REDIS_PORT:-6379}
+      REDIS_PASSWORD:              ${REDIS_PASSWORD}
+      REDIS_DB:                    0
+      # GRD-X4: retention_days on guardrail audit events (CF-4 audit_events)
+      GUARDRAIL_AUDIT_RETENTION_DAYS: ${GUARDRAIL_AUDIT_RETENTION_DAYS:-90}
+      # CM-5 (VIE01-408): moderation.flagged events on the shared Kafka cluster.
+      # KAFKA_BOOTSTRAP (this container's env var, matches Settings.kafka_bootstrap)
+      # sources from root .env's KAFKA_BOOTSTRAP_SERVERS -- same indirection module
+      # 25's PD_KAFKA_BOOTSTRAP uses for the same shared var.
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+      KAFKA_MODERATION_TOPIC: ${KAFKA_MODERATION_TOPIC:-moderation.flagged}
+      # Image guard models (Llama Guard 3 11B Vision + ShieldGemma 2)
+      # Both are gated models — HF_TOKEN must be set with approved access on HuggingFace.
+      # Weights are auto-downloaded on first run and cached at HF_HOME (/hf_cache).
+      LLAMA_GUARD_3_MODEL_PATH:    ${LLAMA_GUARD_3_MODEL_PATH:-meta-llama/Llama-Guard-3-11B-Vision}
+      SHIELDGEMMA2_MODEL_PATH:     ${SHIELDGEMMA2_MODEL_PATH:-google/shieldgemma-2-4b-it}
+      HF_TOKEN:                    ${HF_TOKEN}
+      HF_HOME:                     /hf_cache
+      # Quantization: 11B bfloat16≈22 GB so 4-bit is required on any ≤24 GB GPU
+      LLAMA_GUARD_LOAD_IN_4BIT:    ${LLAMA_GUARD_LOAD_IN_4BIT:-true}
+      # ShieldGemma 2: 8-bit (≈4.8 GB) by default; false = bfloat16 (≈8.2 GB)
+      SHIELDGEMMA2_LOAD_IN_8BIT:   ${SHIELDGEMMA2_LOAD_IN_8BIT:-true}
+      # Dynamic model resource manager — see .env.example for the per-model estimate knobs
+      GUARDRAIL_CUDA_DEVICE:              ${GUARDRAIL_CUDA_DEVICE:-0}
+      GUARDRAIL_ALLOW_MODEL_COEXIST:      ${GUARDRAIL_ALLOW_MODEL_COEXIST:-true}
+      GUARDRAIL_VRAM_SAFETY_MARGIN_MB:    ${GUARDRAIL_VRAM_SAFETY_MARGIN_MB:-256}
+      GUARDRAIL_MODEL_ACQUIRE_TIMEOUT_S:  ${GUARDRAIL_MODEL_ACQUIRE_TIMEOUT_S:-300}
+      LLAMA_GUARD_VRAM_ESTIMATE_MB:       ${LLAMA_GUARD_VRAM_ESTIMATE_MB:-}
+      LLAMA_GUARD_INFERENCE_RESERVE_MB:   ${LLAMA_GUARD_INFERENCE_RESERVE_MB:-}
+      SHIELDGEMMA2_VRAM_ESTIMATE_MB:      ${SHIELDGEMMA2_VRAM_ESTIMATE_MB:-}
+      SHIELDGEMMA2_INFERENCE_RESERVE_MB:  ${SHIELDGEMMA2_INFERENCE_RESERVE_MB:-}
+      PYTORCH_CUDA_ALLOC_CONF:     expandable_segments:True
+    volumes:
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GUARDRAIL_GPU_ID:-0}"]
+              capabilities: [gpu]
+    # CF-3: internal service -- bound to INTERNAL_BIND_IP (default 127.0.0.1, host-only); containers use the raptor network.
+    ports:
+      - "${INTERNAL_BIND_IP:-127.0.0.1}:${PORT_GUARDRAIL_SERVICE:-8023}:8026"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-guardrail-service"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8026/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

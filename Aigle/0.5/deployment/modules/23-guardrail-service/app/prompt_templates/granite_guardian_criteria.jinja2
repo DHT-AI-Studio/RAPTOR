@@ -1,0 +1,13 @@
+{%- for c in categories -%}
+[{{ c.id }}] {{ c.name }}: {{ c.description }}
+Violates if:
+{% for item in c.criteria %}  - {{ item }}
+{% endfor -%}
+{%- if c.exceptions %}Exceptions (do NOT flag):
+{% for item in c.exceptions %}  - {{ item }}
+{% endfor -%}
+{%- endif -%}
+{% if not loop.last %}
+
+{% endif -%}
+{%- endfor -%}

@@ -1,0 +1,23 @@
+# CI unit-tests only need what video_orchestrator_service and
+# video_face_detection_service themselves import -- NOT worker/requirements.txt's
+# full tree, which pulls in GPU-specific packages used by sibling analysis
+# services. Keep pins in sync with 08-media-worker/requirements.txt, which
+# builds the image these services actually run in.
+#
+# insightface / onnxruntime-gpu are deliberately absent: they live in the
+# 08-media-worker image, and the unit tests that need them (plus the ONNX
+# models) skip themselves when they are missing.
+aiokafka==0.12.0
+aiohttp==3.12.15
+python-dotenv==1.1.1
+redis
+
+# video_face_detection_service (non-GPU parts: sampling, shot boundaries, tracking,
+# clustering, Kafka handler, /embed-face)
+aiofiles==24.1.0
+scipy==1.15.3
+numpy==1.26.4
+opencv-python-headless
+fastapi>=0.100.0
+python-multipart>=0.0.9
+httpx

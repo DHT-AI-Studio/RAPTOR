@@ -1,0 +1,517 @@
+syntax = "proto3";
+
+package raptor.v1;
+
+option go_package = "raptor/v1;raptorv1";
+
+// RaptorService is the gRPC contract for the Raptor gateway. Some RPCs are
+// still UNIMPLEMENTED — see server.py's RaptorServiceServicer docstring for
+// the current status of each; the contract exists so feature phases only
+// need to fill in server-side logic, not touch transport/interceptor
+// plumbing.
+service RaptorService {
+  // Dummy unary RPC used to exercise the full interceptor chain end-to-end.
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // Hybrid search (BM25 keyword + vector semantic, fused and reranked by module 25) across
+  // media types. SearchBm25 and SearchVector below are the same call with one retriever only.
+  rpc Search(SearchRequest) returns (SearchResponse);
+
+  // Keyword-only search (BM25): a result needs the words in the query. Scores are BM25 scores
+  // (unbounded, roughly 0-20), not comparable with Search or SearchVector scores.
+  rpc SearchBm25(SearchRequest) returns (SearchResponse);
+
+  // Semantic-only search (vector similarity): always returns the nearest top_k, even when
+  // nothing is relevant, so look at score. Scores are similarity scores in 0-1.
+  rpc SearchVector(SearchRequest) returns (SearchResponse);
+
+  // StreamSearch, StreamSearchBm25 and StreamSearchVector are Search, SearchBm25 and
+  // SearchVector delivered as a stream, one SearchResult per item, in rank order.
+  // Buffered delivery: module 25 returns the complete result before streaming begins (it has no
+  // incremental search endpoint), so this changes how the result arrives, not when it is
+  // available -- there is no earlier first result than from the unary RPC. Same decision as
+  // StreamSearchByPerson; see docs/grpc-streaming-decision.md.
+  rpc StreamSearch(SearchRequest) returns (stream SearchResult);
+  rpc StreamSearchBm25(SearchRequest) returns (stream SearchResult);
+  rpc StreamSearchVector(SearchRequest) returns (stream SearchResult);
+
+  // Knowledge-graph search (GraphRAG): entities and moments matching the query, plus the graph
+  // around them. `results` are the matching moments (chunks of videos/audio); the graph itself
+  // is in `subgraph_json`.
+  rpc GraphRagSearch(GraphRagSearchRequest) returns (GraphSearchResponse);
+
+  // Temporal knowledge-graph search: dated facts about the entities the query names, optionally
+  // inside a time window. `results` are the facts, strongest first; the entities, graph and
+  // moments around them are in `subgraph_json`.
+  rpc TKGSearch(TKGSearchRequest) returns (GraphSearchResponse);
+
+  // Video search filtered by person. NOTE: no person-entity index exists in
+  // Raptor today — person_name is passed through as free-text query to the
+  // same 4-way RRF pipeline video_search already uses (ASR/OCR/contextual
+  // text matches, not true face/entity recognition). See VideoSearchService.
+  rpc SearchByPerson(SearchByPersonRequest) returns (SearchByPersonResponse);
+  // Buffered delivery — Module 25 returns complete results before streaming
+  // begins. The full 4-way RRF + rerank pipeline runs to completion first;
+  // this RPC only changes how the already-complete result set is delivered
+  // afterward (one ClipHit per stream item), not when it becomes available.
+  // No reduced time-to-first-result vs. SearchByPerson. See
+  // docs/grpc-streaming-decision.md for why (Module 25 has no incremental
+  // search endpoint anywhere, and RRF fusion across 4 parallel retrievers
+  // can't produce stable ranks from partial results regardless).
+  rpc StreamSearchByPerson(SearchByPersonRequest) returns (stream ClipHit);
+
+  // Asset metadata lookup.
+  rpc GetAsset(GetAssetRequest) returns (AssetMetadata);
+
+  // Client-streaming upload: first message must be UploadAssetMetadata,
+  // subsequent messages carry chunk_data.
+  rpc UploadAsset(stream UploadAssetRequest) returns (UploadAssetResponse);
+
+  // Conversational RAG, streamed token by token.
+  rpc Chat(ChatRequest) returns (stream ChatToken);
+
+  // Async processing pipeline status polling.
+  rpc GetJobStatus(GetJobStatusRequest) returns (JobStatus);
+
+  // Chunked video streaming.
+  rpc StreamVideo(StreamVideoRequest) returns (stream VideoChunk);
+
+  // Resumable, constant-memory asset download. Sends one MediaHeader
+  // followed by a stream of MediaChunk messages.
+  rpc DownloadAsset(DownloadAssetRequest) returns (stream DownloadAssetResponse);
+
+  // Job lifecycle: submit an async processing job (routes to the same
+  // Kafka-driven pipeline as REST's /processing/process-file), fetch its
+  // current state, or stream state-change events as they happen.
+  rpc SubmitJob(SubmitJobRequest) returns (Job);
+  rpc GetJob(GetJobRequest) returns (Job);
+  rpc WatchJob(WatchJobRequest) returns (stream JobEvent);
+
+  // Transcodes (or, for RAW_FILE_RANGE, directly proxies) the requested
+  // time range of a video asset into a stream of MediaChunk, via an FFmpeg
+  // subprocess for the transcoding formats. See media_stream_service.py's
+  // module docstring for the codec/seek assumptions and the video_id
+  // branch's current limitation.
+  rpc StreamVideoSegment(StreamVideoSegmentRequest) returns (stream MediaChunk);
+
+  // Bidirectional job-control channel layered on top of WatchJob's event
+  // relay. See job_service.py's job_session() docstring: cancel/control
+  // messages are recorded as intent only -- no processing worker (modules
+  // 09-12) exposes a cancel/control API today, so nothing actually stops
+  // or changes a running job. Real event delivery (the subscribe
+  // direction) is not a stub.
+  rpc JobSession(stream JobSessionRequest) returns (stream JobSessionResponse);
+
+  // Forwards each incoming MediaChunk to Kafka in real time, no
+  // full-stream buffering -- genuinely real, see media_stream_service.py's
+  // analyze_stream(). The AnalysisEvent response side is NOT implemented:
+  // no consumer anywhere in Raptor reads the analysis-requests topic and
+  // produces entity/transcript/embedding/scene results, so after
+  // forwarding every chunk the client sent, this RPC ends with
+  // UNIMPLEMENTED rather than silently returning an empty event stream.
+  // See OPEN_QUESTION_analyze_stream_results.md.
+  rpc AnalyzeStream(stream AnalyzeStreamRequest) returns (stream AnalysisEvent);
+}
+
+enum JobState {
+  JOB_STATE_UNSPECIFIED = 0;
+  JOB_STATE_QUEUED = 1;
+  JOB_STATE_TRANSCRIBING = 2;
+  JOB_STATE_EXTRACTING = 3;
+  JOB_STATE_INDEXING = 4;
+  JOB_STATE_COMPLETE = 5;
+  JOB_STATE_FAILED = 6;
+  // Added for SubmitJob/WatchJob's terminal-state contract; nothing in
+  // Raptor's processing pipeline actually transitions a job to this state
+  // today (no cancel API exists on any orchestrator worker) — reserved for
+  // forward compatibility, not currently reachable.
+  JOB_STATE_CANCELLED = 7;
+  // Generic "a worker is processing this job". The orchestrators in modules
+  // 09-12 move through several media-specific steps between QUEUED and
+  // INDEXING (parallel_processing, chunking, summary, save, ...); they all
+  // map here, and the raw step is in JobEvent.detail. TRANSCRIBING and
+  // EXTRACTING are not written by any worker today. Added after
+  // JOB_STATE_CANCELLED so existing numbers are unchanged.
+  JOB_STATE_RUNNING = 8;
+}
+
+enum VideoStreamFormat {
+  VIDEO_STREAM_FORMAT_UNSPECIFIED = 0;
+  VIDEO_STREAM_FORMAT_MP4_H264 = 1;
+  VIDEO_STREAM_FORMAT_HLS = 2;
+  VIDEO_STREAM_FORMAT_DASH = 3;
+  // StreamVideoSegment only, below -- see its request message's comments.
+  VIDEO_STREAM_FORMAT_MPEG_TS = 4;
+  VIDEO_STREAM_FORMAT_RAW_FILE_RANGE = 5;
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+  string request_id = 2;
+}
+
+// Request of Search, SearchBm25 and SearchVector.
+message SearchRequest {
+  string query = 1;       // required
+  int32 top_k = 2;        // 0 -> server default 10; more than 100 -> INVALID_ARGUMENT
+  // Module 25's own type value, as the REST search endpoints take it: "videos", "audios",
+  // "images" or "documents". Empty -> every type.
+  string media_type = 3;
+  // Several types at once (same values as media_type). Combined with media_type if both are set.
+  repeated string asset_types = 4;
+  // Only chunks spoken by one of these speakers (video/audio). Empty -> any speaker.
+  repeated string speaker_filter = 5;
+}
+
+// One matching record. It is either a chunk (a time range of a video or audio file: chunk_id is
+// set and start_time/end_time say where) or the file's whole-file summary (chunk_id empty, no
+// times). A file can appear several times, and a result list normally mixes both kinds.
+message SearchResult {
+  string asset_path = 1;  // as the platform reports it, without the file name
+  double score = 2;
+  string snippet = 3;     // the matching text (for a whole-file record, its summary)
+  string version_id = 4;  // pass with asset_path to DownloadAsset / StreamVideoSegment / SubmitJob
+  string filename = 5;
+  string media_type = 6;  // "videos", "audios", ... (same values as SearchRequest.media_type)
+  optional double start_time = 7;  // seconds; unset for a whole-file record
+  optional double end_time = 8;
+  string chunk_id = 9;    // empty for a whole-file record
+  string speaker = 10;    // empty when the chunk has no speaker
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+}
+
+message GraphRagSearchRequest {
+  string query = 1;       // required
+  int32 top_k = 2;        // most results returned; 0 -> all module 25 found; more than 100 -> INVALID_ARGUMENT
+  int32 max_depth = 3;    // graph hops around each match; 0 -> server default 2; 1-4 allowed
+  string strategy = 4;    // "literal" (spoken/described words), "semantic" (concepts) or "hybrid"; empty -> hybrid
+  optional double score_threshold = 5;  // module 25's own default (0.5) when unset
+}
+
+message TKGSearchRequest {
+  string query = 1;       // required
+  int32 top_k = 2;        // most facts returned; 0 -> module 25's default (50); more than 100 -> INVALID_ARGUMENT
+  int32 max_depth = 3;    // graph hops around each matched entity; 0 -> server default 2; 1-4 allowed
+  optional double score_threshold = 4;  // module 25's own default (0.5) when unset
+  string time_start = 5;  // only facts that end on or after this date (ISO 8601, e.g. "2024-07-01"); empty -> no bound
+  string time_end = 6;    // only facts that start on or before this date; empty -> no bound
+  string entity = 7;      // match this entity instead of the query text; empty -> match from the query
+}
+
+// Hits plus the graph they sit in. `subgraph_json` is one JSON object:
+//   {"matched_entities": [...], "nodes": [...], "edges": [...], "moments": [...], "citations": [...]}
+// "citations" is present for GraphRagSearch and "moments" for TKGSearch. The elements are module
+// 25's own graph records passed through unchanged, so new properties there appear here without a
+// contract change. Empty ("{}") when nothing matched.
+message GraphSearchResponse {
+  repeated SearchResult results = 1;
+  string subgraph_json = 2;
+}
+
+message GetAssetRequest {
+  string asset_path = 1;
+  string version_id = 2;
+}
+
+message AssetMetadata {
+  string asset_path = 1;
+  string version_id = 2;
+  string content_type = 3;
+  int64 size_bytes = 4;
+  string download_url = 5;
+}
+
+message UploadAssetRequest {
+  oneof payload {
+    UploadAssetMetadata metadata = 1;  // must be the first message
+    bytes chunk_data = 2;
+    // Optional trailer: CRC32C (Castagnoli) of every chunk_data byte sent, for a client that
+    // computes it while streaming. Must be the last message. If metadata.crc32c is also set,
+    // both are checked. A mismatch fails the upload with DATA_LOSS and creates no asset.
+    uint32 final_crc32c = 3;
+  }
+}
+
+message UploadAssetMetadata {
+  string filename = 1;
+  string content_type = 2;
+  int64 total_size = 3;
+  map<string, string> attributes = 4;  // pass-through only -- not persisted to LakeFS, see server.py docstring
+  string idempotency_key = 5;          // empty -> no dedup check
+  // Optional CRC32C (Castagnoli) of the whole file, for a client that knows it up front. Absent
+  // (not 0) -> not checked. See also UploadAssetRequest.final_crc32c.
+  optional uint32 crc32c = 6;
+}
+
+message UploadAssetResponse {
+  string asset_id = 1;      // = module 04's asset_path
+  string version_id = 2;
+  string correlation_id = 3;
+  int64 bytes_received = 4;
+}
+
+message ChatRequest {
+  string message = 1;
+  string session_id = 2;
+}
+
+message ChatToken {
+  string token = 1;
+  bool is_final = 2;
+  string session_id = 3;
+}
+
+message GetJobStatusRequest {
+  string correlation_id = 1;
+  string media_type = 2; // one of: document / video / image / audio — required to build the Redis cache key
+}
+
+message JobStatus {
+  string correlation_id = 1;
+  JobState state = 2;
+  string detail = 3;
+}
+
+message StreamVideoRequest {
+  string asset_path = 1;
+  VideoStreamFormat format = 2;
+  string version_id = 3;
+}
+
+message VideoChunk {
+  bytes chunk_data = 1;
+  int64 sequence = 2;
+  bool is_final = 3;
+}
+
+// NOTE: streaming is always the full asset — no server-side time-range
+// clipping exists anywhere in Raptor today. Clients needing a sub-clip
+// (e.g. Content AI's ffmpeg pipeline) must trim locally using
+// ClipHit.start_time/end_time.
+message SearchByPersonRequest {
+  string person_name = 1;
+  int32 top_k = 2;                // 0 -> server default 10
+  // Gateway-local only -- Module 25 has no "candidate_multiplier" concept.
+  // Used to compute candidate_k = top_k * candidate_multiplier, which is
+  // what's actually sent to Module 25 as top_k (bm25/vector) or limit
+  // (graphrag/tkg, capped at 200), before RRF fusion narrows back to top_k.
+  // See grpc-gateway/docs/grpc-module25-contract.md (RG-2b spike).
+  int32 candidate_multiplier = 3; // 0 -> server default 5
+  // Forwarded to Module 25's graphrag/tkg calls (GraphRAGRequest/TKGRequest
+  // both accept a real score_threshold field server-side, v0.4, default
+  // 0.5) AND applied again as a client-side post-filter after RRF fusion +
+  // rerank (video_search_service.py) -- the latter also covers bm25/vector,
+  // which have no server-side threshold concept at all. See
+  // docs/grpc-module25-contract.md.
+  double score_threshold = 4;     // 0 -> server default 0.52
+}
+
+message ClipHit {
+  string clip_id = 1;      // "{video_id}|{round(start_time)}", mirrors video_search.py's _seg_key
+  string video_id = 2;
+  string filename = 3;
+  double score = 4;
+  string asset_url = 5;
+  string upload_time = 6;
+  optional double start_time = 7;
+  optional double end_time = 8;
+  string text = 9;
+  repeated string sources = 10;
+}
+
+message SearchByPersonResponse {
+  repeated ClipHit hits = 1;
+  int32 total = 2;
+}
+
+message DownloadAssetRequest {
+  // The asset_path exactly as the platform reports it -- REST, search results and
+  // UploadAssetResponse.asset_id all give one WITHOUT the file name (e.g. "video/mp4/clip").
+  // The full object key ("video/mp4/clip/clip.mp4") is also accepted.
+  string asset_path = 1;
+  string version_id = 2;
+  int64 offset = 3;                // 0 -> start from beginning
+  int64 length = 4;                // 0 -> read until EOF
+  // 0 -> server default (1 MiB); clamped to [64 KiB, 4 MiB - 4 KiB] so that a chunk plus its framing
+  // always fits gRPC's default 4 MiB receive limit.
+  int32 preferred_chunk_size = 5;
+}
+
+message DownloadAssetResponse {
+  oneof payload {
+    MediaHeader header = 1;  // always sent first, exactly once
+    MediaChunk chunk = 2;
+  }
+}
+
+message MediaHeader {
+  string content_type = 1;
+  int64 content_length = 2;  // -1 if the storage response didn't reveal a size
+  string filename = 3;       // basename of asset_path -- no filename metadata store exists upstream
+  bool seekable = 4;         // true if the storage response answered the Range request (206 or Accept-Ranges)
+  double duration_sec = 5;   // seconds, read with ffprobe for audio/video files; 0 = unknown (not a media file, probing switched off, or ffprobe failed or timed out)
+  string etag = 6;
+}
+
+message MediaChunk {
+  bytes data = 1;
+  int64 offset = 2;      // absolute byte offset of this chunk within the file
+  int64 sequence = 3;
+  uint32 crc32c = 4;     // per-chunk Castagnoli CRC32C, independently verifiable
+  bool end_of_stream = 5;
+}
+
+// AssetRef identifies one previously-uploaded asset version (e.g. from
+// UploadAsset's response) as SubmitJob's input.
+message AssetRef {
+  string asset_path = 1;
+  string version_id = 2;
+}
+
+// NOTE: exactly one entry in input_asset_ids is supported today — the
+// underlying Kafka processing pipeline (KafkaService.send_processing_request)
+// dispatches one file per job/correlation_id; there is no multi-asset batch
+// primitive anywhere in Raptor to fan a job out across. SubmitJob returns
+// INVALID_ARGUMENT if input_asset_ids.size() != 1.
+message SubmitJobRequest {
+  // Forwarded as REST's optional `processing_mode` hint. Which pipeline
+  // actually runs (document/image/video/audio) is always auto-detected from
+  // the input asset's filename extension, same as REST — this field does not
+  // select or override that routing.
+  string job_type = 1;
+  map<string, string> parameters = 2;  // free-form, forwarded into the Kafka message's metadata; not interpreted by grpc-gateway itself
+  repeated AssetRef input_asset_ids = 3;
+  string request_id = 4;               // idempotency key — resubmitting the same (user, request_id) returns the original Job, no new Kafka send
+}
+
+message Job {
+  string job_id = 1;               // == correlation_id, same identifier GetJobStatus/REST's /processing/cache use
+  JobState state = 2;
+  string job_type = 3;
+  string media_type = 4;           // document/image/video/audio — auto-detected at submission time
+  repeated AssetRef input_asset_ids = 5;
+  string request_id = 6;
+  string created_at = 7;           // ISO 8601 UTC
+  string detail = 8;
+}
+
+message GetJobRequest {
+  string job_id = 1;
+}
+
+message WatchJobRequest {
+  string job_id = 1;
+  int64 last_sequence = 2;  // 0 -> replay every stored event from the start; otherwise replay events with sequence > last_sequence, then continue live
+}
+
+message JobEvent {
+  string job_id = 1;
+  int64 sequence = 2;      // monotonically increasing per job_id, starting at 1;
+                            // -1 marks an ephemeral JobSession control-intent
+                            // acknowledgment, never persisted to the event log
+                            // (see JobSessionResponse below).
+  JobState state = 3;
+  string detail = 4;
+  string timestamp = 5;    // ISO 8601 UTC, when grpc-gateway observed this state
+}
+
+// ── StreamVideoSegment ──────────────────────────────────────────────────
+
+message StreamVideoSegmentRequest {
+  oneof source {
+    // The only branch actually implemented today -- see media_stream_service.py.
+    AssetRef asset = 1;
+    // NOT YET RESOLVABLE: video_id (as returned by SearchByPerson/ClipHit)
+    // is module 25's internal version_id, but no endpoint anywhere in
+    // Raptor resolves a bare version_id back to its owning asset_path
+    // (video_search_service.py and module 25's index.py both only return
+    // the pair together, inline, as part of a search result -- there is
+    // no standalone reverse lookup). This branch returns UNIMPLEMENTED
+    // until such a lookup exists (flagged as follow-up work, not built
+    // here to avoid a second, out-of-scope module 25 change). Pass `asset`
+    // instead if the caller already has (asset_path, version_id), e.g.
+    // from a prior SearchByPerson/UploadAsset response.
+    string video_id = 2;
+  }
+  // Seconds, transcode formats only. The segment is cut by stream copy (no re-encode), so it
+  // begins at the keyframe at or before start_time, is therefore usually LONGER than
+  // end_time - start_time (whole-file keyframe spacing decides by how much), and its timestamps
+  // restart at 0 -- the actual start offset is not reported. Exact only when start_time is 0.
+  // 0 -> start of file / end of file.
+  double start_time = 3;
+  double end_time = 4;
+  VideoStreamFormat format = 5;  // UNSPECIFIED/HLS/DASH -> INVALID_ARGUMENT; MP4_H264 is the default transcode format
+  int64 byte_offset = 6;   // RAW_FILE_RANGE only; start_time/end_time are ignored for this format
+  int64 byte_length = 7;   // RAW_FILE_RANGE only; 0 -> read to EOF
+  // 0 -> server default (1 MiB); clamped to [64 KiB, 4 MiB - 4 KiB] (see DownloadAssetRequest).
+  int32 preferred_chunk_size = 8;
+}
+
+// ── JobSession ───────────────────────────────────────────────────────────
+
+// Forwarded as an intent only -- see JobSession's own rpc comment and
+// job_service.py's job_session() docstring. No processing worker consumes
+// this today.
+message JobControl {
+  string command = 1;
+  map<string, string> parameters = 2;
+}
+
+message JobSessionRequest {
+  string job_id = 1;
+  oneof action {
+    // First message on the stream must set subscribe=true; replays events
+    // after last_sequence (same semantics as WatchJobRequest) then
+    // continues live, exactly like WatchJob.
+    bool subscribe = 2;
+    // Requests cancellation -- recorded as intent (Redis key + one ack
+    // JobEvent), not enforced. See JobSession's rpc comment.
+    bool cancel = 3;
+    // Forwarded as intent only, same caveat as cancel.
+    JobControl control = 4;
+  }
+  int64 last_sequence = 5;  // only meaningful on the initial subscribe=true message
+}
+
+message JobSessionResponse {
+  oneof payload {
+    JobEvent job_event = 1;
+    // Reserved for future preview-frame push during job execution -- never
+    // populated today (no processing worker produces mid-job preview
+    // frames anywhere in Raptor). Field kept for forward compatibility
+    // rather than omitted, matching JOB_STATE_CANCELLED's precedent
+    // elsewhere in this file.
+    MediaChunk preview_frame = 2;
+  }
+}
+
+// ── AnalyzeStream ────────────────────────────────────────────────────────
+
+message AnalyzeStreamRequest {
+  oneof payload {
+    AnalyzeStreamStart start = 1;  // must be the first message
+    MediaChunk chunk = 2;
+  }
+}
+
+message AnalyzeStreamStart {
+  string session_id = 1;  // caller-supplied; propagated into every forwarded Kafka message
+  string media_type = 2;  // "video" or "audio" -- anything else is INVALID_ARGUMENT
+}
+
+// NOT PRODUCED TODAY -- see AnalyzeStream's own rpc comment. Field shape
+// kept for forward compatibility once a real analysis-results consumer
+// exists, same precedent as JobSessionResponse.preview_frame above.
+message AnalysisEvent {
+  string session_id = 1;
+  string kind = 2;          // "entity" | "transcript" | "embedding" | "scene"
+  string payload_json = 3;  // structured result, opaque to the transport
+  string timestamp = 4;     // ISO 8601 UTC
+}

@@ -1,0 +1,556 @@
+{
+ "name": "Android history",
+ "topics": [
+  "android",
+  "android history"
+ ],
+ "note": "Structured from the 'History' section of the Android (operating system) article as pasted by the user. Only dates stated in the text are used. When the text gives only a month, season or year, the entity starts on the first day of that period and the period is spelled out in its name (e.g. '(Sep 2007)'), so relations between events of the same month are not meaningful. 'ongoing' ends resolve to the latest date in the file (as_of). Revised 2026-10-16 to the RAPTOR temporal plan's conventions: 'late YYYY' is September-December (plan §5.1), a season is the normaliser's three months (summer = June-August), and a date the text does not state is not guessed: 'less than six months earlier' than August 2013 starts the range 2013-02-01 to 2013-08-01 it allows (was 'about Mar 2013'); the Rubin and Pichai roles meet there.",
+ "as_of": "2026-05-12",
+ "headline": "android history 2003-2010",
+ "raptor_query": "Android history Google acquisition Nexus Pixel Android One",
+ "raptor_question": "When did Google acquire Android Inc., and who led Android before Sundar Pichai?",
+ "demo_queries": [
+  "android history 2003-2010",
+  "what happened during the Nexus series",
+  "events after Google acquires Android Inc.",
+  "roles overlapping the Nexus series",
+  "Android One 2014-2017",
+  "what was active on 2014-07-01"
+ ],
+ "entities": [
+  {
+   "id": "androidinc",
+   "name": "Android Inc. (independent company)",
+   "type": "period",
+   "family": "Android Inc.",
+   "start": "2003-10-01",
+   "end": "2005-07-01",
+   "aliases": [
+    "Android Inc"
+   ]
+  },
+  {
+   "id": "founded",
+   "name": "Android Inc. founded in Palo Alto (Oct 2003)",
+   "type": "event",
+   "family": "Android Inc.",
+   "start": "2003-10-01",
+   "aliases": [
+    "Android founded"
+   ]
+  },
+  {
+   "id": "fotoframe",
+   "name": "FotoFrame digital-camera OS",
+   "type": "period",
+   "family": "Android Inc.",
+   "start": "2003-10-01",
+   "end": "2004-04-01",
+   "aliases": [
+    "FotoFrame",
+    "camera OS"
+   ]
+  },
+  {
+   "id": "pivot",
+   "name": "Pivot to a phone OS (Apr 2004)",
+   "type": "event",
+   "family": "Android Inc.",
+   "start": "2004-04-01",
+   "aliases": [
+    "the pivot"
+   ]
+  },
+  {
+   "id": "phoneos",
+   "name": "Phone OS development at Android Inc.",
+   "type": "period",
+   "family": "Android Inc.",
+   "start": "2004-04-01",
+   "end": "2005-07-01",
+   "aliases": [
+    "phone OS development"
+   ]
+  },
+  {
+   "id": "negotiate",
+   "name": "Rubin negotiates with Samsung and HTC (2005)",
+   "type": "period",
+   "family": "Android Inc.",
+   "start": "2005-01-01",
+   "end": "2005-07-01",
+   "aliases": [
+    "Samsung and HTC talks"
+   ]
+  },
+  {
+   "id": "acquired",
+   "name": "Google acquires Android Inc.",
+   "type": "event",
+   "family": "Android Inc.",
+   "start": "2005-07-01",
+   "aliases": [
+    "Google acquisition",
+    "the acquisition"
+   ]
+  },
+  {
+   "id": "rubin",
+   "name": "Andy Rubin leads Android",
+   "type": "role",
+   "family": "Leadership",
+   "start": "2003-10-01",
+   "end": "2013-02-01",
+   "aliases": [
+    "Rubin"
+   ]
+  },
+  {
+   "id": "pichai",
+   "name": "Sundar Pichai leads Android",
+   "type": "role",
+   "family": "Leadership",
+   "start": "2013-02-01",
+   "end": "2015-08-01",
+   "aliases": [
+    "Pichai"
+   ]
+  },
+  {
+   "id": "lockheimer",
+   "name": "Hiroshi Lockheimer heads Android (ongoing)",
+   "type": "role",
+   "family": "Leadership",
+   "start": "2015-08-01",
+   "end": "ongoing",
+   "aliases": [
+    "Lockheimer"
+   ]
+  },
+  {
+   "id": "barra",
+   "name": "Hugo Barra: product spokesperson (2008-2013)",
+   "type": "role",
+   "family": "Leadership",
+   "start": "2008-01-01",
+   "end": "2013-08-01",
+   "aliases": [
+    "Hugo Barra",
+    "Barra"
+   ]
+  },
+  {
+   "id": "rubin_moves",
+   "name": "Rubin moves on; Pichai named Android lead (within the six months before Aug 2013)",
+   "type": "event",
+   "family": "Leadership",
+   "start": "2013-02-01"
+  },
+  {
+   "id": "barra_leaves",
+   "name": "Hugo Barra leaves for Xiaomi (Aug 2013)",
+   "type": "event",
+   "family": "Leadership",
+   "start": "2013-08-01"
+  },
+  {
+   "id": "pichai_ceo",
+   "name": "Pichai becomes Google CEO; Lockheimer heads Android (Aug 2015)",
+   "type": "event",
+   "family": "Leadership",
+   "start": "2015-08-01"
+  },
+  {
+   "id": "iphone",
+   "name": "Apple iPhone arrives (2007)",
+   "type": "event",
+   "family": "Platform",
+   "start": "2007-01-01",
+   "aliases": [
+    "the iPhone"
+   ]
+  },
+  {
+   "id": "patents",
+   "name": "Google files mobile-telephony patents (Sep 2007)",
+   "type": "event",
+   "family": "Platform",
+   "start": "2007-09-01"
+  },
+  {
+   "id": "oha",
+   "name": "Open Handset Alliance unveiled",
+   "type": "event",
+   "family": "Platform",
+   "start": "2007-11-05",
+   "aliases": [
+    "Open Handset Alliance",
+    "OHA"
+   ]
+  },
+  {
+   "id": "rivals",
+   "name": "OHA faces Symbian Foundation and LiMo rivals (within a year)",
+   "type": "period",
+   "family": "Platform",
+   "start": "2007-11-05",
+   "end": "2008-11-05",
+   "aliases": [
+    "Symbian and LiMo rivalry"
+   ]
+  },
+  {
+   "id": "intro",
+   "name": "Android introduced at NYC press conference",
+   "type": "event",
+   "family": "Platform",
+   "start": "2008-09-23",
+   "aliases": [
+    "Android introduced",
+    "Android launch"
+   ]
+  },
+  {
+   "id": "g1",
+   "name": "HTC Dream / T-Mobile G1 announced",
+   "type": "event",
+   "family": "Devices",
+   "start": "2008-09-23",
+   "aliases": [
+    "HTC Dream",
+    "T-Mobile G1",
+    "G1"
+   ]
+  },
+  {
+   "id": "dessert",
+   "name": "Dessert-name era (since 2008)",
+   "type": "period",
+   "family": "Naming",
+   "start": "2008-01-01",
+   "end": "2019-08-22",
+   "aliases": [
+    "dessert names"
+   ]
+  },
+  {
+   "id": "nexus",
+   "name": "Nexus series",
+   "type": "period",
+   "family": "Devices",
+   "start": "2010-01-01",
+   "end": "2016-10-01",
+   "aliases": [
+    "Nexus"
+   ]
+  },
+  {
+   "id": "nexus7",
+   "name": "Nexus 7 tablet press conference (2012)",
+   "type": "event",
+   "family": "Devices",
+   "start": "2012-01-01",
+   "aliases": [
+    "Nexus 7"
+   ]
+  },
+  {
+   "id": "gpe",
+   "name": "Google Play edition program",
+   "type": "period",
+   "family": "Devices",
+   "start": "2013-05-01",
+   "end": "2015-01-01",
+   "aliases": [
+    "Google Play edition"
+   ]
+  },
+  {
+   "id": "gpe_start",
+   "name": "Stock-Android Galaxy S4 announced (May 2013)",
+   "type": "event",
+   "family": "Devices",
+   "start": "2013-05-01",
+   "aliases": [
+    "Galaxy S4 announcement"
+   ]
+  },
+  {
+   "id": "gpe_end",
+   "name": "Last Google Play edition phones removed (2015)",
+   "type": "event",
+   "family": "Devices",
+   "start": "2015-01-01"
+  },
+  {
+   "id": "pixel",
+   "name": "Pixel and Pixel XL introduced (Oct 2016)",
+   "type": "event",
+   "family": "Devices",
+   "start": "2016-10-01",
+   "aliases": [
+    "Pixel"
+   ]
+  },
+  {
+   "id": "pixel2",
+   "name": "New Pixel generation launched (Oct 2017)",
+   "type": "event",
+   "family": "Devices",
+   "start": "2017-10-01"
+  },
+  {
+   "id": "ao1",
+   "name": "Android One announced (Jun 2014)",
+   "type": "event",
+   "family": "Android One",
+   "start": "2014-06-01",
+   "aliases": [
+    "Android One announcement"
+   ]
+  },
+  {
+   "id": "ao_india",
+   "name": "First Android One phones announced for India (Sep 2014)",
+   "type": "event",
+   "family": "Android One",
+   "start": "2014-09-01"
+  },
+  {
+   "id": "ao_recode",
+   "name": "Recode calls Android One a disappointment (Jun 2015)",
+   "type": "event",
+   "family": "Android One",
+   "start": "2015-06-01"
+  },
+  {
+   "id": "ao_relaunch",
+   "name": "Android One relaunch plans surface (Aug 2015)",
+   "type": "event",
+   "family": "Android One",
+   "start": "2015-08-01"
+  },
+  {
+   "id": "ao_africa",
+   "name": "Android One heads to Africa (a week later)",
+   "type": "event",
+   "family": "Android One",
+   "start": "2015-08-08"
+  },
+  {
+   "id": "ao_us",
+   "name": "Report: Android One expands into the US (Jan 2017)",
+   "type": "event",
+   "family": "Android One",
+   "start": "2017-01-01"
+  },
+  {
+   "id": "huawei",
+   "name": "Huawei entangled in US-China trade war (May 2019)",
+   "type": "event",
+   "family": "Huawei",
+   "start": "2019-05-01"
+  },
+  {
+   "id": "harmony",
+   "name": "Huawei announces Harmony OS (summer 2019)",
+   "type": "event",
+   "family": "Huawei",
+   "start": "2019-06-01",
+   "end": "2019-08-31",
+   "aliases": [
+    "Harmony OS"
+   ]
+  },
+  {
+   "id": "a10name",
+   "name": "Android Q branded Android 10; dessert names dropped",
+   "type": "event",
+   "family": "Naming",
+   "start": "2019-08-22",
+   "aliases": [
+    "Android 10 branding"
+   ]
+  },
+  {
+   "id": "statue",
+   "name": "Giant '10' statue reported (Android Police)",
+   "type": "event",
+   "family": "Naming",
+   "start": "2019-08-22"
+  },
+  {
+   "id": "a10release",
+   "name": "Android 10 released to Pixel phones",
+   "type": "event",
+   "family": "Naming",
+   "start": "2019-09-03",
+   "aliases": [
+    "Android 10 release"
+   ]
+  },
+  {
+   "id": "emergency",
+   "name": "Emergency-dialling bug reports (late 2021)",
+   "type": "event",
+   "family": "Platform",
+   "start": "2021-09-01",
+   "end": "2021-12-31"
+  },
+  {
+   "id": "xr",
+   "name": "Android XR announced",
+   "type": "event",
+   "family": "Platform",
+   "start": "2024-12-12",
+   "aliases": [
+    "Android XR"
+   ]
+  },
+  {
+   "id": "consolidate",
+   "name": "Google to consolidate Android development internally (Mar 2025)",
+   "type": "event",
+   "family": "Platform",
+   "start": "2025-03-01"
+  },
+  {
+   "id": "googlebook",
+   "name": "Googlebook / Aluminium OS announced",
+   "type": "event",
+   "family": "Platform",
+   "start": "2026-05-12",
+   "aliases": [
+    "Googlebook",
+    "Aluminium OS"
+   ]
+  }
+ ],
+ "edges": [
+  [
+   "founded",
+   "starts",
+   "androidinc"
+  ],
+  [
+   "fotoframe",
+   "part_of",
+   "androidinc"
+  ],
+  [
+   "phoneos",
+   "part_of",
+   "androidinc"
+  ],
+  [
+   "fotoframe",
+   "precedes",
+   "phoneos"
+  ],
+  [
+   "pivot",
+   "starts",
+   "phoneos"
+  ],
+  [
+   "negotiate",
+   "part_of",
+   "phoneos"
+  ],
+  [
+   "negotiate",
+   "precedes",
+   "acquired"
+  ],
+  [
+   "acquired",
+   "ends",
+   "androidinc"
+  ],
+  [
+   "rubin",
+   "precedes",
+   "pichai"
+  ],
+  [
+   "pichai",
+   "precedes",
+   "lockheimer"
+  ],
+  [
+   "rubin_moves",
+   "starts",
+   "pichai"
+  ],
+  [
+   "rubin_moves",
+   "ends",
+   "rubin"
+  ],
+  [
+   "barra_leaves",
+   "ends",
+   "barra"
+  ],
+  [
+   "pichai_ceo",
+   "starts",
+   "lockheimer"
+  ],
+  [
+   "oha",
+   "starts",
+   "rivals"
+  ],
+  [
+   "a10name",
+   "ends",
+   "dessert"
+  ],
+  [
+   "statue",
+   "same_day_as",
+   "a10name"
+  ],
+  [
+   "a10name",
+   "precedes",
+   "a10release"
+  ],
+  [
+   "intro",
+   "same_day_as",
+   "g1"
+  ],
+  [
+   "gpe",
+   "related_to",
+   "nexus"
+  ],
+  [
+   "gpe_start",
+   "starts",
+   "gpe"
+  ],
+  [
+   "gpe_end",
+   "ends",
+   "gpe"
+  ],
+  [
+   "pixel",
+   "ends",
+   "nexus"
+  ],
+  [
+   "ao1",
+   "precedes",
+   "ao_india"
+  ],
+  [
+   "harmony",
+   "related_to",
+   "huawei"
+  ]
+ ]
+}

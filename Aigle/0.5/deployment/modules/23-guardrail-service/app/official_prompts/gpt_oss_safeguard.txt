@@ -1,0 +1,24 @@
+# Policy Name
+
+## INSTRUCTIONS
+
+Describe what oss-safeguard should do and how to respond.
+
+## DEFINITIONS
+
+Clarify key terms and context.
+
+## VIOLATES (1)
+
+Describe behaviors or content that should be flagged.
+
+## SAFE (0)
+
+Describe content that should not be flagged.
+
+## EXAMPLES
+
+Provide 4–6 short examples labeled 0 or 1.
+
+Content: [INPUT]
+Answer (0 or 1):

@@ -1,0 +1,3 @@
+ARG MLFLOW_VERSION=v3.3.2
+FROM ghcr.io/mlflow/mlflow:${MLFLOW_VERSION}
+RUN pip install --no-cache-dir psycopg2-binary boto3 "mlflow[auth]"

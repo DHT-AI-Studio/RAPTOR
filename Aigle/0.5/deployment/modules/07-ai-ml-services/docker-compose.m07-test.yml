@@ -1,0 +1,129 @@
+# Module 07 推論契約 + 新版 MLflow 整合測試（compose 專案 aiml-test）
+#
+# 與 docker-compose.dev.yml 同屬 aiml-test 專案（方便在同一分組管理），但服務名、
+# 容器名、volume 都加 m07 前綴，互不覆蓋：
+#   aiml-test-m07-postgres  全新 postgres（volume aiml-test_m07-pgdata），給 MLflow 當 backend store
+#   aiml-test-m07-mlflow    MLflow ${MLFLOW_VERSION:-v3.16.1}（Dockerfile.mlflow build）
+#   aiml-test-m07-api       07 API：沿用 raptor/ai-lifecycle-api:0.3 image，掛載本目錄 src（--reload 熱更新）
+#
+# 本地模型庫：NAS ${LOCAL_MODELS_DIR} 掛到 /models，並以 MODELS_TMP_ROOT=/models 讓
+# GET /models/local、POST /models/register_local 使用 NAS 上已下載的模型。
+# lakeFS 未接（NAS 模型用 /models/register_local 直接註冊）。
+#
+# 用法（在本目錄）：
+#   docker compose -f docker-compose.m07-test.yml up -d        # MLflow image 不存在時才會 build
+#   docker compose -f docker-compose.m07-test.yml logs -f m07-api
+#   docker compose -f docker-compose.m07-test.yml down          # 保留 postgres 資料
+#   docker compose -f docker-compose.m07-test.yml down -v       # 連同測試 DB / artifacts 一起刪
+# 注意：同專案有其他 compose 檔的服務時，不要加 --remove-orphans，否則會刪掉對方的容器。
+# MLflow image：本機已有 raptor/mlflow:${MLFLOW_VERSION} 時 `up -d` 直接使用；加 --build 會從
+# ghcr.io 重拉官方 base image（本機到 ghcr CDN 很慢，約 70KB/s）。慢的話可改以既有 image 為底升級：
+#   printf 'FROM raptor/mlflow:v3.14.0\nRUN pip install --no-cache-dir "mlflow==3.16.1" psycopg2-binary boto3\n' \
+#     | docker build -t raptor/mlflow:v3.16.1 -
+name: aiml-test
+
+volumes:
+  m07-pgdata:
+  m07-mlartifacts:
+  m07-data:
+
+networks:
+  m07:
+    name: aiml-test-m07
+    driver: bridge
+
+services:
+  m07-postgres:
+    image: postgres:15
+    container_name: aiml-test-m07-postgres
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+      TZ: Asia/Taipei
+    volumes:
+      - m07-pgdata:/var/lib/postgresql/data
+    networks: [m07]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow -d mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  m07-mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+      args:
+        MLFLOW_VERSION: ${MLFLOW_VERSION:-v3.16.1}
+    image: raptor/mlflow:${MLFLOW_VERSION:-v3.16.1}
+    container_name: aiml-test-m07-mlflow
+    depends_on:
+      m07-postgres:
+        condition: service_healthy
+    environment:
+      # v3.5+ 內建 Host / CORS 檢查：容器名（aiml-test-m07-mlflow 等）不在預設允許清單，
+      # 07 API 以服務名連線會被擋；隔離的測試網路放行全部 Host，UI 放行本機與 host IP
+      MLFLOW_SERVER_ALLOWED_HOSTS: "*"
+      MLFLOW_SERVER_CORS_ALLOWED_ORIGINS: "http://localhost:${PORT_M07_MLFLOW:-5560},http://${HOST_IP:-192.168.157.165}:${PORT_M07_MLFLOW:-5560}"
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - postgresql://mlflow:mlflow@m07-postgres:5432/mlflow
+      - --artifacts-destination
+      - /mlartifacts
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+    volumes:
+      - m07-mlartifacts:/mlartifacts
+    ports:
+      - "${PORT_M07_MLFLOW:-5560}:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      m07:
+        aliases: ["raptor-mlflow"]
+    restart: unless-stopped
+
+  m07-api:
+    image: raptor/ai-lifecycle-api:0.3
+    container_name: aiml-test-m07-api
+    depends_on:
+      m07-mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://m07-mlflow:5000
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://192.168.157.135:11434}
+      MODELS_TMP_ROOT: /models
+      # lakeFS 未接；ModelManager 初始化只需要有值
+      MLFLOW_S3_ENDPOINT_URL: http://lakefs-not-configured:8000
+      AWS_ACCESS_KEY_ID: unused
+      AWS_SECRET_ACCESS_KEY: unused
+      HF_TOKEN: ${HF_TOKEN:-}
+      REDIS_PASSWORD: ""
+      CUDA_VISIBLE_DEVICES: "0"
+    volumes:
+      - ./src:/app/src:ro
+      - ${LOCAL_MODELS_DIR:-/opt/nfsc/Download/DATA/git}:/models
+      - m07-data:/app/data
+    ports:
+      - "${PORT_M07_API:-18710}:8010"
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8010 --reload
+    networks:
+      m07:
+        aliases: ["raptor-ai-lifecycle-api"]
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${M07_GPU:-1}"]
+              capabilities: [gpu]

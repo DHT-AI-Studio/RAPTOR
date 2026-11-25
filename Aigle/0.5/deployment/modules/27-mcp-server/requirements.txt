@@ -1,0 +1,26 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.1
+httpx>=0.27.0
+pydantic>=2.11.0
+pydantic-settings>=2.5.2
+mcp>=1.27.0,<2.0.0
+langchain-mcp-adapters>=0.1.0
+redis>=5.0.4
+# PYSEC-2026-4298 (CVSS 9.3, no fix released) + its own ecdsa dependency's
+# PYSEC-2026-1325 (unfixable Minerva timing attack) -- both in jwt sign/
+# verify, never reached by this module's only call site
+# (app/routers/auth.py's get_unverified_claims() usage). Full analysis
+# there; pip-audit's --ignore-vuln for both is in ci.yml's dep-scan job
+# (pip-audit doesn't read requirements.txt comments, this is for humans).
+python-jose>=3.3.0
+python-multipart>=0.0.20
+cryptography>=42.0.0
+
+# app/tests/test_agent_orchestration.py (agent framework e2e tests)
+pytest>=9.1.1
+pytest-asyncio>=1.4.0
+langchain-core>=1.4.9
+langchain-ollama>=1.1.0
+langchain-classic>=1.0.8
+smolagents>=1.26.0
+litellm>=1.92.0

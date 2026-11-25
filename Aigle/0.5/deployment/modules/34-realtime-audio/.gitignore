@@ -1,0 +1,3 @@
+# protoc output for proto/raptor/audio/v1/audio.proto -- produced by scripts/gen_proto.py in the
+# Docker build and by tests/conftest.py at test time. Never commit generated code.
+generated/

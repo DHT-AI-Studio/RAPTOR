@@ -1,0 +1,114 @@
+{
+ "source": "Android_History.pdf (Temporal Demo examples/), text read with the demo's built-in PDF reader and cut into ~700-character chunks that never cross a heading -- what a document worker hands Module 25",
+ "license": "Text from Wikipedia, \"Android (operating system)\" (history section), CC BY-SA 4.0",
+ "segments": [
+  {
+   "chunk_id": "c00",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "Android Inc. was founded in Palo Alto, California, in October 2003 by Andy Rubin and Chris White, with Rich Miner and Nick Sears joining later. Rubin had previously been the creator of the T-Mobile Sidekick under his previous company Danger, Inc. Rubin and White started out to build an operating system for digital cameras viz FotoFrame. The company name was changed to Android as Rubin already owned the domain name android.com."
+  },
+  {
+   "chunk_id": "c01",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "After having built a prototype internally known as the \"Fadden demo\" predominantly by purchasing licensing agreements for most of the software components built around a custom JavaScript front-end, the company failed to convince investors, and so in April 2004 they pivoted to building an operating system for phones at the suggestion of Nick Sears, as a rival to Symbian and Microsoft Windows Mobile. Rubin pitched the Android project as having \"tremendous potential in developing smarter mobile devices that are more aware of its owner's location and preferences\". Due to difficulty attracting investors early on, Android faced potential eviction from its office space."
+  },
+  {
+   "chunk_id": "c02",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "Steve Perlman, a close friend of Rubin, brought him $10,000 in cash in an envelope, and shortly thereafter wired an undisclosed amount as seed funding. Perlman refused a stake in the company, and has stated \"I did it because I believed in the thing, and I wanted to help Andy.\" In 2005, Rubin tried to negotiate deals with Samsung and HTC. Shortly afterwards, Google acquired the company in July of that year for at least $50 million; this was Google's \"best deal ever\" according to Google's then-vice president of corporate development, David Lawee, in 2010. Android's key employees, including Rubin, Miner, Sears, and White, joined Google as part of the acquisition."
+  },
+  {
+   "chunk_id": "c03",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "Not much was known about the secretive Android Inc. at the time, with the company having provided few details other than that it was making software for mobile phones. At Google, the team led by Rubin developed a mobile device platform powered by the Linux kernel. Google marketed the platform to handset makers and carriers on the promise of providing a flexible, upgradeable system. Google had \"lined up a series of hardware components and software partners and signaled to carriers that it was open to various degrees of cooperation\". Speculation about Google's intention to enter the mobile communications market continued to build through December 2006."
+  },
+  {
+   "chunk_id": "c04",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "An early prototype had a close resemblance to a BlackBerry phone, with no touchscreen and a physical QWERTY keyboard, but the arrival of Apple's 2007 iPhone meant that Android \"had to go back to the drawing board\". Google later changed its Android specification documents to state that \"Touchscreens will be supported\", although \"the Product was designed with the presence of discrete physical buttons as an assumption, therefore a touchscreen cannot completely replace physical buttons\". By 2008, both Nokia and BlackBerry announced touch-based smartphones to rival the iPhone 3G, and Android's focus eventually switched to just touchscreens."
+  },
+  {
+   "chunk_id": "c05",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "The first commercially available smartphone running Android was the HTC Dream, also known as T-Mobile G1, announced on September 23, 2008. HTC Dream or T-Mobile G1, the first commercially released device running Android (2008). On November 5, 2007, the Open Handset Alliance, a consortium of technology companies including Google, device manufacturers such as HTC, Motorola and Samsung, wireless carriers such as Sprint and T-Mobile, and chipset makers such as Qualcomm and Texas Instruments, unveiled itself, with a goal to develop \"the first truly open and comprehensive platform for mobile devices\"."
+  },
+  {
+   "chunk_id": "c06",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "Within a year, the Open Handset Alliance faced two other open source competitors, the Symbian Foundation and the LiMo Foundation, the latter also developing a Linux-based mobile operating system like Google. In September 2007, Google had filed several patent applications in the area of mobile telephony. On September 23, 2008, Android was introduced by Andy Rubin, Larry Page, Sergey Brin, Cole Brodman, Christopher Schlaeffer and Peter Chou at a press conference in a New York City subway station. Since 2008, Android has seen numerous updates which have incrementally improved the operating system, adding new features and fixing bugs in previous releases."
+  },
+  {
+   "chunk_id": "c07",
+   "heading": "2000s",
+   "page": "1,2",
+   "text": "The first two Android versions were internally codenamed Astro Boy and Bender but licensing issues meant subsequent releases were named after dessert or sugary treat in an alphabetical order, with the first few Android versions being called \"Petit Four\", \"Cupcake\", \"Donut\", \"Eclair\", and \"Froyo\", in that order. During its announcement of Android KitKat in 2013, Google explained that \"Since these devices make our lives so sweet, each Android version is named after a dessert\", although a Google spokesperson told CNN in an interview that \"It's kind of like an internal team thing, and we prefer to be a little bit—how should I say—a bit inscrutable in the matter, I'll say\"."
+  },
+  {
+   "chunk_id": "c08",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "In 2010, Google launched its Nexus series of devices, a lineup in which Google partnered with different device manufacturers to produce new devices and introduce new Android versions. The series was described as having \"played a pivotal role in Android's history by introducing new software iterations and hardware standards across the board\", and became known for its \"bloat-free\" software with \"timely ... updates\". At its developer conference in May 2013, Google announced a special version of the Samsung Galaxy S4, where, instead of using Samsung's own Android customization, the phone ran \"stock Android\" and was promised to receive new system updates fast."
+  },
+  {
+   "chunk_id": "c09",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "The device would become the start of the Google Play edition program, and was followed by other devices, including the HTC One Google Play edition, and Moto G Google Play edition. In 2015, Ars Technica wrote that \"Earlier this week, the last of the Google Play edition Android phones in Google's online storefront were listed as \"no longer available for sale\" and that \"Now they're all gone, and it looks a whole lot like the program has wrapped up\". Eric Schmidt, Andy Rubin and Hugo Barra at a 2012 press conference announcing Google's Nexus 7 tablet."
+  },
+  {
+   "chunk_id": "c10",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "From 2008 to 2013, Hugo Barra served as product spokesperson, representing Android at press conferences and Google I/O, Google's annual developer-focused conference. He left Google in August 2013 to join Chinese phone maker Xiaomi. Less than six months earlier, Google's then- CEO Larry Page announced in a blog post that Andy Rubin had moved from the Android division to take on new projects at Google, and that Sundar Pichai would become the new Android lead. Pichai himself would eventually switch positions, becoming the new CEO of Google in August 2015 following the company's restructure into the Alphabet conglomerate, making Hiroshi Lockheimer the new head of Android."
+  },
+  {
+   "chunk_id": "c11",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "On Android 4.4, KitKat, shared writing access to MicroSD memory cards has been locked for user-installed applications, to which only the dedicated directories with respective package names, located inside Android/data/, remained writeable. Writing access has been reinstated with Android 5 Lollipop through the backwards-incompatible Google Storage Access Framework interface. In June 2014, Google announced Android One, a set of \"hardware reference models\" that would \"allow to easily create high-quality phones at low costs\", designed for consumers in developing countries. In September, Google announced the first set of Android One phones for release in India."
+  },
+  {
+   "chunk_id": "c12",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "However, Recode reported in June 2015 that the project was \"a disappointment\", citing \"reluctant consumers and manufacturing partners\" and \"misfires from the search company that has never quite cracked hardware\". Plans to relaunch Android One surfaced in August 2015, with Africa announced as the next location for the program a week later. A report from The Information in January 2017 stated that Google is expanding its low-cost Android One program into the United States, although The Verge notes that the company will presumably not produce the actual devices itself."
+  },
+  {
+   "chunk_id": "c13",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "Google introduced the Pixel and Pixel XL smartphones in October 2016, marketed as being the first phones made by Google, and exclusively featured certain software features, such as the Google Assistant, before wider rollout. The Pixel phones replaced the Nexus series, with a new generation of Pixel phones launched in October 2017. In May 2019, the operating system became entangled in the trade war between China and the United States involving Huawei, which, like many other tech firms, had become dependent on access to the Android platform."
+  },
+  {
+   "chunk_id": "c14",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "In the summer of 2019, Huawei announced it would create an alternative operating system to Android known as Harmony OS, and has filed for intellectual property rights across major global markets. Under such sanctions Huawei has long-term plans to replace Android in 2022 with the new operating system, as Harmony OS was originally designed for internet of things devices, rather than for smartphones and tablets. On August 22, 2019, it was announced that Android \"Q\" would officially be branded as Android 10, ending the historic practice of naming major versions after desserts."
+  },
+  {
+   "chunk_id": "c15",
+   "heading": "2010s",
+   "page": "2,3,4",
+   "text": "Google stated that these names were not \"inclusive\" to international users (due either to the aforementioned foods not being internationally known, or being difficult to pronounce in some languages). On the same day, Android Police reported that Google had commissioned a statue of a giant number \"10\" to be installed in the lobby of the developers' new office. Android 10 was released on September 3, 2019, to Google Pixel phones first."
+  },
+  {
+   "chunk_id": "c16",
+   "heading": "2020s",
+   "page": "4",
+   "text": "In late 2021, some users reported that they were unable to dial emergency services. The problem was caused by a combination of bugs in Android and in the Microsoft Teams app; both companies released updates addressing the issue. On December 12, 2024, Google announced Android XR. It is a new operating system developed by Google, designed for virtual reality and augmented reality devices, such as VR headsets and smart glasses. It was built in collaboration with Samsung and Qualcomm. The platform is also focused on supporting developers with tools like ARCore and Unity to build applications for upcoming XR devices."
+  },
+  {
+   "chunk_id": "c17",
+   "heading": "2020s",
+   "page": "4",
+   "text": "In March 2025, Google announced its plans to consolidate Android development to internal sources. While public developers will no longer be able to contribute, the Android source will still be published. On May 12, 2026, Google announced their Chromebook successor called Googlebook showcased running a desktop repurposed version of Android currently in development under the codename Aluminium OS which is intended to eventually replace Chrome OS."
+  }
+ ]
+}

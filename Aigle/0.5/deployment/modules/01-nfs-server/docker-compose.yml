@@ -1,0 +1,162 @@
+# NFS Server Module
+# Aigle Platform v0.2 - Module 00
+# Provides NFS v4 server for SeaweedFS volume persistence
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  nfs-server:
+    # ghcr.io/obeone/nfs-server replaces itsthenetwork/nfs-server-alpine
+    # (VIE01-GX10 ARM64 audit) -- itsthenetwork only ever published an
+    # amd64 manifest, confirmed via `docker manifest inspect`, so it can't
+    # run on GX10 (arm64). obeone publishes a real multi-arch manifest
+    # list (amd64/arm64/etc) and the same /etc/exports:ro mount model, so
+    # the exports file below didn't need to change. SHARED_DIRECTORY isn't
+    # a thing it reads (the exports file already says where to serve from)
+    # and it logs to stdout only, so the old ./logs:/var/log mount is gone.
+    image: ghcr.io/obeone/nfs-server:latest
+    container_name: raptor-nfs-server-${RAPTOR_VERSION}
+    hostname: raptor-nfs-server
+    privileged: true
+    ports:
+      - "${PORT_NFS:-2049}:2049"   # NFS
+      # - "111:111"     # RPC portmapper
+      # - "32765:32765" # RPC status
+      # - "32767:32767" # RPC mountd
+    volumes:
+      - ./config/exports:/etc/exports:ro
+      - nfs-storage:/nfs-share
+      # Read-only host /lib/modules: the entrypoint's assert_kernel_mod()
+      # only self-modprobes nfsd if this directory is visible AND the
+      # container has sys_module (already granted via privileged: true
+      # above) -- without it, a host where nfsd was never loaded fails
+      # with "nfsd module is not loaded" and needs a manual host-side
+      # `modprobe nfsd` before this container can ever start.
+      - /lib/modules:/lib/modules:ro
+    environment:
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    networks:
+      raptor:
+        aliases:
+          - "raptor-nfs-server"  # 定義別名
+    restart: unless-stopped
+    healthcheck:
+      # Verify RPC is registered AND the share is actually writable — a plain
+      # `rpcinfo` check reports "healthy" even while write I/O is stalled, which
+      # masked a real NFS hang. touch/rm exercises the export end-to-end.
+      test: ["CMD-SHELL", "rpcinfo -p localhost && touch /nfs-share/.healthcheck && rm -f /nfs-share/.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          # Raised from 0.5 CPU: nfsd helpers were throttled during large write
+          # bursts (checkpoint saves contending with SeaweedFS I/O), contributing
+          # to stalls. Memory bumped modestly too (write path is kernel-side, so
+          # this cap is not the main bottleneck, but headroom doesn't hurt).
+          memory: 1g
+          cpus: '2'
+    # Storage limit: 100GB (configured in config/storage.conf)
+    # See /opt/dht/apps/raptor/nfs/STORAGE_SETUP.md for setup instructions
+
+  # VIE01-369 Phase 1: two-phase rsync backup for this module's storage --
+  # also covers 04's SeaweedFS blobs and 26's Memory data, both physically
+  # under this same tree, see docs/backup-restore-v0.5.md's "01" section.
+  # Not an offen/docker-volume-backup sidecar like 02/03/06/24 -- this
+  # directory has no owning application for a clean dump. No app code is
+  # baked into the image: all three scripts are bind-mounted in from
+  # ./backup/ (single source of truth, no COPY-at-build-time copy to
+  # drift from it, and no image rebuild needed when they change).
+  nfs-backup:
+    build:
+      context: ./backup
+    container_name: raptor-nfs-backup-${RAPTOR_VERSION}
+    hostname: raptor-nfs-backup
+    volumes:
+      # Read-only: this sidecar only ever reads NFS_BASE_PATH (rsync
+      # source), it never writes back into it.
+      - nfs-storage:/nfs-base:ro
+      # One shared destination, same BACKUP_LOCAL_ARCHIVE_PATH every other
+      # sidecar (02/03/06/24) already uses -- no separate
+      # NFS_BACKUP_MIRROR_PATH var to forget. The live mirror lives in its
+      # own subdirectory under it (see NFS_BACKUP_MIRROR_PATH below), not
+      # a second bind mount of an overlapping host path -- retention
+      # pruning's `-maxdepth 1` already never descends into it. Direct
+      # feedback: the mirror's own physical locality now follows wherever
+      # this destination is (ideally fast local disk; if it's pointed at
+      # remote/off-host storage instead, the hourly live-sync runs against
+      # that network mount too) -- correctness is unaffected either way,
+      # since the mirror itself is never what a restore actually depends
+      # on, only the finished .tar.gz(.age) archives are.
+      - nfs-backup-archive:/archive
+      - ./backup/nfs-backup-common.sh:/scripts/nfs-backup-common.sh:ro
+      - ./backup/nfs-sync-live.sh:/scripts/nfs-sync-live.sh:ro
+      - ./backup/nfs-freeze-archive.sh:/scripts/nfs-freeze-archive.sh:ro
+    environment:
+      # Fixed in-container mount points, not the host paths root .env's
+      # own NFS_BASE_PATH/BACKUP_LOCAL_ARCHIVE_PATH resolve to below
+      # (those drive the *volume's* `device:` -- see below -- this is
+      # what the scripts themselves see at runtime).
+      - NFS_BASE_PATH=/nfs-base
+      - BACKUP_LOCAL_ARCHIVE_PATH=/archive
+      - NFS_BACKUP_MIRROR_PATH=/archive/01-nfs-mirror
+      - NFS_BACKUP_INCLUDE_PATHS=${NFS_BACKUP_INCLUDE_PATHS:-seaweedfs memvid/storage}
+      - NFS_BACKUP_RETENTION_DAYS=${NFS_BACKUP_RETENTION_DAYS:-30}
+      - NFS_BACKUP_QUIESCENCE_MAX_BYTES=${NFS_BACKUP_QUIESCENCE_MAX_BYTES:-104857600}
+      - NFS_BACKUP_QUIESCENCE_MAX_FILES=${NFS_BACKUP_QUIESCENCE_MAX_FILES:-200}
+      - NFS_BACKUP_QUIESCENCE_MAX_RETRIES=${NFS_BACKUP_QUIESCENCE_MAX_RETRIES:-3}
+      - NFS_BACKUP_PROMETHEUS_URL=${NFS_BACKUP_PROMETHEUS_URL:-}
+      - NFS_BACKUP_KAFKA_CONSUMER_GROUPS=${NFS_BACKUP_KAFKA_CONSUMER_GROUPS:-}
+      - NFS_BACKUP_SEAWEEDFS_STATUS_URL=${NFS_BACKUP_SEAWEEDFS_STATUS_URL:-}
+      # Internal docker-network URL by default -- raptor-api-gateway is
+      # module 13's own network alias, reachable directly, no host port
+      # needed.
+      - NFS_BACKUP_GATEWAY_URL=${NFS_BACKUP_GATEWAY_URL:-http://raptor-api-gateway:8012}
+      - NFS_BACKUP_GATEWAY_INTERNAL_TOKEN=${NFS_BACKUP_GATEWAY_INTERNAL_TOKEN:-}
+      - NFS_BACKUP_GATEWAY_FREEZE_TTL_SECONDS=${NFS_BACKUP_GATEWAY_FREEZE_TTL_SECONDS:-600}
+      - NFS_BACKUP_GATEWAY_TIMEOUT_SECONDS=${NFS_BACKUP_GATEWAY_TIMEOUT_SECONDS:-10}
+      - AGE_PUBLIC_KEYS=${AGE_PUBLIC_KEYS:-}
+      # Real crontab syntax, consumed by entrypoint.sh -- not read by the
+      # scripts themselves.
+      - NFS_SYNC_CRON=${NFS_SYNC_CRON:-0 * * * *}
+      - NFS_BACKUP_CRON=${NFS_BACKUP_CRON:-0 3 * * *}
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    depends_on:
+      nfs-server:
+        condition: service_healthy
+    networks:
+      raptor:
+        aliases:
+          - "raptor-nfs-backup"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep crond"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
+
+volumes:
+  nfs-storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${NFS_BASE_PATH:?NFS_BASE_PATH must be set}
+  nfs-backup-archive:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BACKUP_LOCAL_ARCHIVE_PATH:?BACKUP_LOCAL_ARCHIVE_PATH must be set -- an unset bind-mount source here would otherwise silently resolve to this module's own directory}

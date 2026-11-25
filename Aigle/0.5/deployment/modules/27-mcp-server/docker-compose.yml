@@ -1,0 +1,27 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/mcp-server:${RAPTOR_VERSION}
+    container_name: raptor-mcp-server-${RAPTOR_VERSION}
+    restart: always
+    # CF-3: kept published -- MCP clients can reach the Streamable HTTP endpoint directly; module 13 also
+    # fronts it. Whether this can move to the internal binding is a CF-3 follow-up.
+    ports:
+      - "${PORT_MCP_SERVER:-8027}:8027"
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    networks:
+      raptor:
+        aliases:
+          - "raptor-mcp-server"
+    labels:
+      - "com.raptor.description=MCP Server — exposes Raptor APIs as MCP tools/resources"
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

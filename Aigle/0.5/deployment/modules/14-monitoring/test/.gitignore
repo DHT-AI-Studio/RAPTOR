@@ -1,0 +1,3 @@
+# Smoke test run artefacts
+out/
+alert_smoke_test.log

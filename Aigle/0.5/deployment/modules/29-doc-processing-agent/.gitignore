@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtualenvs
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+performance_baseline_c*.json
+docker-compose.override.yml
+.ipynb_checkpoints/

@@ -1,0 +1,61 @@
+# Benchmark-service dev 專用 compose：掛在 aiml-test（Module 07 dev stack）底下。
+# 所有環境變數集中在 .env.aiml-test，這裡只留網路 / volume / port 等拓撲設定。
+#  - PostgreSQL 沿用線上 aiml-dev-postgres（在 aiml-test 網路上），但用獨立
+#    benchmark database（app 啟動時自動建 DB + 資料表，不動 v3.3.2 的 mlflow DB）
+#  - judge / embedding / 受測模型「全部」走 aiml-v314-api:9998，MLflow 則是
+#    aiml-v314-mlflow:5557 —— 兩者都在 aiml-v314 網路上
+#  - Redis 自帶獨立實例，不碰 raptor stack 的 raptor-redis-standalone
+#  - 同時掛 raptor0.3 bridge（正式 stack 實際所在網路，chat 等 pipeline 服務
+#    都在上面；raptor overlay 上沒有）與 aiml-v314 bridge。注意 raptor-mlflow /
+#    raptor-ai-lifecycle-api 這類 alias 在多張網路上都存在（DNS 解析不確定），
+#    因此一律以「唯一容器名」明確指定目標。
+# 用法: docker compose -f docker-compose.aiml-test.dev.yml up -d --build
+name: benchmark-dev
+
+networks:
+  aiml-test:
+    external: true
+    name: aiml-test
+  aiml-v314:
+    external: true
+    name: aiml-v314
+  raptor:
+    external: true
+    name: raptor0.3
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: benchmark-dev-redis
+    restart: unless-stopped
+    networks:
+      - aiml-test
+
+  benchmark-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # 獨立 tag，避免覆蓋正式 raptor/benchmark-service:0.3
+    image: raptor/benchmark-service:0.3-dev
+    container_name: benchmark-dev-service
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      # 開發模式：掛載 app 目錄實現熱加載
+      - ./app:/app/app
+    ports:
+      - "8023:8000"
+    env_file:
+      - .env.aiml-test
+    depends_on:
+      - redis
+    networks:
+      - aiml-test
+      - aiml-v314
+      - raptor
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

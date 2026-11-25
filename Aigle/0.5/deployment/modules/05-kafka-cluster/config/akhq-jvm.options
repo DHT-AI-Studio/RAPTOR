@@ -1,0 +1,40 @@
+# Overrides tchiotludo/akhq:0.22.0's own baked-in /app/jvm.options. Two
+# changes from the original, both working around the same root cause: JDK
+# 11.0.16.1's cgroup v2 container-metrics detection NPEs on this host
+# (NullPointerException in jdk.internal.platform.cgroupv2.CgroupV2Subsystem.
+# getInstance, surfaced first via jdk.management.agent.Agent.startAgent's
+# JMX bootstrap, then again via Micronaut's own built-in ProcessorMetrics
+# bean calling ManagementFactory.getOperatingSystemMXBean() directly --
+# every caller of that cgroup v2 path crashes the same way, so disabling
+# individual features one at a time doesn't converge).
+#
+# 1. "Jmx Remote" block dropped entirely -- nobody connects to that port
+#    in this deployment anyway.
+# 2. -XX:-UseContainerSupport added -- turns off the JVM's cgroup-aware
+#    container detection at its source (the subsystem both crash paths
+#    above go through), instead of chasing every feature that happens to
+#    query it. Trade-off: the JVM no longer auto-sizes its default heap
+#    from the cgroup memory limit, so -Xmx/-Xms are pinned explicitly
+#    below to stay under the 512m docker-compose deploy limit.
+
+# Server Hotspot JVM
+-server
+
+# ensure UTF-8 encoding by default (e.g. filenames)
+-Dfile.encoding=UTF-8
+
+# set to headless, just in case
+-Djava.awt.headless=true
+
+# generate a heap dump when an allocation from the Java heap fails
+# heap dumps are created in the working directory of the JVM
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=/tmp/heapdump.log
+
+# Do not rely on the system configuration
+-Dfile.encoding=UTF-8
+
+# see header: works around a JDK cgroup v2 detection bug on this host
+-XX:-UseContainerSupport
+-Xms128m
+-Xmx384m

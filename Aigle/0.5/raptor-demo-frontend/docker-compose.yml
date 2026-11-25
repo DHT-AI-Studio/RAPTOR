@@ -1,0 +1,37 @@
+# Raptor Demo Frontend
+# Usage:
+#   cp .env.example .env   # fill in API_TARGET
+#   docker compose up -d --build
+
+services:
+  raptor-demo-v1:
+    build: .
+    container_name: raptor-demo-frontend-v1
+    ports:
+      - "${DEMO_PORT:-3000}:80"
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      - transcode
+
+  transcode:
+    build: ./transcode
+    container_name: raptor-demo-transcode
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - transcode_cache:/cache
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video, compute]
+
+volumes:
+  transcode_cache:

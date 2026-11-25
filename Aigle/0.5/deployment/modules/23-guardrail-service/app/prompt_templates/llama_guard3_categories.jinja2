@@ -1,0 +1,30 @@
+{%- for p in categories -%}
+{{ p.id }}: {{ p.name }}
+
+Description:
+{{ p.description }}
+{% if p.criteria %}
+
+Violation criteria:
+{% for item in p.criteria %}- {{ item }}
+{% endfor %}{% endif -%}
+{%- if p.exceptions %}
+
+Allowed:
+{% for item in p.exceptions %}- {{ item }}
+{% endfor %}{% endif -%}
+{%- if p.examples.violation %}
+
+Examples of violations:
+{% for item in p.examples.violation %}- {{ item }}
+{% endfor %}{% endif -%}
+{%- if p.examples.allowed %}
+
+Examples of allowed:
+{% for item in p.examples.allowed %}- {{ item }}
+{% endfor %}{% endif -%}
+{% if not loop.last %}
+
+
+{% endif -%}
+{%- endfor -%}

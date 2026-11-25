@@ -1,0 +1,8 @@
+fastapi==0.115.12
+uvicorn
+python-multipart
+requests
+python-dotenv
+pydantic-settings
+PyJWT
+email-validator
