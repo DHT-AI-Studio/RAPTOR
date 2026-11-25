@@ -1,6 +1,6 @@
 # Raptor 0.5
 
-![CI](https://github.com/DHT-AI-Studio/Raptor_Dev/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/DHT-AI-Studio/RAPTOR/actions/workflows/ci.yml/badge.svg)
 
 Multimedia intelligence platform for processing video, audio, documents, and images through AI/ML pipelines. Provides hybrid search, RAG question-answering, knowledge graph reasoning, and A2A agent orchestration. Built entirely in Python with Docker microservices.
 

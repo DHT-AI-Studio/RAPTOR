@@ -1,19 +1,16 @@
 # Changelog
 
-## v0.5.0 (unreleased)
+## v0.5.0 (2026-11-25)
 
 ### Known Limitations
 
-Accepted limitations for this release. Each links its tracking issue; "fixed in a later release" items will move to that release's own section when resolved.
+Accepted limitations for this release. "fixed in a later release" items will move to that release's own section when resolved.
 
 - **MCP (Module 27) stdio transport uses one shared identity for every caller.** The HTTP transport propagates each caller's own JWT; the stdio transport (`MCP_TRANSPORT=stdio`) never sets it, so every tool call made through a stdio-launched process resolves through the shared service account instead of a per-user token. Two different users each running the stdio entrypoint against the same deployment are indistinguishable to every downstream API call. (A second gap this same issue originally reported -- the agent's `client_secret` stored in plaintext in Redis -- has since been fixed: it's now stored Fernet-encrypted.)
-  [GitHub #20](https://github.com/DHT-AI-Studio/Raptor_Dev/issues/20)
 
 - **NVENC hardware video encoding has a confirmed driver-level bug on multi-GPU hosts** (reproduced on host MSN-02, driver 595.x): `h264_nvenc` fails deterministically on GPU 0 while working cleanly on GPU 1, independent of CUDA compute. A workaround (pin `VIDEO_CHUNKING_GPU` to a working GPU index) is shipped and confirmed effective end-to-end. The underlying NVIDIA driver bug itself is not fixed, so the same symptom could recur on a different multi-GPU host, or if GPU assignment changes, until NVIDIA ships a driver fix.
-  [GitHub #94](https://github.com/DHT-AI-Studio/Raptor_Dev/issues/94)
 
 - **Media pipeline dead-letter queues (modules 09-12, ~21 topics) have no consumer, no monitoring, and no retry mechanism.** A message that lands on any `*-dlq` topic today is written once, read by nobody, and ages out silently. Module 25's own `personal-index-requests-dlq` is a separate, newer system with real alerting and is not affected.
-  [GitHub #35](https://github.com/DHT-AI-Studio/Raptor_Dev/issues/35)
 
 - **gRPC gateway (Module 36): `GetAsset`, `Chat`, `GetJobStatus`, and `StreamVideo` RPCs are permanently `UNIMPLEMENTED`** for this release (each has a current replacement: `DownloadAsset`, no replacement yet, `GetJob`/`WatchJob`, and `StreamVideoSegment` respectively). Additionally: `StreamVideoSegment` only supports its `asset` source (`video_id` returns `UNIMPLEMENTED`); `JobSession` only supports the subscribe direction (cancel/control are recorded but not acted on); `AnalyzeStream` is disabled by default (`GRPC_GATEWAY_ANALYZE_STREAM_ENABLED=false`) and, even enabled, never returns analysis events back to the caller.
 
