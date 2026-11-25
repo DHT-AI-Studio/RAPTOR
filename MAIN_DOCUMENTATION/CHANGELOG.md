@@ -15,6 +15,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Aigle 0.5] - 2026-11
+
+### 🚀 Community Beta — Interfaces, Media & Compliance
+
+### Added
+
+- **Real-time Audio** (module 34): WebSocket and gRPC voice chat — streaming VAD, speech-to-text, text-to-speech, ticket-based auth, barge-in, and disconnect/resume
+- **gRPC Gateway** (module 36): a strictly versioned protobuf API for search, asset transfer, and job tracking alongside the existing REST gateway, with streaming support
+- **Privacy Compliance Service** (module 33): cross-service GDPR/CCPA erasure, export, DSAR, consent management, retention policy, and legal-hold workflows
+- **Inference Service** (module 35): text (translate/summarize/complete/transform) and voice (diarize/STT/TTS/clone) task APIs on top of module 07's model registry and runtime
+- **ARM64/GB10 support**: every currently-deployable module except the training service (16) builds and runs on both amd64 and arm64, confirmed on GB10/GX10 hardware
+
+### Changed
+
+- **Doc Processing Agent** (module 29) is now independently deployable (in development only as of 0.4)
+- **Guardrail coverage extended**: module 23's moderation auto-flagging and the A2A host orchestrator's guardrail pre-check shipped
+- **Setup workflow**: `deploy.sh --init-env` creates every missing `.env` and fills placeholders interactively; `--check-env` and `--check-ports` validate before first start
+- Documentation moved under `Aigle/0.5/docs/` (`BUILD.md`, `API_REFERENCE.md`, `MCP_REFERENCE.md`, `CHANGELOG.md`)
+
+### Known Limitations
+
+- Guardrail enforcement is not yet complete at every entry point (MCP tool-call input screening and the gRPC unary interceptor are still in progress)
+- A few gRPC RPCs (`GetAsset`, `Chat`, `GetJobStatus`, `StreamVideo`) are permanently `UNIMPLEMENTED`; each except `Chat` has a replacement RPC
+- Module 16 (training service) is amd64-only
+- Full list: [`Aigle/0.5/docs/CHANGELOG.md`](../Aigle/0.5/docs/CHANGELOG.md)
+
+---
+
 ## [Aigle 0.4] - 2026-08
 
 ### 🚀 Community Beta — LLM Interoperability & Persistent Memory
@@ -209,7 +237,7 @@ We welcome your feedback on this release! Please:
 
 1. **Report bugs**: [GitHub Issues](https://github.com/DHT-AI-Studio/RAPTOR/issues)
 2. **Request features**: [GitHub Issues](https://github.com/DHT-AI-Studio/RAPTOR/issues)
-3. **Contribute**: See [CONTRIBUTING.md](CONTRIBUTING.md)
+3. **Contribute**: See [CONTRIBUTING.md](../COMMUNITY_GUIDELINES/CONTRIBUTING.md)
 4. **Discuss**: Join our community channels
 
 ---

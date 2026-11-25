@@ -124,10 +124,10 @@ guardrails, and model lifecycle management.
 
 ```bash
 git clone https://github.com/DHT-AI-Studio/RAPTOR.git
-cd RAPTOR/Aigle/0.4
-# configure .env files from .env.example (see BUILD.md), then:
-bash deploy.sh -m 08 --build   # shared GPU base image
-bash deploy.sh                 # start all 27 modules
+cd RAPTOR/Aigle/0.5
+bash deploy.sh --init-env      # create .env files, fill placeholders interactively (see docs/BUILD.md §3)
+bash deploy.sh --build-only    # build every image first (incl. module 08's shared GPU base image)
+bash deploy.sh                 # start all modules in dependency order
 ```
 
 Developed by DHT Taiwan Team | Apache 2.0 License
@@ -205,9 +205,9 @@ Enable:
 
 3. **Aigle 0.3** — ✅ Released (June 2026, tag `v0.3`): 21-module deployment, hybrid search, GraphRAG, A2A agents, demo frontend
 
-4. **v0.4** (Aug 2026) — MCP integration, Memory Services, Personal Database Service (ArcadeDB)
+4. **Aigle 0.4** — ✅ Released (August 2026, tag `v0.4`): MCP integration, Memory Services, Personal Database Service (ArcadeDB)
 
-5. **v0.5** (Sep 2026) — gRPC API interface, content moderation, Guardrail Service, GDPR/CCPA, real-time audio
+5. **Aigle 0.5** — ✅ Released (November 2026, tag `v0.5`): gRPC gateway, real-time audio, GDPR/CCPA privacy compliance, inference service, ARM64/GB10 support
 
 6. **v1.0** (Q4 2026) — Production ready: Kubernetes, ELK Stack, 99.9% SLA
 
@@ -222,7 +222,7 @@ Add these secrets for CI/CD (if needed):
 
 ### Release Template
 
-Latest published release: **[v0.3 — RAPTOR Aigle 0.3 (Community Beta)](https://github.com/DHT-AI-Studio/RAPTOR/releases/tag/v0.3)**, generated from the `[Aigle 0.3]` section of `MAIN_DOCUMENTATION/CHANGELOG.md`.
+Latest published release: **[v0.5 — RAPTOR Aigle 0.5 (Community Beta)](https://github.com/DHT-AI-Studio/RAPTOR/releases/tag/v0.5)**. Earlier releases: [v0.4](https://github.com/DHT-AI-Studio/RAPTOR/releases/tag/v0.4), [v0.3](https://github.com/DHT-AI-Studio/RAPTOR/releases/tag/v0.3).
 
 When creating releases, use this template:
 
@@ -242,11 +242,11 @@ When creating releases, use this template:
 ---
 
 **Full changelog:** [MAIN_DOCUMENTATION/CHANGELOG.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/MAIN_DOCUMENTATION/CHANGELOG.md)
-**Build guide:** `Aigle/<version>/BUILD.md` (e.g. [Aigle/0.4/BUILD.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.4/BUILD.md))
-**API reference:** `Aigle/<version>/API_REFERENCE.md` (e.g. [Aigle/0.4/API_REFERENCE.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.4/API_REFERENCE.md))
+**Build guide:** `Aigle/<version>/docs/BUILD.md` (e.g. [Aigle/0.5/docs/BUILD.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.5/docs/BUILD.md))
+**API reference:** `Aigle/<version>/docs/API_REFERENCE.md` (e.g. [Aigle/0.5/docs/API_REFERENCE.md](https://github.com/DHT-AI-Studio/RAPTOR/blob/main/Aigle/0.5/docs/API_REFERENCE.md))
 ```
 
-Release checklist (see also `Aigle/<version>/BUILD.md` §9 Source Maintenance Process):
+Release checklist (see also `Aigle/<version>/docs/BUILD.md`, Source Maintenance Process):
 
 1. `.env.example` in sync with `.env` keys for every module; no secrets or internal IPs in the tree
 2. `MAIN_DOCUMENTATION/CHANGELOG.md` updated; README version badge, evaluation API, and Release Timeline updated
