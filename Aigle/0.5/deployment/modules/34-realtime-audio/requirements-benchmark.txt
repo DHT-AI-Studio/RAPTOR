@@ -1,0 +1,13 @@
+# Install inside the GPU image (raptor/realtime-audio): torch / transformers come from its
+# media-worker base (torch 2.7.1 cu126, transformers 4.51.3), so the benchmarks measure the stack
+# Module 34 runs -- not pinned here, where any other version would replace the image's on install.
+numpy>=1.24,<2
+scipy>=1.10
+soundfile>=0.12
+faster-whisper==1.1.0
+kokoro==0.9.4
+misaki[zh]==0.9.4
+jieba==0.42.1
+opencc-python-reimplemented==0.1.7
+httpx>=0.27
+websockets>=13

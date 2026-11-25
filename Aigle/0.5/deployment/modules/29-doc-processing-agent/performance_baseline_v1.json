@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-10-16T02:59:12.067388",
+  "fixture": "scope3_emissions.pdf",
+  "fixture_hash_sha256_prefix": "59ef779a9449b1c1",
+  "environment": {
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+    "python": "3.11.17 (main, Oct  1 2026, 20:17:42) [GCC 14.3.0]"
+  },
+  "concurrency": 10,
+  "task": "summarize",
+  "total_requests": 10,
+  "ok": 2,
+  "failed": 8,
+  "latency_p50_s": 30.014,
+  "latency_p95_s": 30.014,
+  "latency_max_s": 30.014,
+  "total_elapsed_s": 30.025,
+  "p95_pass": false
+}

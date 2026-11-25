@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
   </a>
   <a href="https://github.com/DHT-AI-Studio/RAPTOR/releases">
-    <img src="https://img.shields.io/badge/version-Aigle%200.4%20(Community%20Beta)-orange.svg" alt="Version">
+    <img src="https://img.shields.io/badge/version-Aigle%200.5%20(Community%20Beta)-orange.svg" alt="Version">
   </a>
   <img src="https://img.shields.io/badge/status-Beta-yellow.svg" alt="Status">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python">
@@ -42,22 +42,25 @@
 
 ## 🚀 Current Release
 
-**Aigle 0.4** - Community Beta (August 2026)
+**Aigle 0.5** - Community Beta (November 2026)
 
-This release continues the open-source RAPTOR framework, codenamed "Aigle". Release 0.4 grows the platform to **27 independently deployable Docker Compose modules** (three earlier modules — hybrid-search, graph-database, graph-service — are retired and kept only for rollback) driven by the same single build system (`Aigle/0.4/deployment/modules/build.py`), and delivers the v0.4 roadmap: MCP interfaces across core services, persistent multimodal memory, and a per-user isolated multi-model database that replaces the previous Qdrant/OpenSearch/Neo4j trio.
+This release continues the open-source RAPTOR framework, codenamed "Aigle". Release 0.5 grows the platform to **36 module IDs, 28 of them independently deployable** (three earlier modules — hybrid-search, graph-database, graph-service — stay retired and kept only for rollback; four more are empty placeholders reserved for future modules) driven by the same single build system (`Aigle/0.5/deployment/modules/build.py`), and delivers the v0.5 roadmap: a dedicated gRPC gateway, real-time audio chat, a cross-service GDPR/CCPA privacy-compliance service, and a split-out LLM inference service for text and voice.
 
 **Highlights:**
 
-- 🔌 **MCP Server** — Raptor's search, RAG, asset, and memory APIs exposed as Model Context Protocol tools/resources for LLM clients (module 27)
-- 🧠 **Memory Service** — persistent per-user/per-session memory (facts, preferences, conversation history, multimedia) backed by MemVID, layered underneath the existing Redis short-term chat cache (module 26)
-- 🗄️ **Personal DB Service** — one physically isolated ArcadeDB database per user, replacing the old per-user Qdrant + OpenSearch + Neo4j trio with unified hybrid BM25 + vector + graph + temporal-fact search (modules 24/25)
-- 🛡️ **Guardrail Service** — LLM input/output content moderation with pluggable guard models (Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard) and a policy engine; ships disabled by default (module 23)
-- 📊 **Benchmark Service** — user-defined scoring schemas (keyword match, LLM-as-judge, cosine similarity) to regression-test chat/RAG/search/classification pipelines (module 22)
-- 🎬 **Video Search 2.0, GraphRAG, A2A, branch isolation** — carried over from Aigle 0.3 (see [Features](#-features) below)
+- 🔊 **Real-time Audio** — WebSocket/gRPC voice chat with streaming VAD, speech-to-text, and text-to-speech, ticket-based auth, barge-in, and session resume (module 34)
+- 🌐 **gRPC Gateway** — a strictly versioned protobuf API alongside the existing REST gateway, covering search, asset transfer, and job tracking with streaming support (module 36)
+- 🔒 **Privacy Compliance Service** — cross-service GDPR/CCPA erasure, export, DSAR, consent, retention, and legal-hold workflows (module 33)
+- 🤖 **LLM Inference Service** — text (translate/summarize/complete/transform) and voice (diarize/STT/TTS/clone) APIs split out on top of Module 07 (module 35)
+- 📄 **Document Processing Agent** — now independently deployable (classify/extract/summarize/compare/qa/parse_table/search) (module 29)
+- 💻 **ARM64/GB10 support** — every currently-deployable module except the training service now builds and runs on both amd64 and arm64, confirmed on real GB10/GX10 hardware
+- 🔌 **MCP Server, Memory Service, Personal DB, Guardrail, Benchmark** — carried over from Aigle 0.4 (see [Features](#-features) below)
 
-See [`Aigle/0.4/README.md`](Aigle/0.4/README.md) for the module reference, [`Aigle/0.4/BUILD.md`](Aigle/0.4/BUILD.md) for the build guide, [`Aigle/0.4/API_REFERENCE.md`](Aigle/0.4/API_REFERENCE.md) for the API reference, and [`Aigle/0.4/MCP_REFERENCE.md`](Aigle/0.4/MCP_REFERENCE.md) for the new MCP reference.
+Known limitations for this release (incomplete guardrail coverage across entry points, a few permanently-unimplemented gRPC RPCs, the training service's amd64-only build, and others) are tracked in [`Aigle/0.5/docs/CHANGELOG.md`](Aigle/0.5/docs/CHANGELOG.md).
 
-### 🧪 Evaluation and Testing API (Aigle 0.4)
+See [`Aigle/0.5/README.md`](Aigle/0.5/README.md) for the module reference, [`Aigle/0.5/docs/BUILD.md`](Aigle/0.5/docs/BUILD.md) for the build guide, [`Aigle/0.5/docs/API_REFERENCE.md`](Aigle/0.5/docs/API_REFERENCE.md) for the API reference, and [`Aigle/0.5/docs/MCP_REFERENCE.md`](Aigle/0.5/docs/MCP_REFERENCE.md) for the MCP reference.
+
+### 🧪 Evaluation and Testing API (Aigle 0.5)
 
 To help developers get started with the RAPTOR framework quickly and easily, we've deployed a **test run API** on DHT's development infrastructure. This evaluation API allows developers to:
 
@@ -69,9 +72,9 @@ To help developers get started with the RAPTOR framework quickly and easily, we'
 This is an excellent way to explore RAPTOR's features, build proof-of-concepts, and validate your use cases before deploying your own infrastructure.
 
 **🔗 Access the Evaluation API:**  
-[http://raptor_open_0_4_api.dhtsolution.com:8012/](http://raptor_open_0_4_api.dhtsolution.com:8012/)
+[http://raptor_open_0_5_api.dhtsolution.com:8012/](http://raptor_open_0_5_api.dhtsolution.com:8012/)
 
-For detailed API documentation, usage examples, and access instructions, see [`Aigle/0.4/API_REFERENCE.md`](Aigle/0.4/API_REFERENCE.md) or visit the link above.
+For detailed API documentation, usage examples, and access instructions, see [`Aigle/0.5/docs/API_REFERENCE.md`](Aigle/0.5/docs/API_REFERENCE.md) or visit the link above.
 
 > **Note:** This is a development environment intended for evaluation and testing purposes. For production deployments, please refer to the [Installation](#-installation) and [Development](#development) sections below.
 
@@ -110,14 +113,23 @@ For detailed API documentation, usage examples, and access instructions, see [`A
 
 ## ✨ Features
 
-### Version Aigle 0.4
+### Version Aigle 0.5
 
 New in this release:
+
+- **Real-time Audio**: WebSocket and gRPC voice chat — streaming VAD, speech-to-text, text-to-speech, ticket-based auth, barge-in, and disconnect/resume (module 34)
+- **gRPC Gateway**: a strictly versioned protobuf API for search, asset transfer, and job tracking alongside the existing REST gateway, with streaming support; a few RPCs are permanently unimplemented this release — see [`Aigle/0.5/docs/CHANGELOG.md`](Aigle/0.5/docs/CHANGELOG.md) (module 36)
+- **Privacy Compliance Service**: cross-service GDPR/CCPA erasure, export, DSAR, consent management, retention policy, and legal-hold workflows (module 33)
+- **LLM Inference Service**: text (translate/summarize/complete/transform) and voice (diarize/STT/TTS/clone) task APIs, split out on top of Module 07's model registry and runtime (module 35)
+- **Document Processing Agent**: now independently deployable — classify/extract/summarize/compare/qa/parse_table/search over documents (module 29)
+- **ARM64/GB10 support**: every currently-deployable module except the training service builds and runs on both amd64 and arm64, confirmed on real GB10/GX10 hardware
+- **Guardrail coverage, mostly extended**: Module 23's moderation auto-flagging and the A2A host orchestrator's guardrail pre-check both shipped this release; MCP tool-call input screening and the gRPC unary interceptor are still in progress — full status in [`Aigle/0.5/docs/CHANGELOG.md`](Aigle/0.5/docs/CHANGELOG.md)
+
+Carried over from Aigle 0.4:
 
 - **MCP Interfaces**: Model Context Protocol tools/resources over search, RAG, asset, and memory APIs, plus MCP Prompts (module 27)
 - **Memory Service**: persistent per-user/per-session facts, preferences, conversation history, and multimedia memory on MemVID, with hybrid semantic + BM25 retrieval, layered under the existing Redis short-term chat cache (module 26)
 - **Personal DB Service**: one physically isolated ArcadeDB database per user — unified vector, BM25, and graph storage replacing the old per-user Qdrant + OpenSearch + Neo4j trio (modules 24/25)
-- **Guardrail Service**: LLM input/output safety checks (Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard) with a policy engine and violation audit logging; ships disabled by default (module 23)
 - **Benchmark Service**: schema-driven scoring (keyword match, exact/regex match, cosine similarity, LLM-as-judge) with run history and pairwise comparison (module 22)
 
 Carried over from Aigle 0.3:
@@ -160,7 +172,7 @@ For detailed release notes, see [CHANGELOG.md](CHANGELOG.md).
 
 ## 📦 Installation
 
-**Prerequisites** (full details, host sizing, and port matrix: [`Aigle/0.4/BUILD.md`](Aigle/0.4/BUILD.md) §1):
+**Prerequisites** (full details, host sizing, and port matrix: [`Aigle/0.5/docs/BUILD.md`](Aigle/0.5/docs/BUILD.md) §1):
 
 - **Software**: Docker Engine 24.0+, Docker Compose v2.20+, Python 3.10+, NVIDIA Container Toolkit on GPU hosts
 - **GPU**: NVIDIA driver supporting CUDA 12.8+ (media stack targets sm_120 / Blackwell); 24 GB+ VRAM, 36 GB+ recommended for video processing (InternVL)
@@ -171,32 +183,75 @@ For detailed release notes, see [CHANGELOG.md](CHANGELOG.md).
 ```bash
 # Clone the repository
 git clone https://github.com/DHT-AI-Studio/RAPTOR.git
-cd RAPTOR/Aigle/0.4
-
-# Configure: copy the templates and fill in hosts, credentials, and model names
-cd deployment/modules
-cp .env.example .env
-for m in */; do [ -f "$m/.env.example" ] && cp "$m/.env.example" "$m/.env"; done
-cd ../..
+cd RAPTOR/Aigle/0.5
 ```
 
-See [`Aigle/0.4/BUILD.md`](Aigle/0.4/BUILD.md) for the full configuration reference.
+`deploy.sh` at this directory's root is a thin wrapper around `deployment/modules/build.py` — every flag is identical.
+
+**Before the first run:**
+
+1. **Create the `.env` files:**
+   ```bash
+   bash deploy.sh --init-env     # create every missing .env, fill root's placeholders interactively
+   bash deploy.sh --check-env    # verify: catches any <placeholder> still left unfilled
+   bash deploy.sh --check-ports  # verify: catches host-port conflicts ahead of time
+   ```
+   `--init-env` creates every missing `.env` (root + each module) and interactively fills the
+   root `.env`'s unfilled `<placeholder>` values (auto-generated secrets, this host's detected
+   IP, suggested paths, `[Enter]` to accept each). A few genuinely-your-own-info fields
+   (`HF_TOKEN`, `DOCKER_NETWORK`, …) still need typing in by hand. See
+   [`docs/BUILD.md` §3](Aigle/0.5/docs/BUILD.md#3-configuration-env) for exactly what it does, the
+   manual equivalent, and which values need editing in the root `.env` vs. a module's own local
+   `.env`. `--check-env` matters because a genuinely missing required value fails loudly on its
+   own, but a placeholder-shaped one just starts the service with a broken credential and fails
+   somewhere unrelated.
+2. **Build everything first** — recommended, especially for the first run on a new host:
+   ```bash
+   bash deploy.sh --build-only   # build every module's image, start nothing
+   ```
+   This confirms every image builds successfully — including module 08's shared GPU base image
+   (used by modules 09–12) — before anything actually starts.
+
+See [`Aigle/0.5/docs/BUILD.md`](Aigle/0.5/docs/BUILD.md) for the full configuration reference.
 
 ## Development
 
 ```bash
-cd Aigle/0.4
+cd Aigle/0.5
 
-# Build the shared GPU base image first (used by modules 09-12)
-bash deploy.sh -m 08 --build
+# Setup (first run only)
+bash deploy.sh --init-env             # create .env files, fill root's placeholders interactively
 
-# Start all modules in dependency order (or --cpu-only to skip GPU modules)
-bash deploy.sh
+# Start modules
+bash deploy.sh                        # start all modules in dependency order
+bash deploy.sh -m 05                  # start a single module
+bash deploy.sh -m 02,03,04            # start specific modules (comma-separated)
+bash deploy.sh --cpu-only             # skip all GPU modules
+bash deploy.sh -e 11                  # start all except module 11
 
-# Inspect
-bash deploy.sh --status              # running / stopped status per module
-bash deploy.sh -m <id> --logs        # follow a module's logs
+# Lifecycle
+bash deploy.sh -m 05 --stop           # stop a module (keep volumes)
+bash deploy.sh -m 05 --delete         # stop + remove volumes
+bash deploy.sh -m 05 --restart        # stop then start
+
+# Build
+bash deploy.sh -m 08 --build          # rebuild the shared GPU base image (used by modules 09-12), then start
+bash deploy.sh -m 18 --build-only     # rebuild the image only, don't start the container
+
+# Validation
+bash deploy.sh --check-ports          # detect host-port conflicts + verify container-port comments
+bash deploy.sh --check-env            # find unfilled <placeholder> values in the env file
+
+# Info
+bash deploy.sh --list                 # list all modules
+bash deploy.sh --status               # show running / stopped status
+bash deploy.sh -m 18 --logs           # follow docker compose logs
+
+# Logging
+bash deploy.sh -l build.log           # save output to file
 ```
+
+See [`Aigle/0.5/deployment/README.md`](Aigle/0.5/deployment/README.md) for the full dependency graph and module reference.
 
 ## Quick Start
 
@@ -209,7 +264,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 2. Log in through SSO to obtain a token (users/groups are managed by the authentication module, Keycloak-backed):
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.4/sso/login" \
+   curl -X POST "http://<host_ip>:8012/api/0.5/sso/login" \
      -H "Content-Type: application/json" \
      -d '{"username": "<user>", "password": "<password>"}'
    ```
@@ -217,7 +272,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 3. Upload a media file for automatic AI processing (transcription, OCR, frame description, summary, embeddings, knowledge graph):
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.4/asset/fileupload_analysis" \
+   curl -X POST "http://<host_ip>:8012/api/0.5/asset/fileupload_analysis" \
      -H "Authorization: Bearer <token>" \
      -F "file=@/path/to/video.mp4"
    ```
@@ -225,7 +280,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 4. Search — video-centric, multi-recall (BM25 + Vector + GraphRAG + TKG) with cross-encoder re-ranking:
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.4/search/video_search" \
+   curl -X POST "http://<host_ip>:8012/api/0.5/search/video_search" \
      -H "Authorization: Bearer <token>" \
      -H "Content-Type: application/json" \
      -d '{"query": "OpenAI announcement", "top_k": 5}'
@@ -234,7 +289,7 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 5. Ask questions over your content with RAG chat:
 
    ```bash
-   curl -X POST "http://<host_ip>:8012/api/0.4/chat/chat" \
+   curl -X POST "http://<host_ip>:8012/api/0.5/chat/chat" \
      -H "Authorization: Bearer <token>" \
      -H "Content-Type: application/json" \
      -d '{"message": "Summarize the uploaded video"}'
@@ -243,22 +298,22 @@ bash deploy.sh -m <id> --logs        # follow a module's logs
 Or use the **demo frontend** instead of raw APIs:
 
 ```bash
-cd Aigle/0.4/raptor-demo-frontend
+cd Aigle/0.5/raptor-demo-frontend
 cp .env.example .env        # set API_TARGET / DEMO_PORT
 docker compose up -d --build
 ```
 
-For the complete endpoint list, request/response schemas, and Python client examples, see [`Aigle/0.4/API_REFERENCE.md`](Aigle/0.4/API_REFERENCE.md) and [`Aigle/0.4/raptor_client.py`](Aigle/0.4/raptor_client.py).
+For the complete endpoint list, request/response schemas, and Python client examples, see [`Aigle/0.5/docs/API_REFERENCE.md`](Aigle/0.5/docs/API_REFERENCE.md) and [`Aigle/0.5/raptor_client.py`](Aigle/0.5/raptor_client.py).
 
 ## 📚 Documentation
 
 ### Available Documentation
 
-- 🧩 **[Module Reference (0.4)](Aigle/0.4/README.md)** - 27-module architecture, deprecated/in-development modules, service ports
-- 🛠️ **[Setup, Build & Configuration Guide (0.4)](Aigle/0.4/BUILD.md)** - Prerequisites, .env configuration, single/multi-host deployment, source maintenance
-- 📝 **[API Reference (0.4)](Aigle/0.4/API_REFERENCE.md)** - Complete endpoint documentation with examples
-- 🔌 **[MCP Reference (0.4)](Aigle/0.4/MCP_REFERENCE.md)** - Model Context Protocol tool catalog and client-authentication guide
-- 🤝 **[A2A Reference (0.4)](Aigle/0.4/A2A_REFERENCE.md)** - Agent-to-Agent protocol guide: orchestrator JSON-RPC, five spec-compliant specialist sub-agents, peer registration
+- 🧩 **[Module Reference (0.5)](Aigle/0.5/README.md)** - 36-module-ID architecture, deprecated/placeholder modules, service ports
+- 🛠️ **[Setup, Build & Configuration Guide (0.5)](Aigle/0.5/docs/BUILD.md)** - Prerequisites, .env configuration, single/multi-host deployment, source maintenance
+- 📝 **[API Reference (0.5)](Aigle/0.5/docs/API_REFERENCE.md)** - Complete endpoint documentation with examples, including the A2A `/a2a/query` RAG endpoint
+- 🔌 **[MCP Reference (0.5)](Aigle/0.5/docs/MCP_REFERENCE.md)** - Model Context Protocol tool catalog and client-authentication guide
+- 📋 **[Known Limitations (0.5)](Aigle/0.5/docs/CHANGELOG.md)** - Accepted gaps and incomplete coverage for this release
 - 🚀 **[Quick Start Guide](#quick-start)** - Get started in minutes
 - 📖 **[System Design & Architecture](Aigle/0.1/CIE_System_Design_and_Architecture_1.8.pdf)** - High-level system design
 - 🔧 **[Technical Implementation Guide](Aigle/0.1/doc/CIE_System_Technical_Implementation_1.2.pdf)** - Detailed implementation
@@ -512,12 +567,13 @@ The following features are planned for upcoming releases to transform RAPTOR int
 - Create timeline-based navigation interface
 - *Note: Docker Compose deployment won't scale to production needs*
 
-### **2. Content Moderation & Compliance (v0.5)**
+### **2. Content Moderation & Compliance (v0.5 — ✅ mostly delivered)**
 
-- Train content moderation models (NSFW, violence, hate speech)
-- Implement automated flagging system
-- Build GDPR/CCPA compliance workflows
-- Create comprehensive audit reporting
+- Content moderation models (Llama Guard 3 / Granite Guardian / GPT-OSS-Safeguard) — delivered in v0.4
+- Automated flagging system — delivered (module 23's moderation-flag workflow)
+- GDPR/CCPA compliance workflows — delivered (module 33: erasure, export, DSAR, consent, retention, legal hold)
+- Comprehensive audit reporting — delivered (module 23's violation audit log, module 33's audit log)
+- *Guardrail policy enforcement coverage across every entry point (MCP tool calls, the gRPC interceptor) is still incomplete this release — see [`Aigle/0.5/docs/CHANGELOG.md`](Aigle/0.5/docs/CHANGELOG.md)*
 
 ### **3. Graph database & GraphRAG (v0.3 — ✅ delivered)**
 
@@ -571,9 +627,9 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - Unified native SQL efficiently combines vector similarity, BM25 text, and complex graph traversals
 - The platform natively supports comprehensive temporal knowledge graphs and advanced GraphRAG query execution
 
-### **11. Real-time audio processing (v0.5)**
+### **11. Real-time audio processing (v0.5 — ✅ delivered)**
 
-- Low-latency audio ingestion, analysis, and pipeline integration
+- Low-latency WebSocket and gRPC voice chat: streaming VAD, speech-to-text, text-to-speech, barge-in, and disconnect/resume (module 34)
 
 ### **12. Guardrail Service (v0.4 — ✅ delivered)**
 
@@ -583,14 +639,13 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 - Redis-backed toggles let administrators enable/disable the whole system, or individual policies, without redeployment
 - **Disabled by default**: today's production traffic (Modules 07/13) only exercises the policy-free guard-model check — no policy has been activated yet
 
-### **13. gRPC API Interface (v0.5)**
+### **13. gRPC API Interface (v0.5 — ✅ delivered)**
 
-- New gRPC interface optimizing backend communication and media streaming operations
-- A strictly versioned protobuf contract natively handles search, asset transfers, job tracking, and analysis
-- StreamVideoSegment dynamically transcodes media into fragmented MP4 formats for immediate client playback capabilities
-- The abstract client transparently switches between traditional REST and new gRPC transports using configurations
-- Browser clients receive seamless WebSocket job progress updates relayed directly from backend gRPC streams
-- Advanced gRPC interceptors enforce authentication, propagate backpressure, and guarantee constant memory during large transfers
+- New gRPC gateway (module 36) optimizing backend communication and media streaming operations
+- A strictly versioned protobuf contract handles search, asset transfer, and job tracking
+- `StreamVideoSegment` transcodes or range-streams media for immediate client playback (its `video_id` source is permanently unimplemented this release)
+- gRPC interceptors enforce authentication, authorization, and a per-user stream limit, and guarantee constant memory during large transfers
+- A handful of RPCs (`GetAsset`, `Chat`, `GetJobStatus`, `StreamVideo`) are permanently `UNIMPLEMENTED` this release, each with a current replacement — see [`Aigle/0.5/docs/CHANGELOG.md`](Aigle/0.5/docs/CHANGELOG.md) for the full list
 
 ### **14. Kubernetes Production Deployment (v1.0)**
 
@@ -614,11 +669,11 @@ Implement **Model Context Protocol (MCP)** interfaces for core services:
 | ---------- | --------- | --------------------------- | --------------------------------------------------------------------------------------- |
 | **v0.3**   | June 2026 ✅ | AI enhancement & retrieval  | Advanced video, Graph DB & GraphRAG, Agents/JSON-RPC, temporal KG, BM25, contextual embeddings — **Delivered** |
 | **v0.4**   | Aug 2026 ✅ | LLM interoperability & memory | MCP integration across core services, persistent session-based multimodal memory, per-user isolated multi-model databases with hybrid/graph/temporal search, Guardrail content moderation, Benchmark scoring service — **Delivered** |
-| **v0.5**   | Sep 2026  | Interfaces, media & compliance | gRPC API interface, content moderation, Guardrail services integration, GDPR/CCPA, real-time audio processing |
+| **v0.5**   | Nov 2026 ✅ | Interfaces, media & compliance | gRPC gateway, real-time audio processing, GDPR/CCPA privacy compliance, split-out LLM inference service, ARM64/GB10 support — **Delivered** |
 | **v1.0**   | Q4 2026   | Production ready            | Kubernetes, ELK Stack, 99.9% SLA                                                       |
 
-**Current Status**: Aigle 0.4 (Community Beta) - August 2026 ✅  
-**Next Milestone**: v0.5 (Sep 2026)  
+**Current Status**: Aigle 0.5 (Community Beta) - November 2026 ✅  
+**Next Milestone**: v1.0 (Q4 2026)  
 **Production Target**: v1.0 in Q4 2026
 
 ---

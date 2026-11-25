@@ -1,0 +1,131 @@
+{
+  "title": "Module 35 — Inference Service",
+  "uid": "raptor-35-inference",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate per Task (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(inf_request_duration_seconds_count{job=\"raptor-inference-service\"}[1m])) by (task)",
+          "legendFormat": "{{task}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Latency p50 / p95 / p99 per Task",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(inf_request_duration_seconds_bucket{job=\"raptor-inference-service\"}[5m])) by (le, task))",
+          "legendFormat": "p50 {{task}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(inf_request_duration_seconds_bucket{job=\"raptor-inference-service\"}[5m])) by (le, task))",
+          "legendFormat": "p95 {{task}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(inf_request_duration_seconds_bucket{job=\"raptor-inference-service\"}[5m])) by (le, task))",
+          "legendFormat": "p99 {{task}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Error Rate per Task (%)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(inf_request_errors_total{job=\"raptor-inference-service\"}[5m])) by (task) / sum(rate(inf_request_duration_seconds_count{job=\"raptor-inference-service\"}[5m])) by (task)",
+          "legendFormat": "{{task}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "GPU Memory Used",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "inf_gpu_memory_used_bytes{job=\"raptor-inference-service\"}",
+          "legendFormat": "GPU memory"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 10737418240 },
+              { "color": "red",    "value": 12884901888 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Active Voice GPU Tasks",
+      "type": "gauge",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "inf_voice_gpu_active_tasks{job=\"raptor-inference-service\"}",
+          "legendFormat": "active voice tasks"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red",    "value": 2 }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# RA-4 Kokoro backend (app/tts_backends/kokoro.py). Installed in the image only: the unit tests use
+# a fake backend. torch / transformers / numpy come from the media-worker base image and fit as is
+# (checked with torch 2.7.1, transformers 4.51.3, numpy 1.26). espeak-ng (apt) is misaki's English
+# fallback for words outside its lexicon.
+kokoro==0.9.4
+misaki[zh,en]==0.9.4
+# misaki's English G2P needs spaCy's small English model; installed here so nothing downloads at runtime.
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl

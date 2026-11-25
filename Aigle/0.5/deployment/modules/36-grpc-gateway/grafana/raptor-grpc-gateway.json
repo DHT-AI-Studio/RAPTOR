@@ -1,0 +1,361 @@
+{
+  "title": "Raptor gRPC Gateway",
+  "uid": "raptor-grpc-gateway",
+  "tags": [
+    "raptor",
+    "grpc",
+    "module-36"
+  ],
+  "description": "RaptorService (module 36, :8825): streams, throughput, latency, cancellations and stream-cap refusals. Metrics come from :9825/metrics (interceptors/metrics.py).",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "name": "method",
+        "label": "RPC method",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus"
+        },
+        "query": {
+          "query": "label_values(grpc_server_requests_total, grpc_method)",
+          "refId": "method"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active streams (all RPCs)",
+      "description": "Streaming calls in flight right now (client-, server- and bidirectional-streaming).",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(grpc_server_active_streams{grpc_method=~\"$method\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Requests per second",
+      "description": "Completed calls per second, all RPCs, 5 m rate.",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(grpc_server_requests_total{grpc_method=~\"$method\"}[5m]))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Cancellation ratio",
+      "description": "Share of calls that ended because the client cancelled (5 m). A client that seeks in a video player cancels on purpose; a sudden rise is worth a look.",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(grpc_server_stream_cancellations_total{grpc_method=~\"$method\"}[5m])) / clamp_min(sum(rate(grpc_server_requests_total{grpc_method=~\"$method\"}[5m])), 1e-9)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 4,
+      "title": "RESOURCE_EXHAUSTED per second",
+      "description": "Calls refused because the caller already holds the maximum number of concurrent streams (GRPC_GATEWAY_MAX_STREAMS_PER_USER, default 4).",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(grpc_server_requests_total{grpc_method=~\"$method\",grpc_code=\"RESOURCE_EXHAUSTED\"}[5m]))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Active streams per RPC",
+      "description": "In-flight streaming calls by RPC method. A line that never returns to 0 while traffic is idle means a stream slot is stuck.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (grpc_method) (grpc_server_active_streams{grpc_method=~\"$method\"})",
+          "legendFormat": "{{grpc_method}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Chunk throughput",
+      "description": "Bytes per second moved on streaming RPCs. sent = gateway to client (downloads, video, search streams), received = client to gateway (uploads, analyze).",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (grpc_method, direction) (rate(grpc_server_stream_bytes_total{grpc_method=~\"$method\"}[1m]))",
+          "legendFormat": "{{grpc_method}} {{direction}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "RPC latency p50 / p95 / p99",
+      "description": "Whole-call duration per method, so a long download or upload counts in full: expect streaming RPCs in seconds to minutes and unary RPCs in milliseconds. Buckets run from 5 ms to 1 h; a call longer than 1 h is reported as 1 h.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, grpc_method) (rate(grpc_server_handling_seconds_bucket{grpc_method=~\"$method\"}[5m])))",
+          "legendFormat": "p50 {{grpc_method}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, grpc_method) (rate(grpc_server_handling_seconds_bucket{grpc_method=~\"$method\"}[5m])))",
+          "legendFormat": "p95 {{grpc_method}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, grpc_method) (rate(grpc_server_handling_seconds_bucket{grpc_method=~\"$method\"}[5m])))",
+          "legendFormat": "p99 {{grpc_method}}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Calls per second by status code",
+      "description": "All RPCs, stacked by gRPC status. OK and CANCELLED are normal; anything else is an error returned to a client.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (grpc_code) (rate(grpc_server_requests_total{grpc_method=~\"$method\"}[5m]))",
+          "legendFormat": "{{grpc_code}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "Cancellation rate per RPC",
+      "description": "Streaming calls ended by a client cancel, per second (left) and as a share of that RPC's calls.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (grpc_method) (rate(grpc_server_stream_cancellations_total{grpc_method=~\"$method\"}[5m]))",
+          "legendFormat": "{{grpc_method}} per second",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (grpc_method) (rate(grpc_server_stream_cancellations_total{grpc_method=~\"$method\"}[5m])) / clamp_min(sum by (grpc_method) (rate(grpc_server_requests_total{grpc_method=~\"$method\"}[5m])), 1e-9)",
+          "legendFormat": "{{grpc_method}} share",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "RESOURCE_EXHAUSTED rate per RPC",
+      "description": "Refused because of the per-user concurrent-stream cap, per second (and as a share of that RPC's calls).",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (grpc_method) (rate(grpc_server_requests_total{grpc_method=~\"$method\",grpc_code=\"RESOURCE_EXHAUSTED\"}[5m]))",
+          "legendFormat": "{{grpc_method}} per second",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (grpc_method) (rate(grpc_server_requests_total{grpc_method=~\"$method\",grpc_code=\"RESOURCE_EXHAUSTED\"}[5m])) / clamp_min(sum by (grpc_method) (rate(grpc_server_requests_total{grpc_method=~\"$method\"}[5m])), 1e-9)",
+          "legendFormat": "{{grpc_method}} share",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

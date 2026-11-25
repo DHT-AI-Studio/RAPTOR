@@ -1,0 +1,71 @@
+# Envoy terminating TLS in front of grpc-gateway: clients speak TLS (HTTP/2, ALPN h2) to Envoy, Envoy
+# speaks plaintext HTTP/2 to the gateway on the private network. Same gRPC settings as envoy.yaml.
+#
+# Certificates: proxy-test/make_certs.sh makes throwaway ones; mount them at /certs.
+static_resources:
+  listeners:
+    - name: grpc_tls_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8829
+      filter_chains:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              common_tls_context:
+                # h2 in ALPN is how a gRPC client and Envoy agree on HTTP/2 over TLS.
+                alpn_protocols: ["h2"]
+                tls_params:
+                  tls_minimum_protocol_version: TLSv1_2
+                tls_certificates:
+                  - certificate_chain: {filename: /certs/server.pem}
+                    private_key: {filename: /certs/server.key}
+          filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: grpc_gateway_tls_ingress
+                codec_type: AUTO
+                http2_protocol_options: {}
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: grpc_gateway
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: grpc_gateway_cluster
+                            timeout: 3600s
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+    - name: grpc_gateway_cluster
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: grpc_gateway_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: grpc-gateway
+                      port_value: 8825
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9902

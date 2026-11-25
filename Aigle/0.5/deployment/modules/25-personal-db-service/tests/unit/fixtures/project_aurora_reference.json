@@ -1,0 +1,17 @@
+{
+  "name": "Project Aurora",
+  "topics": ["aurora", "project aurora", "launch"],
+  "headline": "aurora timeline 2019-2020",
+  "demo_queries": ["aurora timeline 2019-2020", "what happened during the pilot", "phases after Design", "what was active on 2019-07-01"],
+  "entities": [
+    {"id": "design", "name": "Design", "type": "program", "family": "Phases", "start": "2019-01-07", "end": "2019-03-04"},
+    {"id": "build", "name": "Build", "type": "program", "family": "Phases", "start": "2019-03-04", "end": "2019-09-30"},
+    {"id": "pilot", "name": "Pilot", "type": "program", "family": "Phases", "start": "2019-06-01", "end": "2019-09-30", "aliases": ["the pilot"]},
+    {"id": "ga", "name": "General availability", "type": "program", "family": "Phases", "start": "2020-01-15", "end": "2020-12-31"},
+    {"id": "kickoff", "name": "Kickoff meeting", "type": "event", "family": "Milestones", "start": "2019-03-04"},
+    {"id": "review", "name": "Security review", "type": "event", "family": "Milestones", "start": "2019-08-20"},
+    {"id": "launch", "name": "Launch announcement", "type": "event", "family": "Milestones", "start": "2020-01-15"}
+  ],
+  "edges": [["design", "precedes", "build"], ["build", "precedes", "ga"], ["pilot", "part_of", "build"],
+            ["kickoff", "starts", "build"], ["review", "part_of", "pilot"], ["launch", "starts", "ga"]]
+}

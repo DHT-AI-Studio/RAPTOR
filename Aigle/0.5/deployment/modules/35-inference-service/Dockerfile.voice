@@ -1,0 +1,119 @@
+# syntax=docker/dockerfile:1
+# Explicit optional GPU image; the default Dockerfile remains a CPU text service.
+ARG BASE_IMAGE=raptor/media-worker:0.5
+FROM ${BASE_IMAGE}
+
+# Set by buildx/BuildKit to the native arch being built for (amd64/arm64) -- used below to
+# keep requirements-voice.txt's torch/torchaudio re-pin in sync with whichever version
+# module 08's base image actually installed for this arch.
+ARG TARGETARCH
+
+# Which clone backends' weights/deps get baked into this image -- comma list,
+# subset of: xtts-v2, chatterbox-multilingual-v3. Independent of the runtime
+# CLONE_BACKENDS env var (deployment/modules/.env.example): CLONE_BACKENDS at
+# runtime must be a subset of whatever this baked in at build time.
+ARG CLONE_BACKENDS_BUILD=xtts-v2
+
+WORKDIR /app
+COPY requirements*.txt ./
+# requirements-voice.txt pins torch/torchaudio==2.7.1 to "preserve module 08's SM_120-enabled
+# CUDA wheels" against pyannote.audio/whisperx's own transitive version constraints -- but
+# that hardcoded pin only matches what 08 installs on amd64. On arm64, 08 installs a
+# *different* version (torch==2.14.1/torchaudio==2.11.1 -- cu128, which 2.7.1 would pull on
+# arm64, has no kernels for GX10's GB10 GPU, same issue already fixed on 23-guardrail-service
+# and 34-realtime-audio/breeze). Left as-is, this line would silently downgrade/reinstall
+# torch to the amd64 version on arm64 too, undoing 08's arm64 fix. Re-pin per arch instead of
+# hardcoding one value, so this stays correct for both. transformers is re-pinned here too --
+# whichever clone backend(s) are enabled below need a specific floor on arm64 (see each
+# backend's own install step), and re-pinning once here keeps both steps consistent.
+RUN set -eux; \
+    grep -v -E '^torch==|^torchaudio==|^transformers==' requirements-voice.txt > requirements-voice.pinned.txt; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      printf 'torch==2.14.1\ntorchaudio==2.11.1\ntransformers==4.57.6\n' >> requirements-voice.pinned.txt; \
+    else \
+      printf 'torch==2.7.1\ntorchaudio==2.7.1\ntransformers==4.55.4\n' >> requirements-voice.pinned.txt; \
+    fi; \
+    pip install --no-cache-dir -r requirements-voice.pinned.txt
+
+# XTTS-v2 backend (requirements-xtts.txt). Delete this whole RUN step (plus
+# requirements-xtts.txt and app/services/voice/backends/xtts.py) to drop it.
+#
+# requirements-xtts.txt's coqui-tts==0.27.2 pin hardcodes "torch<2.9,>=2.1" as its own PyPI
+# dependency -- a real conflict with arm64's torch==2.14.1 above (confirmed via its wheel
+# metadata), not fixable by just re-pinning torch. coqui-tts==0.27.3 dropped that upper bound
+# (torch>=2.2, no ceiling) and is the last version before the next patch (0.27.4+/0.28.0)
+# started hard-importing torchcodec for audio IO at module load time -- torchcodec ships no
+# linux_aarch64 wheel on PyPI at all (confirmed: only linux_x86_64 and macOS arm64), so any
+# coqui-tts >=0.27.4 fails outright on GX10 with ImportError. 0.27.3's only torchcodec
+# reference is a lazy, try/except-guarded import inside its *training*-dataset loader
+# (TTS/tts/datasets/dataset.py), never touched by this service's inference-only XTTS usage.
+# Scoped to arm64 only; amd64 keeps the exact same version as before.
+RUN set -eux; \
+    case ",$CLONE_BACKENDS_BUILD," in \
+      *,xtts-v2,*) \
+        grep -v -E '^coqui-tts\[' requirements-xtts.txt > requirements-xtts.pinned.txt; \
+        if [ "$TARGETARCH" = "arm64" ]; then \
+          printf 'coqui-tts[languages]==0.27.3\n' >> requirements-xtts.pinned.txt; \
+        else \
+          printf 'coqui-tts[languages]==0.27.2\n' >> requirements-xtts.pinned.txt; \
+        fi; \
+        pip install --no-cache-dir -r requirements-xtts.pinned.txt \
+      ;; \
+    esac
+
+# Chatterbox Multilingual V3 backend (requirements-chatterbox.txt). Delete this
+# whole RUN step (plus requirements-chatterbox.txt and
+# app/services/voice/backends/chatterbox.py) to drop it.
+#
+# None of requirements-chatterbox.txt's deps have a torchcodec-style "zero
+# linux_aarch64 wheel" problem (checked directly against PyPI JSON metadata,
+# not assumed): every one is either pure-Python (any arch) or ships a real
+# manylinux*_aarch64 wheel for cp312 (safetensors, spacy-pkuseg specifically
+# confirmed). chatterbox-tts itself is NOT in that requirements file -- its
+# PyPI release (0.1.7) pins torch==2.6.0/torchaudio==2.6.0/transformers==5.2.0,
+# more conservative than this image needs, and `pip install -r` would let its
+# resolver downgrade what's already resolved above. --no-deps as its own step
+# keeps it from touching anything already resolved. Only GitHub's unreleased
+# master (not 0.1.7) exposes a t3_model= argument, needed to select the V3
+# checkpoint -- re-pin this commit deliberately when a tagged release has it.
+RUN set -eux; \
+    case ",$CLONE_BACKENDS_BUILD," in \
+      *,chatterbox-multilingual-v3,*) \
+        pip install --no-cache-dir -r requirements-chatterbox.txt && \
+        pip install --no-cache-dir --no-deps \
+          "git+https://github.com/resemble-ai/chatterbox.git@5de7a54aa4e5e2baadb0182dde554908b48b85c2" \
+      ;; \
+    esac
+
+COPY scripts/prefetch_voice.py /app/scripts/prefetch_voice.py
+ENV TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
+# Empty (default): download at build time, via the hf_token secret below.
+# Set (an offline NAS bundle path, mounted onto /opt/voice-models at runtime
+# by docker-compose.yml): build downloads nothing -- one variable decides both.
+ARG VOICE_BUNDLE_DIR=
+# BuildKit secret, supplied from HUGGINGFACE_TOKEN. Never an ARG/ENV image layer.
+RUN --mount=type=secret,id=hf_token if [ -z "$VOICE_BUNDLE_DIR" ]; then python scripts/prefetch_voice.py --backends "$CLONE_BACKENDS_BUILD" --arch "$TARGETARCH"; fi
+# A stray non-empty VOICE_BUNDLE_DIR (e.g. an unfilled .env.example placeholder
+# left in a real .env) silently skips the download above with no error -- the
+# image still builds, just without any models. Check unconditionally, so that
+# ends the build loudly instead of shipping an image that fails at runtime.
+RUN set -eux; \
+    ok=1; \
+    test -s /opt/voice-models/diarize.yaml || ok=0; \
+    test -s /opt/voice-models/segmentation.bin || ok=0; \
+    test -s /opt/voice-models/embedding.bin || ok=0; \
+    test -s /opt/voice-models/whisperx-vad.bin || ok=0; \
+    [ -n "$(ls -A /opt/voice-models/whisper 2>/dev/null)" ] || ok=0; \
+    [ -n "$(ls -A /opt/voice-models/align-zh 2>/dev/null)" ] || ok=0; \
+    case ",$CLONE_BACKENDS_BUILD," in \
+      *,xtts-v2,*) [ -n "$(ls -A /opt/voice-models/xtts 2>/dev/null)" ] || ok=0 ;; \
+    esac; \
+    case ",$CLONE_BACKENDS_BUILD," in \
+      *,chatterbox-multilingual-v3,*) test -s /opt/voice-models/chatterbox/t3_mtl23ls_v3.safetensors || ok=0 ;; \
+    esac; \
+    [ "$ok" = "1" ] || (echo "voice model bundle missing/incomplete at /opt/voice-models -- VOICE_BUNDLE_DIR='$VOICE_BUNDLE_DIR' CLONE_BACKENDS_BUILD='$CLONE_BACKENDS_BUILD'" >&2 && exit 1)
+ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 VOICE_ENABLED=true VOICE_MODEL_DIR=/opt/voice-models
+COPY app/ ./app/
+EXPOSE 8035
+# One worker: all GPU voice tasks share the same semaphore.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8035", "--workers", "1"]

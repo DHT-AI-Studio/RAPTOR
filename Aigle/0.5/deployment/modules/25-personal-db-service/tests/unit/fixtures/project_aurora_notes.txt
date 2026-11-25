@@ -1,0 +1,3 @@
+Project Aurora kickoff was on 2019-03-04.
+The pilot ran from 2019-06-01 to 2019-09-30.
+General availability began on 2020-01-15.

@@ -1,0 +1,6 @@
+# Password-rotation account list — one "username:email" per line.
+# Edited directly here on the host — re-read fresh on every run, so a new
+# entry is picked up at the next scheduled rotation (ROTATE_WEEKDAY/HOUR/
+# MINUTE in .env) or the next manual run, with no container restart needed.
+# Lines starting with # are ignored.
+# example: test_basicuser:someone@example.com

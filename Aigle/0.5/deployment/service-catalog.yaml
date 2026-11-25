@@ -1,0 +1,659 @@
+# =============================================================================
+# Raptor Platform — Canonical Service Catalog
+# =============================================================================
+# Single source of truth for all module identities, ports, API paths, and
+# ownership. Every docker-compose, plan document, and CI script MUST reference
+# this file instead of hard-coding values.
+#
+# Schema per entry:
+#   id            – module number (matches deployment/modules/NN-* directory)
+#   name          – human-readable service name
+#   container     – container_name prefix (without -${RAPTOR_VERSION} suffix)
+#   internal_port – port the process listens on INSIDE the container
+#   public_port   – host-side default (PORT_* env var default); null = not published
+#   public_port_env – the .env variable that controls the host port
+#   base_path     – canonical HTTP base path (null for pure-infra / non-HTTP)
+#   alt_paths     – other mounted paths on the same container
+#   proto         – transport protocol(s): http | grpc | both
+#   auth          – keycloak_jwt | internal | none
+#   health        – health-check endpoint (HTTP) or null
+#   planned       – true = v0.5 target, not yet deployed
+#   owner         – team responsible
+#   notes         – conflict resolutions and important caveats
+# =============================================================================
+
+catalog:
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure / Platform Services (Modules 01–08)
+  # ---------------------------------------------------------------------------
+
+  - id: 1
+    name: nfs-server
+    container: raptor-nfs-server
+    internal_port: 2049
+    public_port: 2049
+    public_port_env: null
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: none
+    health: null
+    planned: false
+    owner: infra-team
+    notes: "NFS v4 file share; no HTTP API"
+
+  - id: 2
+    name: redis-cluster
+    container: raptor-redis-standalone   # primary standalone used by most modules
+    internal_port: 6379
+    public_port: 6379
+    public_port_env: PORT_REDIS_STANDALONE
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: internal
+    health: null
+    planned: false
+    owner: infra-team
+    notes: >
+      Cluster nodes raptor-redis1..6 on ports 7000-7005 (PORT_REDIS_CLUSTER_1..6).
+      RedisInsight UI on PORT_REDISINSIGHT (default 5540).
+      raptor-redis-standalone is the instance all application modules connect to.
+
+  - id: 3
+    name: database
+    container: raptor-postgres
+    internal_port: 5432
+    public_port: 5433
+    public_port_env: PORT_POSTGRES
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: internal
+    health: null
+    planned: false
+    owner: infra-team
+    notes: >
+      Qdrant vector DB also in this module: container raptor-qdrant,
+      HTTP PORT_QDRANT (default 6333), gRPC PORT_QDRANT_GRPC (default 6334).
+
+  - id: 303
+    name: qdrant
+    container: raptor-qdrant
+    internal_port: 6333
+    public_port: 6333
+    public_ports:
+      - {port: 6333, env: PORT_QDRANT, desc: HTTP REST API}
+      - {port: 6334, env: PORT_QDRANT_GRPC, desc: gRPC}
+    public_port_env: PORT_QDRANT
+    base_path: /collections
+    alt_paths: []
+    proto: both
+    auth: internal
+    health: /healthz
+    planned: false
+    owner: infra-team
+    notes: "Vector DB, co-deployed with Module 03 Postgres."
+
+  - id: 4
+    name: object-storage
+    container: raptor-asset-management
+    internal_port: 8000
+    public_port: 8000
+    public_port_env: PORT_ASSET_MANAGEMENT
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: infra-team
+    notes: >
+      SeaweedFS S3 on PORT_SEAWEEDFS_S3 (default 8333).
+      SeaweedFS Admin UI on PORT_SEAWEEDFS_ADMIN (default 23646).
+      LakeFS on PORT_LAKEFS (default 8001).
+      raptor-thumbnail-worker has no published port.
+
+  - id: 5
+    name: kafka-cluster
+    container: raptor-kafka-broker1
+    internal_port: 9092
+    public_port: 19092
+    public_port_env: PORT_KAFKA_BROKER1
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: internal
+    health: null
+    planned: false
+    owner: infra-team
+    notes: >
+      Brokers 2/3 on PORT_KAFKA_BROKER2 (19093) / PORT_KAFKA_BROKER3 (19094).
+      AKHQ UI on PORT_AKHQ (default 8180).
+      Kafdrop UI on PORT_KAFDROP (default 9010).
+
+  - id: 6
+    name: authentication
+    container: raptor-keycloak
+    internal_port: 8080
+    public_port: 8080
+    public_port_env: PORT_KEYCLOAK
+    base_path: /
+    alt_paths: []
+    proto: http
+    auth: none
+    health: /health/ready
+    planned: false
+    owner: security-team
+    notes: >
+      Keycloak API sidecar: container raptor-keycloak-api,
+      internal 8800, PORT_KEYCLOAK_API (default 8800).
+      Keycloak DB (dedicated Postgres): PORT_KEYCLOAK_DB (default 5434).
+
+  - id: 7
+    name: ai-ml-services
+    container: raptor-ai-lifecycle-api
+    internal_port: 8010
+    public_port: 8010
+    public_port_env: PORT_AI_LIFECYCLE_API
+    base_path: /api/v1
+    alt_paths:
+      - /v1          # OpenAI-compatible relay
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: ml-team
+    notes: >
+      MLflow UI: container raptor-mlflow, PORT_MLFLOW (default 5555).
+      /v1/* proxies to Ollama for OpenAI-compatible completions.
+
+  # id 8 — no dedicated module directory (08-media-worker is a shared base
+  # image, not a standalone service). Skipped intentionally.
+
+  # ---------------------------------------------------------------------------
+  # Media Processing Workers (Modules 09–12)
+  # All workers share raptor/media-worker image; no HTTP API except sync ports.
+  # ---------------------------------------------------------------------------
+
+  - id: 9
+    name: audio-processing
+    container: raptor-audio-recognizer   # primary GPU worker with sync HTTP API
+    internal_port: 8019
+    public_port: 8019
+    public_port_env: PORT_AUDIO_SYNC_API
+    base_path: null
+    alt_paths: []
+    proto: http
+    auth: internal
+    health: null
+    planned: false
+    owner: media-team
+    notes: >
+      Worker containers (no published ports): raptor-audio-orchestrator,
+      raptor-audio-analysis, raptor-audio-summary, raptor-audio-indexer,
+      raptor-audio-tts (profile:tts, disabled by default).
+      GPU sync APIs: raptor-audio-diarization PORT_AUDIO_DIARIZATION_SYNC (default 8029),
+      raptor-audio-classifier PORT_AUDIO_CLASSIFIER_SYNC (default 8039).
+      CONFLICT RESOLVED: Module 09 has NO gRPC listener on :8044.
+      All audio processing here is Kafka-based; :8044 is not this module's.
+      :8044 is Module 34's gRPC bidirectional audio streaming endpoint
+      (RA-6 / VIE01-299) -- old plans had the right port, just attributed to
+      the wrong module. See Module 36 for the gRPC gateway, Module 34 for :8044.
+
+  - id: 10
+    name: image-processing
+    container: raptor-image-processing
+    internal_port: null
+    public_port: null
+    public_port_env: null
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: internal
+    health: null
+    planned: false
+    owner: media-team
+    notes: >
+      All workers Kafka-based; no published HTTP ports.
+      Containers: raptor-image-orchestrator, raptor-image-processing,
+      raptor-image-indexer.
+
+  - id: 11
+    name: video-processing
+    container: raptor-video-orchestrator
+    internal_port: null
+    public_port: null
+    public_port_env: null
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: internal
+    health: null
+    planned: false
+    owner: media-team
+    notes: >
+      All workers Kafka-based; no published HTTP ports.
+      Containers: raptor-video-orchestrator, raptor-video-chunking,
+      raptor-video-analysis, raptor-video-ocr-frame, raptor-video-face-detection,
+      raptor-video-frame-description, raptor-video-summary,
+      raptor-video-contextualize, raptor-video-indexer, raptor-video-graph.
+
+  - id: 12
+    name: document-processing
+    container: raptor-document-orchestrator
+    internal_port: null
+    public_port: null
+    public_port_env: null
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: internal
+    health: null
+    planned: false
+    owner: media-team
+    notes: >
+      All workers Kafka-based; no published HTTP ports.
+      Containers: raptor-document-orchestrator, raptor-document-analysis,
+      raptor-document-summary, raptor-document-indexer.
+
+  # ---------------------------------------------------------------------------
+  # Application Services (Modules 13–27)
+  # ---------------------------------------------------------------------------
+
+  - id: 13
+    name: api-gateway
+    container: raptor-api-gateway
+    internal_port: 8012
+    public_port: 8012
+    public_port_env: PORT_API_GATEWAY
+    base_path: /api/0.4
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: platform-team
+    notes: "Primary public-facing HTTP gateway for all v0.4 API routes."
+
+  - id: 14
+    name: monitoring
+    container: raptor-prometheus
+    internal_port: 9090
+    public_port: 9090
+    public_port_env: PORT_PROMETHEUS
+    base_path: null
+    alt_paths: []
+    proto: http
+    auth: none
+    health: /-/healthy
+    planned: false
+    owner: infra-team
+    notes: >
+      Grafana: raptor-grafana PORT_GRAFANA (default 3000 per standard Grafana).
+      Alertmanager: raptor-alertmanager.
+      Loki: raptor-loki.
+      Node-exporter, cAdvisor, kafka-exporter, redis-exporter,
+      elasticsearch-exporter, dcgm-exporter all in this module.
+
+  - id: 15
+    name: chat-service
+    container: raptor-chat-service
+    internal_port: 8021
+    public_port: 8021
+    public_port_env: PORT_CHAT_SERVICE
+    base_path: /api/v1/chat
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: app-team
+    notes: >
+      CONFLICT RESOLVED: canonical chat endpoint is POST /api/v1/chat
+      (confirmed from README). Old plan references to /api/0.4/chat/chat
+      and /api/0.4/chat/message are both incorrect — neither path exists.
+      LLM calls routed through Module 23 guardrail proxy at
+      raptor-guardrail-service:8026/v1 by default.
+
+  - id: 16
+    name: training-service
+    container: raptor-training-service
+    internal_port: 8009
+    public_port: 8009
+    public_port_env: PORT_FASTAPI
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: ml-team
+    notes: "Fine-tuning / training job management."
+
+  - id: 17
+    name: hybrid-search
+    container: raptor-hybridsearch-api
+    internal_port: 8000
+    public_port: 8081
+    public_port_env: PORT_HYBRID_SEARCH
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    deprecated: true
+    owner: search-team
+    notes: >
+      OpenSearch nodes: raptor-opensearch-node1 (PORT_OPENSEARCH default 9200),
+      raptor-opensearch-node2. Dashboards: raptor-opensearch-dashboards.
+      Container internal port is 8000; host default is 8081.
+      RETIRED 2026-09-30, superseded by ArcadeDB-backed search (modules 24/25).
+      build.py marks this module deprecated=True. Kept here for historical
+      port reference only.
+
+  - id: 18
+    name: query-orchestrator
+    container: raptor-query-orchestrator
+    internal_port: 8000
+    public_port: 8843
+    public_port_env: PORT_QUERY_ORCHESTRATOR
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: search-team
+    notes: >
+      CONFLICT NOTE: PORT_QUERY_ORCHESTRATOR and PORT_GRAPH_SERVICE both
+      default to 8843 — they must be deployed on different hosts or one
+      must override its PORT_* variable. Flag raised for owner resolution.
+
+  - id: 19
+    name: graph-database
+    container: raptor-neo4j
+    internal_port: 7687
+    public_port: 7687
+    public_ports:
+      - {port: 7474, env: PORT_NEO4J_BROWSER, desc: Browser UI}
+      - {port: 7687, env: PORT_NEO4J_BOLT, desc: Bolt protocol (primary)}
+      - {port: 2004, env: PORT_NEO4J_METRICS, desc: Prometheus metrics}
+    public_port_env: PORT_NEO4J_BOLT
+    base_path: null
+    alt_paths: []
+    proto: null
+    auth: internal
+    health: null
+    planned: false
+    deprecated: true
+    owner: infra-team
+    notes: >
+      Neo4j Enterprise. Bolt is primary app protocol.
+      RETIRED 2026-09-30, superseded by ArcadeDB-backed graph (modules 24/25).
+      build.py marks this module deprecated=True. Kept here for historical
+      port reference only.
+
+
+  - id: 20
+    name: graph-service
+    container: raptor-graph-service
+    internal_port: 8843
+    public_port: 8843
+    public_port_env: PORT_GRAPH_SERVICE
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    deprecated: true
+    owner: search-team
+    notes: >
+      CONFLICT NOTE: PORT_GRAPH_SERVICE defaults to 8843, same as
+      PORT_QUERY_ORCHESTRATOR (Module 18). Requires host-level separation
+      or explicit override. Flag raised for owner resolution.
+      RETIRED 2026-09-30, superseded by ArcadeDB-backed search (modules 24/25).
+      build.py marks this module deprecated=True (depends on module 19, also
+      retired). Kept here for historical port reference only.
+
+  - id: 21
+    name: agent-protocol
+    container: raptor-agent-protocol
+    internal_port: 8030
+    public_port: 8030
+    public_port_env: PORT_AGENT_PROTOCOL
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: app-team
+    notes: >
+      RAG agent sidecars (all raptor/rag-agent image):
+        raptor-vector-agent    PORT_VECTOR_AGENT   (default 52001)
+        raptor-keyword-agent   PORT_KEYWORD_AGENT  (default 52002)
+        raptor-graphrag-agent  PORT_GRAPHRAG_AGENT (default 52003)
+        raptor-tkg-agent       PORT_TKG_AGENT      (default 52004)
+        raptor-reranker-agent  PORT_RERANKER_AGENT (default 52005)
+        raptor-people-agent    PORT_PEOPLE_AGENT   (default 52006)
+
+  - id: 22
+    name: benchmark-service
+    container: raptor-benchmark-service
+    internal_port: 8000
+    public_port: 8022
+    public_port_env: PORT_BENCHMARK_SERVICE
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: qa-team
+    notes: "Container internal port is 8000; host default is 8022."
+
+  - id: 23
+    name: guardrail-service
+    container: raptor-guardrail-service
+    internal_port: 8026
+    public_port: 8023
+    public_port_env: PORT_GUARDRAIL_SERVICE
+    base_path: /guardrail
+    alt_paths:
+      - /guard/check      # deprecated classifier API, remove at v1.0
+      - /policy           # policy management CRUD
+      - /v1               # OpenAI-compatible proxy (dead code — not mounted)
+      - /api/v0.2/check   # legacy CheckResponse format
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: security-team
+    notes: >
+      CONFLICT RESOLVED:
+        internal_port = 8026  (process listens here inside container)
+        public_port   = 8023  (PORT_GUARDRAIL_SERVICE host default)
+      Old plan references to port 8000 are incorrect.
+      docker-compose mapping: "${PORT_GUARDRAIL_SERVICE:-8023}:8026"
+      Healthcheck: curl http://localhost:8026/health (internal).
+      Canonical decision endpoint: POST /guardrail/policy/decide
+      /v1/chat/completions exists in code but is NOT mounted (dead code).
+
+  - id: 24
+    name: arcadedb-server
+    container: raptor-arcadedb
+    internal_port: 2480
+    public_port: 2480
+    public_ports:
+      - {port: 2480, env: PORT_ARCADEDB_HTTP, desc: HTTP API (primary)}
+      - {port: 2424, env: PORT_ARCADEDB_BINARY, desc: Binary protocol}
+    public_port_env: PORT_ARCADEDB_HTTP
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: internal
+    health: /api/v1/ready
+    planned: false
+    owner: infra-team
+    notes: "Used exclusively by Module 25."
+
+  - id: 25
+    name: personal-db-service
+    container: raptor-personal-db-service
+    internal_port: 8000
+    public_port: 8025
+    public_port_env: PORT_PERSONAL_DB
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: app-team
+    notes: >
+      CONFLICT RESOLVED: canonical container name is raptor-personal-db-service
+      (confirmed from docker-compose.yml container_name field).
+      Old plan references to raptor-personal-db (without -service suffix) are incorrect.
+      Internal port is 8000; host default is 8025 (PORT_PERSONAL_DB).
+      Module 15 references this service at http://raptor-personal-db-service:8000.
+
+  - id: 26
+    name: memory-service
+    container: raptor-memory-service
+    internal_port: 8026
+    public_port: null
+    public_port_env: PORT_MEMORY_SERVICE
+    base_path: /memory
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: app-team
+    notes: >
+      PORT_MEMORY_SERVICE has no default value in docker-compose.yml
+      (no :-fallback); operator MUST set it explicitly in .env.
+      public_port marked null until a standard default is assigned.
+      Module 15 references this at http://raptor-memory-service:8026.
+
+  - id: 27
+    name: mcp-server
+    container: raptor-mcp-server
+    internal_port: 8027
+    public_port: 8027
+    public_port_env: PORT_MCP_SERVER
+    base_path: /api/0.4
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: platform-team
+    notes: "MCP 1.1 — Streamable HTTP + stdio. JWT propagation to downstream agents."
+
+  # id 28 — carbon-review-agent: directory exists but no docker-compose.yml found.
+  # Skipped; add entry when compose file is committed.
+
+  - id: 29
+    name: doc-processing-agent
+    container: raptor-doc-processing-agent
+    internal_port: 8290
+    public_port: 8290
+    public_port_env: PORT_DOC_PROCESSING_AGENT
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: app-team
+    notes: >
+      docker-compose.override.yml present (empty currently).
+      .ipynb_checkpoints/docker-compose-checkpoint.yml is a Jupyter
+      artifact — ignored by CI catalog check.
+
+  # ids 30–32 — museum-cms, comfyui, 3d-rig: directories exist but no
+  # docker-compose.yml found in scan. Add entries when compose files land.
+
+  - id: 33
+    name: privacy-compliance-service
+    container: raptor-privacy-compliance-service
+    internal_port: 8033
+    public_port: 8033
+    public_port_env: PORT_PRIVACY_SERVICE
+    base_path: /api/v1/gdpr
+    alt_paths:
+      - /internal/gdpr    # internal GDPR delete endpoint (X-Internal-Token auth)
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: security-team
+    notes: "GDPR compliance, data export/deletion. Internal delete called by Module 25."
+
+  - id: 34
+    name: realtime-audio
+    container: raptor-realtime-audio
+    internal_port: 8034
+    public_port: 8035
+    public_ports:
+      - {port: 8035, env: PORT_REALTIME_AUDIO, desc: HTTP + WS /audio/stream (primary)}
+      - {port: 8044, env: PORT_REALTIME_AUDIO_GRPC, desc: gRPC raptor.audio.v1.AudioService (RA-6)}
+    public_port_env: PORT_REALTIME_AUDIO
+    base_path: /api/v1
+    alt_paths: []
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: false
+    owner: media-team
+    notes: >
+      Host default PORT_REALTIME_AUDIO (8035) maps to container port 8034.
+      gRPC AudioService.AudioChat (RA-6 / VIE01-299, proto/raptor/audio/v1/audio.proto):
+      container port 8044 (RT_GRPC_PORT), host PORT_REALTIME_AUDIO_GRPC (8044),
+      Bearer JWT in call metadata. Module 34's own server, not Module 09's or the Module 36 gateway's.
+      raptor-realtime-audio-recording sidecar: no published port.
+      raptor-breeze-tts sidecar: no published port.
+
+  - id: 35
+    name: inference-service
+    container: raptor-inference-service
+    internal_port: 8035
+    public_port: 8036
+    public_port_env: PORT_INFERENCE
+    base_path: /api/v1
+    alt_paths:
+      - /v1    # OpenAI-compatible inference endpoint
+    proto: http
+    auth: keycloak_jwt
+    health: /health
+    planned: true
+    owner: ml-team
+    notes: >
+      v0.5 planned module. RAPTOR_VERSION defaults to 0.5.
+      Voice variant image: raptor/inference-service:${RAPTOR_VERSION}-voice.
+      Host port 8036 maps to container port 8035.
+
+  - id: 36
+    name: grpc-gateway
+    container: raptor-grpc-gateway
+    internal_port: 8825
+    public_port: 8825
+    public_ports:
+      - {port: 8825, env: PORT_GRPC_GATEWAY, desc: gRPC (primary)}
+      - {port: 9825, env: PORT_GRPC_GATEWAY_METRICS, desc: Prometheus metrics}
+    public_port_env: PORT_GRPC_GATEWAY
+    base_path: null
+    alt_paths: []
+    proto: grpc
+    auth: keycloak_jwt
+    health: null
+    planned: true
+    owner: platform-team
+    notes: >
+      Single gRPC server :8825. AudioService (raptor.audio.v1, :8044) is served by Module 34, not here.
+      docker-compose.yml label incorrectly says Module 13 — should be 36.

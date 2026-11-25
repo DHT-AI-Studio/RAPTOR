@@ -1,0 +1,56 @@
+# Isolated stack for the Module 14 alert smoke test.
+#
+# Own project name, own bridge network, high host ports — it never touches the
+# external `raptor` network or any running production container.
+#
+# Run via ./alert_smoke_test.sh, not directly.
+
+name: raptor-alerttest
+
+services:
+  # Serves synthetic GPU / Kafka metrics AND receives Alertmanager webhooks.
+  fixture:
+    image: python:3.12-alpine
+    container_name: raptor-alerttest-fixture
+    command: ["python", "-u", "/app/fixture.py"]
+    volumes:
+      - ./fixtures/fixture.py:/app/fixture.py:ro
+      - ./fixtures/metrics:/fixtures/metrics:ro
+      - ./out:/out
+    ports:
+      - "18080:8080"
+    restart: "no"
+
+  # The REAL alertmanager.yml, with only the webhook target swapped for the sink.
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: raptor-alerttest-alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ../config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./fixtures/webhook_url:/etc/alertmanager/webhook_url:ro
+    ports:
+      - "19093:9093"
+    depends_on:
+      - fixture
+    restart: "no"
+
+  # The REAL alert_rules.yml, unmodified.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: raptor-alerttest-prometheus
+    user: "0"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./fixtures/prometheus.test.yml:/etc/prometheus/prometheus.yml:ro
+      - ../config/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    ports:
+      - "19090:9090"
+    depends_on:
+      - alertmanager
+      - fixture
+    restart: "no"

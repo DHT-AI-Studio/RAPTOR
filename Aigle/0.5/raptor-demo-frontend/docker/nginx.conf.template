@@ -1,0 +1,44 @@
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # SPA fallback — all unknown routes go to index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy /transcode/ to local ffmpeg transcoding sidecar
+    location /transcode/ {
+        proxy_pass http://transcode:8765/transcode/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_buffering off;
+    }
+
+    # Proxy /health to the Raptor Gateway -- used by the frontend to detect
+    # the gateway's actual API version (see resolveApiVersion() in
+    # src/api/client.js) instead of hardcoding it.
+    location = /health {
+        proxy_pass ${API_TARGET}/health;
+        proxy_set_header Host $proxy_host;
+    }
+
+    # Proxy /api/* to the Raptor Gateway
+    location /api/ {
+        proxy_pass ${API_TARGET}/api/;
+        proxy_http_version 1.1;
+        # $proxy_host (API_TARGET's own host:port), not $http_host (whatever
+        # Host the browser sent this frontend) -- a reverse proxy/WAF in
+        # front of API_TARGET may reject a Host it doesn't recognize.
+        proxy_set_header Host              $proxy_host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        client_max_body_size 512m;
+    }
+}

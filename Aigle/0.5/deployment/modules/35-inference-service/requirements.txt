@@ -1,0 +1,14 @@
+fastapi==0.143.1
+uvicorn[standard]==0.34.2
+httpx==0.28.1
+pydantic==2.11.4
+redis==5.2.1
+python-multipart>=0.0.20
+numpy>=1.24,<2
+soundfile>=0.12
+PyYAML>=6
+prometheus-fastapi-instrumentator==8.1.0
+prometheus-client==0.21.1
+
+# tests
+fakeredis[lua]==2.29.0

@@ -1,0 +1,269 @@
+{
+  "status": "recordings_and_consent_pending",
+  "latency_audio": "recordings/latency-3s.wav",
+  "tts_latency_sentence": "請 幫 我 確認 今天 下午 三 點 的 訂單 是否 已經 付款 並 告訴 我 預計 送達 的 時間",
+  "samples": [
+    {
+      "id": "zh-tw-01",
+      "audio": "recordings/zh-tw-01.wav",
+      "reference": "您好，我想查詢今天下午的門診時間。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-02",
+      "audio": "recordings/zh-tw-02.wav",
+      "reference": "請幫我確認信用卡帳單的繳款期限。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-03",
+      "audio": "recordings/zh-tw-03.wav",
+      "reference": "我的訂單已經付款，什麼時候可以收到？",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-04",
+      "audio": "recordings/zh-tw-04.wav",
+      "reference": "台北今天下雨，公車可能會晚一點到。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-05",
+      "audio": "recordings/zh-tw-05.wav",
+      "reference": "請將發票寄到新北市的公司地址。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-06",
+      "audio": "recordings/zh-tw-06.wav",
+      "reference": "這個產品支援 Bluetooth 連線嗎？",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": true
+    },
+    {
+      "id": "zh-tw-07",
+      "audio": "recordings/zh-tw-07.wav",
+      "reference": "我剛剛更新 app，現在沒有辦法登入。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": true
+    },
+    {
+      "id": "zh-tw-08",
+      "audio": "recordings/zh-tw-08.wav",
+      "reference": "請問週末的高鐵還有沒有空位？",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-09",
+      "audio": "recordings/zh-tw-09.wav",
+      "reference": "我想預約明天早上十點的服務。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-10",
+      "audio": "recordings/zh-tw-10.wav",
+      "reference": "今天的網路速度比昨天慢很多。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-11",
+      "audio": "recordings/zh-tw-11.wav",
+      "reference": "請幫我重設 Wi-Fi 的密碼。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": true
+    },
+    {
+      "id": "zh-tw-12",
+      "audio": "recordings/zh-tw-12.wav",
+      "reference": "這筆轉帳需要多久才會到帳？",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-13",
+      "audio": "recordings/zh-tw-13.wav",
+      "reference": "我住在高雄，請問運費怎麼計算？",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-14",
+      "audio": "recordings/zh-tw-14.wav",
+      "reference": "客服您好，我的螢幕一直顯示 error。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": true
+    },
+    {
+      "id": "zh-tw-15",
+      "audio": "recordings/zh-tw-15.wav",
+      "reference": "這個方案每個月的費用是多少？",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-16",
+      "audio": "recordings/zh-tw-16.wav",
+      "reference": "請問有沒有提供英文版的說明文件？",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-17",
+      "audio": "recordings/zh-tw-17.wav",
+      "reference": "我要取消原來的訂位，改成星期五。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-18",
+      "audio": "recordings/zh-tw-18.wav",
+      "reference": "我們的會議從下午兩點開始到四點。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-19",
+      "audio": "recordings/zh-tw-19.wav",
+      "reference": "請稍等一下，我現在找一下訂單號碼。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    },
+    {
+      "id": "zh-tw-20",
+      "audio": "recordings/zh-tw-20.wav",
+      "reference": "謝謝您的協助，問題已經解決了。",
+      "consented": false,
+      "locale": "zh-TW",
+      "speaker": "<recorded_speaker_id>",
+      "accent": "<Taiwanese_Mandarin_accent>",
+      "noise": "<quiet_or_line_noise>",
+      "code_switching": false
+    }
+  ],
+  "tts_sentences": [
+    {
+      "id": "tts-01",
+      "text": "您好，我想查詢今天下午的門診時間。"
+    },
+    {
+      "id": "tts-02",
+      "text": "請幫我確認信用卡帳單的繳款期限。"
+    },
+    {
+      "id": "tts-03",
+      "text": "我的訂單已經付款，什麼時候可以收到？"
+    },
+    {
+      "id": "tts-04",
+      "text": "台北今天下雨，公車可能會晚一點到。"
+    },
+    {
+      "id": "tts-05",
+      "text": "請將發票寄到新北市的公司地址。"
+    },
+    {
+      "id": "tts-06",
+      "text": "這個產品支援 Bluetooth 連線嗎？"
+    },
+    {
+      "id": "tts-07",
+      "text": "我剛剛更新 app，現在沒有辦法登入。"
+    },
+    {
+      "id": "tts-08",
+      "text": "請問週末的高鐵還有沒有空位？"
+    },
+    {
+      "id": "tts-09",
+      "text": "我想預約明天早上十點的服務。"
+    },
+    {
+      "id": "tts-10",
+      "text": "今天的網路速度比昨天慢很多。"
+    }
+  ]
+}

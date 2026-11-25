@@ -1,0 +1,122 @@
+# Module 24 — ArcadeDB Server
+# Multi-model engine (graph + vector + BM25) hosting one database per user
+# (user_{branch_id}). Managed by Module 25 (Personal DB Service).
+# Deploy: bash deploy.sh -m 24
+#
+# See README.md for the four upstream-doc discrepancies verified against 26.6.1.
+
+services:
+  arcadedb:
+    image: arcadedata/arcadedb:latest
+    container_name: raptor-arcadedb-${RAPTOR_VERSION}
+    hostname: raptor-arcadedb
+    environment:
+      # ARCADEDB_SERVER_ROOTPASSWORD is NOT honoured by this image — the password
+      # must go through JAVA_OPTS or startup hangs waiting on stdin (README §2).
+      # No default value: fail fast rather than ship a weak baked-in password.
+      JAVA_OPTS: >-
+        -Darcadedb.server.rootPassword=${ARCADEDB_ROOT_PASSWORD:?set ARCADEDB_ROOT_PASSWORD in deployment/modules/.env}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+      # VIE01-369 Phase 1: plain env var (JAVA_OPTS above isn't one) so the
+      # archive-pre script below can read it.
+      ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD}
+    ports:
+      - "${PORT_ARCADEDB_HTTP:-2480}:2480"      # HTTP API — Module 25 connects here
+      - "${PORT_ARCADEDB_BINARY:-2424}:2424"    # binary protocol (optional)
+    volumes:
+      # /home/arcadedb/databases — NOT /arcadedb-ce/databases. Mounting the wrong
+      # path loses every user database on restart, silently (README §1).
+      - arcadedb_data:/home/arcadedb/databases
+      # Explicitly named, not the image's own anonymous VOLUME default --
+      # confirmed live that's a different (anonymous) volume per recreate.
+      - arcadedb_backups:/home/arcadedb/backups
+    # VIE01-369 Phase 1: one DB per user here, and BACKUP DATABASE is
+    # per-database (no server-wide "back up everything" command) --
+    # confirmed live against this deployed version. Lists every database
+    # via the server's own HTTP API, then backs each one up in turn; each
+    # BACKUP DATABASE call is itself a non-stop, consistent snapshot (no
+    # downtime), so looping needs no write-freeze of its own. Uses wget
+    # (busybox, no curl -- README §4) with URL-embedded basic auth (this
+    # wget build has no --user/--password flags).
+    labels:
+      # exec-label: confirmed live, without this every sidecar's `backup`
+      # run triggers archive-pre on every labeled container reachable via
+      # the shared docker.sock, not just its own target.
+      - "docker-volume-backup.exec-label=24-arcadedb"
+      - >-
+        docker-volume-backup.archive-pre=sh -c '
+        DBS=$$(wget -qO- "http://root:$$ARCADEDB_ROOT_PASSWORD@localhost:2480/api/v1/databases" | sed -n "s/.*\"result\":\[\(.*\)\].*/\1/p" | tr "," "\n" | tr -d "\"");
+        for db in $$DBS; do
+        wget -qO- --header="Content-Type: application/json" --post-data="{\"language\":\"sql\",\"command\":\"BACKUP DATABASE\"}" "http://root:$$ARCADEDB_ROOT_PASSWORD@localhost:2480/api/v1/command/$$db" > /dev/null;
+        done'
+    networks:
+      raptor:
+        aliases:
+          - "raptor-arcadedb"
+    restart: unless-stopped
+    healthcheck:
+      # wget, not curl — the image ships no curl (README §4).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:2480/api/v1/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '4'
+
+  # Backup sidecar (VIE01-369 Phase 1, see docs/backup-restore-v0.5.md).
+  arcadedb-backup:
+    image: offen/docker-volume-backup:v2.50.0
+    container_name: raptor-arcadedb-backup-${RAPTOR_VERSION}
+    environment:
+      EXEC_LABEL: "24-arcadedb"
+      BACKUP_CRON_EXPRESSION: ${ARCADEDB_BACKUP_CRON:-0 3 * * *}
+      BACKUP_FILENAME: "24-arcadedb-%Y-%m-%dT%H-%M-%S.tar.gz"
+      BACKUP_PRUNING_PREFIX: "24-arcadedb-"
+      BACKUP_RETENTION_DAYS: ${ARCADEDB_BACKUP_RETENTION_DAYS:-30}
+      AGE_PUBLIC_KEYS: ${AGE_PUBLIC_KEYS}
+      NOTIFICATION_URLS: ${BACKUP_NOTIFICATION_URLS:-}
+      NOTIFICATION_LEVEL: error
+      SSH_HOST_NAME: ${BACKUP_SSH_HOST_NAME:-}
+      SSH_PORT: ${BACKUP_SSH_PORT:-22}
+      SSH_USER: ${BACKUP_SSH_USER:-}
+      SSH_PASSWORD: ${BACKUP_SSH_PASSWORD:-}
+      SSH_IDENTITY_FILE: ${BACKUP_SSH_IDENTITY_FILE:-}
+      SSH_REMOTE_PATH: ${BACKUP_SSH_REMOTE_PATH:-/backups/raptor}
+      SSH_HOST_PUBLIC_KEY: ${BACKUP_SSH_HOST_PUBLIC_KEY:-}
+      SSH_KNOWN_HOSTS_FILE: ${BACKUP_SSH_KNOWN_HOSTS_FILE:-}
+      SSH_IGNORE_HOST_KEY: ${BACKUP_SSH_IGNORE_HOST_KEY:-false}
+      WEBDAV_URL: ${BACKUP_WEBDAV_URL:-}
+      WEBDAV_PATH: ${BACKUP_WEBDAV_PATH:-}
+      WEBDAV_USERNAME: ${BACKUP_WEBDAV_USERNAME:-}
+      WEBDAV_PASSWORD: ${BACKUP_WEBDAV_PASSWORD:-}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - arcadedb_backups:/backup/arcadedb
+      - ${BACKUP_LOCAL_ARCHIVE_PATH:-./backup-archive-default}:/archive
+    depends_on:
+      arcadedb:
+        condition: service_healthy
+    networks:
+      raptor:
+        aliases:
+          - raptor-arcadedb-backup
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.25'
+
+volumes:
+  arcadedb_data:
+  arcadedb_backups:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

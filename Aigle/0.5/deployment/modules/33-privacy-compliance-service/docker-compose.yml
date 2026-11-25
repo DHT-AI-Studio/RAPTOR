@@ -1,0 +1,111 @@
+# Module 33 — Privacy Compliance Service (GD-1 / VIE01-246)
+# Cross-store GDPR/CCPA erasure orchestrator. Internal-only (X-Internal-Token);
+# fronted by Module 13's /api/{v}/gdpr/* routes. Deploy: bash deploy.sh -m 33
+
+services:
+  privacy-compliance-service:
+    # Build context is deployment/modules/ (not this directory) so the image
+    # can also copy the shared CF-4 audit library from common/raptor_audit,
+    # the same way module 23 does.
+    build:
+      context: ..
+      dockerfile: 33-privacy-compliance-service/Dockerfile
+    image: raptor/privacy-compliance-service:${RAPTOR_VERSION}
+    container_name: raptor-privacy-compliance-service-${RAPTOR_VERSION}
+    hostname: raptor-privacy-compliance-service
+    environment:
+      GD_INTERNAL_TOKEN: ${GD_INTERNAL_TOKEN:?set GD_INTERNAL_TOKEN in deployment/modules/.env}
+      GD_DPO_EMAIL: ${GD_DPO_EMAIL:-}
+      # GD-9: Article 30 RoPA controller name -- GET /gdpr/processing-records'
+      # controller.name / business.name. Without this line the container
+      # never sees .env's own GD_CONTROLLER_NAME at all (this file enumerates
+      # each var explicitly, no blanket env_file: pass-through).
+      GD_CONTROLLER_NAME: ${GD_CONTROLLER_NAME:-}
+      GD_SMTP_HOST: ${SMTP_HOST:-}
+      GD_SMTP_PORT: ${SMTP_PORT:-587}
+      GD_SMTP_FROM: ${SMTP_FROM:-}
+      GD_SMTP_USER: ${SMTP_USER:-}
+      GD_SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      GD_ERASURE_TIMEOUT_SECONDS: ${GD_ERASURE_TIMEOUT_SECONDS:-300}
+      GD_ERASURE_MAX_ATTEMPTS: ${GD_ERASURE_MAX_ATTEMPTS:-3}
+      GD_ERASURE_RETRY_DELAY_SECONDS: ${GD_ERASURE_RETRY_DELAY_SECONDS:-60}
+      GD_MODULE_04_URL: ${GD_MODULE_04_URL:-http://raptor-asset-management:8000}
+      GD_MODULE_25_URL: ${GD_MODULE_25_URL:-http://raptor-personal-db-service:8000}
+      GD_MODULE_26_URL: ${GD_MODULE_26_URL:-http://raptor-memory-service:8026}
+      GD_POSTGRES_HOST: ${POSTGRES_HOST:-raptor-postgres}
+      GD_POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      GD_POSTGRES_USER: ${POSTGRES_USER:-raptor}
+      GD_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deployment/modules/.env}
+      # NOT derived from POSTGRES_DB (that's "raptor", the container's shared
+      # default database) -- this service owns its own database, like every
+      # other module here (asset_management, personal_db, benchmark, ...).
+      GD_POSTGRES_DB: privacy_compliance
+      GD_REDIS_HOST: ${REDIS_HOST:-raptor-redis-standalone}
+      GD_REDIS_PORT: ${REDIS_PORT:-6379}
+      GD_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      GD_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+      GD_KEYCLOAK_URL: ${KEYCLOAK_URL:-http://raptor-keycloak:8080}
+      GD_KEYCLOAK_REALM: ${KEYCLOAK_REALM:-dhtsolution}
+      # NOT derived from KC_BOOTSTRAP_ADMIN_USERNAME/PASSWORD -- those are only
+      # valid for Keycloak's very first container init (see module 06's
+      # keycloak-init logs: "Permanent admin already initialized"); the
+      # durable admin identity keycloak-init actually establishes is
+      # PERMANENT_MASTER_ADMIN_USER/PERMANENT_ADMIN_PASSWORD instead, which is
+      # what every subsequent Admin API login (including this one) must use.
+      GD_KEYCLOAK_ADMIN_USERNAME: ${PERMANENT_MASTER_ADMIN_USER:?set PERMANENT_MASTER_ADMIN_USER in deployment/modules/.env}
+      GD_KEYCLOAK_ADMIN_PASSWORD: ${PERMANENT_ADMIN_PASSWORD:?set PERMANENT_ADMIN_PASSWORD in deployment/modules/.env}
+      # GD-2 / VIE01-247: same SeaweedFS endpoint + credentials module 04 uses,
+      # but a dedicated bucket (not module 04's own `lakefs` bucket -- see
+      # config.py's comment on why the export ZIP doesn't belong in it).
+      GD_S3_ENDPOINT: ${S3_ENDPOINT:-http://seaweedfs-s3:8333}
+      GD_S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
+      GD_S3_BUCKET: ${GD_S3_EXPORT_BUCKET:-raptor-gdpr-exports}
+      GD_AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:?set AWS_ACCESS_KEY in deployment/modules/.env}
+      GD_AWS_SECRET_KEY: ${AWS_SECRET_KEY:?set AWS_SECRET_KEY in deployment/modules/.env}
+      GD_EXPORT_TTL_HOURS: ${GD_EXPORT_TTL_HOURS:-72}
+      GD_EXPORT_MAX_ZIP_BYTES: ${GD_EXPORT_MAX_ZIP_BYTES:-524288000}
+      GD_EXPORT_CLEANUP_INTERVAL_SECONDS: ${GD_EXPORT_CLEANUP_INTERVAL_SECONDS:-3600}
+      # GD-3 / VIE01-248: retention engine.
+      GD_GUARDRAILS_POSTGRES_DB: guardrails
+      GD_RETENTION_HOUR_UTC: ${GD_RETENTION_HOUR_UTC:-2}
+      GD_RETENTION_MINUTE_UTC: ${GD_RETENTION_MINUTE_UTC:-0}
+      GD_KAFKA_RETENTION_MS: ${GD_KAFKA_RETENTION_MS:-0}
+      # GD-4 / VIE01-249: DSAR (right of access).
+      GD_DSAR_ASYNC_THRESHOLD: ${GD_DSAR_ASYNC_THRESHOLD:-10000}
+      GD_DSAR_SYNC_TIMEOUT_SECONDS: ${GD_DSAR_SYNC_TIMEOUT_SECONDS:-8}
+      GD_DSAR_RESULT_TTL_HOURS: ${GD_DSAR_RESULT_TTL_HOURS:-72}
+      GD_API_VERSION: ${API_VERSION:-0.5}
+      # GD-5 / VIE01-250: consent management.
+      GD_CONSENT_POLICY_VERSION: ${GD_CONSENT_POLICY_VERSION:-1.0}
+      GD_MODULE_22_URL: ${GD_MODULE_22_URL:-http://raptor-benchmark-service:8000}
+      # VIE01-302: Module 34 erases voice recordings at DELETE /internal/gdpr/user/{user_id}. `-`
+      # (not `:-`) as for 35: an explicitly empty GD_MODULE_34_URL records Module 34 as `skipped`.
+      GD_MODULE_34_URL: ${GD_MODULE_34_URL-http://raptor-realtime-audio:8034}
+      # GD-1 / VIE01-246: speaker-embedding erasure. `-` (not `:-`) keeps an
+      # explicitly empty GD_MODULE_35_URL empty, which records Module 35 as
+      # `skipped` on a deployment that doesn't run it.
+      GD_MODULE_35_URL: ${GD_MODULE_35_URL-http://raptor-inference-service:8035}
+      # V05-10 / VIE01-364: how long this service's CF-4 audit events
+      # (one per finished erasure job) are kept.
+      GD_AUDIT_RETENTION_DAYS: ${GD_AUDIT_RETENTION_DAYS:-1095}
+      # CM-7 / VIE01-410: event rows per section of the compliance report
+      GD_COMPLIANCE_REPORT_MAX_ROWS: ${GD_COMPLIANCE_REPORT_MAX_ROWS:-50000}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    # CF-3: internal service -- bound to INTERNAL_BIND_IP (default 127.0.0.1, host-only); containers use the raptor network.
+    ports:
+      - "${INTERNAL_BIND_IP:-127.0.0.1}:${PORT_PRIVACY_SERVICE:-8033}:8033"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-privacy-compliance-service"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8033/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

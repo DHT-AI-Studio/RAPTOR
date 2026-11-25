@@ -1,0 +1,26 @@
+services:
+  grpc-gateway:
+    build:
+      context: ..
+      dockerfile: 36-grpc-gateway/Dockerfile
+    image: raptor/grpc-gateway:${RAPTOR_VERSION:-0.5}
+    container_name: raptor-grpc-gateway-${RAPTOR_VERSION:-0.5}
+    restart: always
+    ports:
+      - "${PORT_GRPC_GATEWAY:-8825}:8825"
+      - "${PORT_GRPC_GATEWAY_METRICS:-9825}:9825"
+    env_file:
+      - .env
+      - path: ../.env
+        required: false
+    networks:
+      raptor:
+        aliases:
+          - "raptor-grpc-gateway"
+    labels:
+      - "com.example.description=Raptor gRPC Gateway (Module 13)"
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

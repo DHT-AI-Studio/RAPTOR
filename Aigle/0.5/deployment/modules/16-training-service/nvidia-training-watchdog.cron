@@ -1,0 +1,22 @@
+# nvidia-training-watchdog.cron
+#
+# Monitors aigle-training-service healthcheck status.
+# When the container becomes "unhealthy" (CUDA/NVML stale after extended uptime),
+# this job refreshes the NVIDIA driver and restarts the container.
+#
+# Install on the host:
+#   sudo cp nvidia-training-watchdog.sh /usr/local/bin/nvidia-training-watchdog.sh
+#   sudo chmod +x /usr/local/bin/nvidia-training-watchdog.sh
+#   sudo cp nvidia-training-watchdog.cron /etc/cron.d/nvidia-training-watchdog
+#   sudo chmod 644 /etc/cron.d/nvidia-training-watchdog
+#
+# Verify syntax:
+#   sudo cron -T /etc/cron.d/nvidia-training-watchdog && echo "OK"
+#
+# Check logs:
+#   tail -f /var/log/nvidia-training-watchdog.log
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/5 * * * * root /usr/local/bin/nvidia-training-watchdog.sh

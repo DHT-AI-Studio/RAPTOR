@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+// Module 34's native gRPC voice channel (RA-6 / VIE01-299). Served by Module 34 itself on
+// RT_GRPC_PORT (default 8044), next to WS /audio/stream -- not by the Module 36 gateway, hence
+// its own package (see 36-grpc-gateway/docs/grpc-proto-packaging.md).
+package raptor.audio.v1;
+
+option go_package = "raptor/audio/v1;audiov1";
+
+// AudioService runs the same session pipeline as WS /audio/stream: silero-VAD cuts the audio
+// into utterances, faster-whisper transcribes them, Module 15 answers each final transcript and
+// the TTS backend speaks the answer back in the caller's codec.
+service AudioService {
+  // One voice session per call. Authenticate with call metadata
+  // `authorization: Bearer <Keycloak JWT>` (the token POST /audio/session/token takes); no
+  // one-time ticket is needed. The first AudioChunk sets codec, sample_rate and language for
+  // the whole call. Half-closing the request stream is END: what was said is transcribed and
+  // answered, the answer plays out, then the call ends with OK. Cancelling the call ends the
+  // session at once. A rejected call ends with UNAUTHENTICATED (bad or missing token),
+  // RESOURCE_EXHAUSTED (RT_MAX_SESSIONS reached), INVALID_ARGUMENT (bad codec / rate /
+  // language), PERMISSION_DENIED or INTERNAL; an ErrorEvent with the reason comes first
+  // whenever the session had started.
+  rpc AudioChat(stream AudioChunk) returns (stream AudioEvent);
+}
+
+// Caller audio. Send it at about real time (e.g. 20-100 ms per chunk): the session queues
+// RT_AUDIO_QUEUE_MAX chunks and drops the oldest audio beyond that, as on the WebSocket.
+message AudioChunk {
+  // pcm: s16le mono at sample_rate; opus: one raw Opus packet; pcmu / pcma: G.711 at 8 kHz.
+  bytes payload = 1;
+  // "pcm" (default when empty), "opus", "pcmu" or "pcma". Read from the first chunk; later
+  // chunks leave it empty or repeat it.
+  string codec = 2;
+  // First chunk; 0 = the codec's usual rate (pcm 16000, opus 48000, pcmu / pcma 8000).
+  // pcm: 8000-48000; opus: 8000, 12000, 16000, 24000 or 48000; G.711: 8000.
+  uint32 sample_rate = 3;
+  // Optional: the caller's own id for this call, written to Module 34's log beside the
+  // server's session id (AudioEvent.session_id). Not used to resume a session.
+  string session_id = 4;
+  // First chunk: a BCP-47 tag (e.g. "zh-TW") forces the STT language, "auto" detects it,
+  // empty uses RT_STT_LANGUAGE. The answer is spoken in the same language.
+  string language = 5;
+}
+
+message AudioEvent {
+  oneof event {
+    TranscriptEvent transcript = 1;
+    AudioResponseChunk audio = 2;
+    ErrorEvent error = 3;
+  }
+  // The server's id for this session (the one Module 34's logs and Redis record use).
+  string session_id = 4;
+}
+
+// What the caller said. is_final=false: the rolling transcript while the utterance is still
+// being spoken (it may still change); is_final=true: the utterance's final transcript.
+message TranscriptEvent {
+  string text = 1;
+  bool is_final = 2;
+  // Final transcripts: Whisper's language probability (0-1); 0 for rolling ones.
+  float confidence = 3;
+  // Utterance number within the session, from 1.
+  uint32 utterance = 4;
+  // Final transcripts: the language Whisper decoded, e.g. "zh".
+  string language = 5;
+}
+
+// The spoken answer, in the caller's codec (pcm: 16 kHz s16le). Every answer is a run of
+// chunks with is_last=false followed by exactly one with is_last=true and no payload.
+message AudioResponseChunk {
+  bytes payload = 1;
+  string codec = 2;
+  bool is_last = 3;
+  // Groups the chunks of one answer.
+  string request_id = 4;
+  uint32 sample_rate = 5;
+  // Set on the is_last chunk when the answer was cut short (the caller spoke over it).
+  bool interrupted = 6;
+}
+
+// fatal=true: the session is over and the call ends with a non-OK status right after.
+// fatal=false: a warning (e.g. QUEUE_OVERFLOW, stt_failed, GUARDRAIL_BLOCK); the session goes on.
+message ErrorEvent {
+  string code = 1;
+  string message = 2;
+  bool fatal = 3;
+}

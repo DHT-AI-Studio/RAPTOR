@@ -1,0 +1,80 @@
+# MTR-25: the "people" intent -- a question about WHO appears in the user's videos. Same shape as
+# intent_taxonomy.yaml; app/classifiers/people_intent.py indexes these (BM25 + FAISS) next to that
+# taxonomy's examples, which stand for "not a people question". People is a label on top of the
+# pipeline the main classifier picks (a "who" can come with a "what" or a "when"), not a fifth pipeline.
+intents:
+- id: pp001
+  description: Find the segments of my videos where a named person appears.
+  target_pipeline: People
+  keywords: [find, person, appears, appearance, clips, segments, face, 出現, 片段, 人物]
+  examples:
+  - Find Peter Parker in the video.
+  - Show me every clip with Mary Jane in it.
+  - Where does Tony Stark appear in my videos?
+  - Find all the footage of my grandmother.
+  - 找出王小明出現的片段
+  - 幫我找有林志玲的畫面
+  - 陳美玲在哪些影片裡出現過？
+  - 我想看所有拍到阿嬤的影片
+  - Is Michael in any of my clips?
+  - Locate Emma in the recordings.
+  - 影片中有沒有出現志強
+  - 找出所有有阿明的片段
+- id: pp002
+  description: Ask who is in a video or which people show up in it.
+  target_pipeline: People
+  keywords: [who, people, appeared, show-up, faces, 誰, 哪些人, 出現, 人]
+  examples:
+  - Who appeared in this video?
+  - Which people show up in the interview footage?
+  - Who is in the birthday party video?
+  - List the people seen in my vacation clips.
+  - 這段影片裡出現了哪些人？
+  - 影片中有誰？
+  - 會議錄影裡出現的人有哪些
+  - 這部影片拍到了誰
+  - Who can be seen in the graduation video?
+  - 畢業典禮影片有誰入鏡
+- id: pp003
+  description: Find a person talking about or discussing a topic in the videos.
+  target_pipeline: People
+  keywords: [person, discussing, talking, speaking, about, topic, 談論, 討論, 提到, 說]
+  examples:
+  - Peter Parker discussing climate change.
+  - Clips where John talks about the budget.
+  - Find Dr. Chen speaking about vaccines.
+  - Show me Sarah explaining the new product.
+  - 陳醫師談論疫苗的片段
+  - 找出張經理提到預算的影片
+  - 王老師講解微積分的畫面
+  - 李董在影片中談到併購的部分
+  - Find where Jason mentions the deadline.
+  - 林教授說明研究成果的片段
+- id: pp004
+  description: Ask when a person appeared, in time order, or in a period.
+  target_pipeline: People
+  keywords: [person, when, first, appearance, timeline, order, 何時, 最早, 第一次, 出現]
+  examples:
+  - When did Peter Parker first appear in my videos?
+  - Show Mary Jane's appearances in 2023 in time order.
+  - Which videos from last year have Tom in them?
+  - The earliest clip of my daughter.
+  - 王小明 2022 年出現的影片
+  - 李老師最早出現在哪一部影片？
+  - 依時間順序列出阿公出現的片段
+  - 去年有拍到小美的影片
+  - Videos with Anna from the summer, oldest first.
+  - 小傑第一次出現是在哪支影片
+- id: pp005
+  description: Search my videos by a person's face or identity.
+  target_pipeline: People
+  keywords: [face, identity, person, recognize, search-by-person, 人臉, 臉, 身分, 認出]
+  examples:
+  - Search my videos for this person's face.
+  - Find everyone tagged as Alice.
+  - Find the person named Kevin in my recordings.
+  - Show clips featuring Grace.
+  - 用人臉找出小明的影片
+  - 找出被標記為阿芳的人出現的地方
+  - 錄影裡有沒有拍到志明
+  - 有春嬌入鏡的片段

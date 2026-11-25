@@ -1,0 +1,229 @@
+# Real-time Audio — Raptor Platform module 34
+# WebSocket audio streaming (one-time tickets, Redis sessions) and the gRPC
+# AudioService.AudioChat (RA-6, :8044, Bearer JWT metadata) with per-session
+# silero-VAD utterance segmentation and faster-whisper speech-to-text (RA-3 /
+# RTA-X2). See README.md for the frame protocol.
+# Deploy: python3 build.py 34   (module 08 base tag follows RAPTOR_VERSION)
+#
+# Uses module 02's shared Redis (raptor-redis-standalone, DB 0; keys rt:*) and
+# module 06's Keycloak JWKS to verify the Bearer JWT on POST /audio/session/token.
+# VAD runs on CPU; STT (faster-whisper, CTranslate2 float16) and TTS (Kokoro,
+# weights baked into the image at build time by scripts/prefetch_kokoro.py --
+# RT_TTS_KOKORO_DIR only matters if you mount something else over it) share
+# the GPU REALTIME_AUDIO_GPU. Each finished utterance is a Module 15 chat
+# turn (RT_CHAT_SERVICE_URL) spoken back.
+#
+# Optional profile "breeze": a Breeze TTS 2 server for RT_TTS_MODEL=breeze-tts-2.
+# Its weights and outputs are licensed for research / non-commercial use only;
+# Module 34 uses it only with RT_TTS_BREEZE_ENABLED=true.
+#   docker compose --profile breeze up -d
+# Whisper weights come from RT_STT_MODEL_DIR (a directory
+# holding CTranslate2 conversions such as faster-whisper-large-v3/, mounted
+# read-only) or, failing that, the shared Hugging Face cache. The WS endpoint
+# needs a proxy that passes Upgrade headers if it is exposed through a gateway.
+
+services:
+  realtime_audio:
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${RT_BASE_IMAGE:-raptor/media-worker:${RAPTOR_VERSION}}
+    image: raptor/realtime-audio:${RAPTOR_VERSION}
+    container_name: raptor-realtime-audio-${RAPTOR_VERSION}
+    hostname: raptor-realtime-audio
+    environment:
+      REDIS_HOST:            ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT:            ${REDIS_PORT:-6379}
+      REDIS_PASSWORD:        ${REDIS_PASSWORD:-}
+      REDIS_DB:              0
+      KEYCLOAK_URL:          ${KEYCLOAK_URL:-http://raptor-keycloak:8080}
+      RT_JWT_PUBLIC_KEY:     ${RT_JWT_PUBLIC_KEY:-}
+      RT_JWT_AUDIENCE:       ${RT_JWT_AUDIENCE:-}
+      RT_GRPC_ENABLED:       ${RT_GRPC_ENABLED:-true}
+      RT_GRPC_PORT:          8044
+      RT_TICKET_TTL_S:       ${RT_TICKET_TTL_S:-30}
+      RT_SESSION_TTL_S:      ${RT_SESSION_TTL_S:-1800}
+      RT_MAX_SESSIONS:       ${RT_MAX_SESSIONS:-20}
+      RT_MAX_SESSIONS_PER_USER: ${RT_MAX_SESSIONS_PER_USER:-3}
+      RT_CONFIG_TIMEOUT_S:   ${RT_CONFIG_TIMEOUT_S:-10}
+      RT_HEARTBEAT_S:        ${RT_HEARTBEAT_S:-10}
+      RT_AUDIO_QUEUE_MAX:    ${RT_AUDIO_QUEUE_MAX:-200}
+      RT_STT_QUEUE_MAX:      ${RT_STT_QUEUE_MAX:-}
+      RT_UTTERANCE_QUEUE_MAX: ${RT_UTTERANCE_QUEUE_MAX:-}   # old name of RT_STT_QUEUE_MAX (default 10)
+      RT_BARGE_IN_THRESHOLD: ${RT_BARGE_IN_THRESHOLD:-0.7}
+      RT_BARGE_IN_MIN_MS:    ${RT_BARGE_IN_MIN_MS:-300}
+      RT_MIN_UTTERANCE_CHARS: ${RT_MIN_UTTERANCE_CHARS:-2}
+      RT_SESSION_RESUME_WINDOW_S: ${RT_SESSION_RESUME_WINDOW_S:-60}
+      RT_RESUME_BUFFER_KB:   ${RT_RESUME_BUFFER_KB:-1024}
+      RT_PING_INTERVAL_S:    ${RT_PING_INTERVAL_S:-30}
+      RT_PONG_TIMEOUT_S:     ${RT_PONG_TIMEOUT_S:-10}
+      RT_OUTPUT_PACE:        ${RT_OUTPUT_PACE:-true}
+      RT_OUTPUT_LEAD_MS:     ${RT_OUTPUT_LEAD_MS:-500}
+      RT_OUTPUT_QUEUE_MS:    ${RT_OUTPUT_QUEUE_MS:-10000}
+      RT_OUTPUT_STALL_S:     ${RT_OUTPUT_STALL_S:-10}
+      RT_VAD_CHUNK_MS:       ${RT_VAD_CHUNK_MS:-30}
+      RT_VAD_THRESHOLD:      ${RT_VAD_THRESHOLD:-0.5}
+      RT_VAD_MIN_SILENCE_MS: ${RT_VAD_MIN_SILENCE_MS:-300}
+      RT_VAD_MIN_SPEECH_MS:  ${RT_VAD_MIN_SPEECH_MS:-200}
+      RT_MAX_UTTERANCE_S:    ${RT_MAX_UTTERANCE_S:-10}
+      RT_VAD_SPEECH_PAD_MS:  ${RT_VAD_SPEECH_PAD_MS:-96}
+      RT_VAD_POOL_SIZE:      ${RT_VAD_POOL_SIZE:-4}
+      RT_CODEC_RESAMPLE:     ${RT_CODEC_RESAMPLE:-true}
+      RT_STT_ENABLED:        ${RT_STT_ENABLED:-true}
+      RT_STT_MODEL:          ${RT_STT_MODEL:-large-v3}
+      RT_STT_MODEL_DIR:      /models/stt
+      RT_STT_PROVISIONAL_MODEL: ${RT_STT_PROVISIONAL_MODEL:-}
+      RT_STT_DEVICE:         ${RT_STT_DEVICE:-auto}
+      RT_STT_COMPUTE_TYPE:   ${RT_STT_COMPUTE_TYPE:-}
+      RT_STT_CPU_MODEL:      ${RT_STT_CPU_MODEL:-tiny}
+      RT_STT_LANGUAGE:       ${RT_STT_LANGUAGE:-zh-TW}
+      RT_STT_BEAM_SIZE:      ${RT_STT_BEAM_SIZE:-5}
+      RT_STT_MAX_CONCURRENT: ${RT_STT_MAX_CONCURRENT:-1}
+      RT_STT_ZH_CONVERT:     ${RT_STT_ZH_CONVERT-s2tw}
+      RT_STT_STREAMING:      ${RT_STT_STREAMING:-true}
+      RT_STT_STRIDE_S:       ${RT_STT_STRIDE_S:-0.5}
+      RT_STT_FIRST_DECODE_MS: ${RT_STT_FIRST_DECODE_MS:-300}
+      RT_TTS_ENABLED:        ${RT_TTS_ENABLED:-true}
+      RT_TTS_MODEL:          ${RT_TTS_MODEL:-kokoro-82m}
+      RT_TTS_VOICE:          ${RT_TTS_VOICE:-}
+      RT_TTS_SPEED:          ${RT_TTS_SPEED:-1.0}
+      RT_TTS_DEVICE:         ${RT_TTS_DEVICE:-auto}
+      RT_TTS_KOKORO_DIR:     /models/tts/kokoro
+      RT_TTS_MAX_CONCURRENT: ${RT_TTS_MAX_CONCURRENT:-2}
+      RT_TTS_QUEUE_MAX:      ${RT_TTS_QUEUE_MAX:-5}
+      RT_TTS_SILENCE_PAD_MS: ${RT_TTS_SILENCE_PAD_MS:-200}
+      RT_TTS_BREEZE_ENABLED: ${RT_TTS_BREEZE_ENABLED:-false}
+      RT_TTS_BREEZE_URL:     ${RT_TTS_BREEZE_URL:-http://raptor-breeze-tts:7860}
+      RT_TTS_BREEZE_VOICES:  ${RT_TTS_BREEZE_VOICES:-}
+      RT_LLM_ENABLED:        ${RT_LLM_ENABLED:-true}
+      RT_CHAT_SERVICE_URL:   ${RT_CHAT_SERVICE_URL:-http://raptor-chat-service:8021/api/v1}
+      RT_CHAT_STREAM:        ${RT_CHAT_STREAM:-true}
+      RT_LLM_TIMEOUT_S:      ${RT_LLM_TIMEOUT_S:-30}
+      RT_LLM_FIRST_TOKEN_TIMEOUT_S: ${RT_LLM_FIRST_TOKEN_TIMEOUT_S:-30}
+      RT_LLM_FALLBACK_TEXT:  ${RT_LLM_FALLBACK_TEXT:-}
+      RT_GUARDRAIL_ENABLED:  ${RT_GUARDRAIL_ENABLED:-true}
+      RT_GUARDRAIL_URL:      ${RT_GUARDRAIL_URL:-http://raptor-guardrail-service:8026}
+      RT_GUARDRAIL_OUTPUT:   ${RT_GUARDRAIL_OUTPUT:-true}
+      RT_GUARDRAIL_FAIL_OPEN: ${RT_GUARDRAIL_FAIL_OPEN:-true}
+      RT_GUARDRAIL_BLOCK_TEXT: ${RT_GUARDRAIL_BLOCK_TEXT:-}
+      RT_EXTERNAL_GUARDRAIL: ${RT_EXTERNAL_GUARDRAIL:-output}
+      RT_INDEX_TRANSCRIPTS:  ${RT_INDEX_TRANSCRIPTS:-true}
+      RT_KAFKA_BOOTSTRAP:    ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+      RT_MEMORY_ENABLED:     ${RT_MEMORY_ENABLED:-true}
+      RT_MEMORY_SERVICE_URL: ${RT_MEMORY_SERVICE_URL:-http://raptor-memory-service:8026}
+      RT_RECORDING_ENABLED:  ${RT_RECORDING_ENABLED:-false}
+      RT_RECORDING_CHUNK_S:  ${RT_RECORDING_CHUNK_S:-10}
+      RT_RECORDING_COLLECTION: ${RT_RECORDING_COLLECTION:-}
+      RT_MODULE33_URL:       ${RT_MODULE33_URL:-http://raptor-privacy-compliance-service:8033}
+      RT_SEAWEEDFS_MASTER:   ${RT_SEAWEEDFS_MASTER:-http://raptor-seaweedfs-master1:9333}
+      GD_INTERNAL_TOKEN:     ${GD_INTERNAL_TOKEN:-}
+      POSTGRES_HOST:         ${POSTGRES_HOST:-raptor-postgres}
+      POSTGRES_PORT:         ${POSTGRES_PORT:-5432}
+      POSTGRES_USER:         ${POSTGRES_USER:-raptor}
+      POSTGRES_PASSWORD:     ${POSTGRES_PASSWORD:-}
+      RT_POSTGRES_DB:        ${RT_POSTGRES_DB:-realtime_audio}
+      HF_HOME:               /hf_cache
+      HF_HUB_OFFLINE:        ${RT_HF_HUB_OFFLINE:-0}
+      LOG_LEVEL:             ${LOG_LEVEL:-INFO}
+      TZ:                    ${TIMEZONE:-Asia/Taipei}
+    volumes:
+      - ${RT_STT_MODEL_DIR:-rt-stt-models}:/models/stt:ro
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/hf_cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${REALTIME_AUDIO_GPU:-0}"]
+              capabilities: [gpu]
+    # CF-3: kept published -- browsers, the telephony bridge (WebSocket) and native gRPC SDKs connect to
+    # module 34 directly; module 13 has no audio route yet. Put TLS in front via a proxy (see README).
+    ports:
+      - "${PORT_REALTIME_AUDIO:-8035}:8034"
+      - "${PORT_REALTIME_AUDIO_GRPC:-8044}:8044"   # RA-6 gRPC AudioService.AudioChat
+    networks:
+      raptor:
+        aliases:
+          - "raptor-realtime-audio"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8034/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s           # loads the Whisper model(s) and the TTS backend before /health answers
+
+  # RTA-X7: joins recorded chunks into WAV files (SeaweedFS + rt_audio_recordings), retention.
+  # Same image, no GPU; idle while RT_RECORDING_ENABLED=false.
+  realtime_audio_recording:
+    image: raptor/realtime-audio:${RAPTOR_VERSION}
+    container_name: raptor-realtime-audio-recording-${RAPTOR_VERSION}
+    command: ["python", "-m", "app.recording_consumer"]
+    environment:
+      RT_RECORDING_ENABLED:  ${RT_RECORDING_ENABLED:-false}
+      REDIS_HOST:            ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT:            ${REDIS_PORT:-6379}
+      REDIS_PASSWORD:        ${REDIS_PASSWORD:-}
+      REDIS_DB:              0
+      RT_KAFKA_BOOTSTRAP:    ${KAFKA_BOOTSTRAP_SERVERS:-kafka-broker1:9092,kafka-broker2:9092,kafka-broker3:9092}
+      RT_RECORDING_RETENTION_DAYS: ${RT_RECORDING_RETENTION_DAYS:-90}
+      RT_RECORDING_COLLECTION: ${RT_RECORDING_COLLECTION:-}
+      RT_SEAWEEDFS_MASTER:   ${RT_SEAWEEDFS_MASTER:-http://raptor-seaweedfs-master1:9333}
+      POSTGRES_HOST:         ${POSTGRES_HOST:-raptor-postgres}
+      POSTGRES_PORT:         ${POSTGRES_PORT:-5432}
+      POSTGRES_USER:         ${POSTGRES_USER:-raptor}
+      POSTGRES_PASSWORD:     ${POSTGRES_PASSWORD:-}
+      RT_POSTGRES_DB:        ${RT_POSTGRES_DB:-realtime_audio}
+      LOG_LEVEL:             ${LOG_LEVEL:-INFO}
+      TZ:                    ${TIMEZONE:-Asia/Taipei}
+    networks:
+      - raptor
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(time.time() - os.path.getmtime('/tmp/recording-consumer.alive') > 300)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - realtime_audio
+
+  breeze_tts:
+    profiles: ["breeze"]
+    build:
+      context: ./breeze
+    image: raptor/breeze-tts:${RAPTOR_VERSION}
+    container_name: raptor-breeze-tts-${RAPTOR_VERSION}
+    hostname: raptor-breeze-tts
+    environment:
+      TZ:                    ${TIMEZONE:-Asia/Taipei}
+    volumes:
+      - ${RT_TTS_BREEZE_MODEL_DIR:-rt-breeze-model}:/models/breeze-tts-2:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${REALTIME_AUDIO_BREEZE_GPU:-0}"]
+              capabilities: [gpu]
+    networks:
+      raptor:
+        aliases:
+          - "raptor-breeze-tts"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7860/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+
+volumes:
+  rt-stt-models: {}
+  rt-tts-kokoro: {}
+  rt-breeze-model: {}
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

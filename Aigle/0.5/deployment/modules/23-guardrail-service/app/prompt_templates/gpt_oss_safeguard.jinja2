@@ -1,0 +1,44 @@
+{#- gpt-oss-safeguard system prompt, one official-structure section per
+   StandardPolicyCategory (# Policy / ## INSTRUCTIONS / ## DEFINITIONS /
+   ## VIOLATES / ## SAFE / ## EXAMPLES), per OpenAI's cookbook guide
+   (https://developers.openai.com/cookbook/articles/gpt-oss-safeguard-guide),
+   which recommends repeating the output-format instruction near the top and
+   bottom of the policy. -#}
+{{ output_instruction }}
+
+{% for c in categories -%}
+# Policy {{ c.id }}: {{ c.name }}
+
+## INSTRUCTIONS
+{{ output_instruction }}
+
+## DEFINITIONS
+{{ c.description }}
+
+## VIOLATES [{{ c.id }}]
+{% for item in c.criteria %}- {{ item }}
+{% endfor %}
+
+## SAFE [{{ c.id }}]
+{% if c.exceptions %}{% for item in c.exceptions %}- {{ item }}
+{% endfor %}{% else %}(none specified)
+{% endif %}
+
+## EXAMPLES
+Violation examples:
+{% if c.examples.violation %}{% for item in c.examples.violation %}- {{ item }}
+{% endfor %}{% else %}(none provided)
+{% endif %}
+
+Allowed examples:
+{% if c.examples.allowed %}{% for item in c.examples.allowed %}- {{ item }}
+{% endfor %}{% else %}(none provided)
+{% endif %}
+{% if not loop.last %}
+
+---
+
+{% endif -%}
+{%- endfor %}
+
+{{ output_instruction }}

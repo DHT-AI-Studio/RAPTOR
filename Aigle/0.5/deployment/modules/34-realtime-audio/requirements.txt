@@ -1,0 +1,29 @@
+# torch / torchaudio come from the raptor/media-worker base image (see Dockerfile);
+# silero-vad is installed there with --no-deps so it never pulls a second torch.
+fastapi>=0.110
+uvicorn[standard]>=0.30
+httpx>=0.27
+redis==8.1.0
+PyJWT[crypto]>=2.8
+numpy>=1.26,<2
+soundfile>=0.12
+scipy>=1.10
+av>=12
+# RA-3 STT: CTranslate2 Whisper (the media-worker base image already ships this exact version;
+# it is imported lazily, so the unit tests never load a model) and simplified -> traditional
+# Chinese conversion of Whisper's Mandarin output.
+faster-whisper==1.1.0
+opencc-python-reimplemented==0.1.7
+# RTA-X4: GET /metrics
+prometheus-client==0.20.0
+# RTA-X6 / RTA-X7: Module 25 index requests and recording finalize messages (Kafka), the
+# rt_audio_recordings table (PostgreSQL); both imported only when used, so unit tests need neither
+aiokafka==0.12.0
+asyncpg==0.30.0
+# RA-6: gRPC AudioService.AudioChat; grpcio-tools generates the stubs from proto/ (Docker build,
+# tests/conftest.py). 1.85 needs protobuf >=7.35.1,<8 -- the media-worker base image ships 7.36.
+grpcio==1.85.1
+grpcio-tools==1.85.1
+
+# tests (tests/unit runs without torch / silero)
+fakeredis[lua]==2.41.0

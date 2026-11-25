@@ -1,0 +1,10 @@
+DocAgent Test Document
+
+This document is used for testing the DocAgent service.
+It contains plain text content for classify, extract, summarize, qa, and search tasks.
+
+Key Information:
+- Project: Raptor Platform
+- Version: 1.0
+- Date: 2026-10-16
+- Author: Test Suite

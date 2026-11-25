@@ -1,0 +1,26 @@
+# Chatterbox Multilingual V3 backend only. Delete this file (and
+# app/services/voice/backends/chatterbox.py, and its Dockerfile.voice/
+# prefetch_voice.py steps) to drop it entirely.
+#
+# chatterbox-tts itself is NOT listed here -- its PyPI release (0.1.7) pins
+# torch==2.6.0/torchaudio==2.6.0/transformers==5.2.0, more conservative than
+# this image needs, and `pip install -r` would let its resolver downgrade
+# requirements-voice.txt's already-resolved torch/transformers. Installed by
+# Dockerfile.voice in its own step instead, with --no-deps, from a pinned
+# GitHub commit (only the unreleased master exposes t3_model= on
+# from_local()/from_pretrained(), needed to select the V3 checkpoint).
+librosa==0.11.0
+s3tokenizer
+diffusers==0.38.0
+conformer==0.3.2
+safetensors>=0.5.3
+spacy-pkuseg
+pykakasi==2.3.0
+pyloudnorm
+omegaconf
+# Pinned to a commit, not the floating @master PR #378 used -- @master can move
+# out from under a rebuild without warning.
+resemble-perth @ git+https://github.com/resemble-ai/Perth.git@ff1c8ac55a976971245cdd53c18d6131ca00d993
+# Traditional->Simplified text conversion before chatterbox_text() -- see
+# app/services/voice/backends/chatterbox.py.
+opencc-python-reimplemented==0.1.7

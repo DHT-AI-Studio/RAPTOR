@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raptor-grpc-client"
+version = "0.5.0"
+description = "Generated Python stubs for the Raptor gRPC gateway (raptor.v1.RaptorService)"
+readme = "README.md"
+requires-python = ">=3.10"
+# Minimums must cover the versions the generated code checks at import time;
+# tests/unit/test_client_package.py fails if they drift.
+dependencies = [
+    "grpcio>=1.68.0",
+    "protobuf>=5.28.1",
+]
+
+# `raptor` is an implicit namespace package (no raptor/__init__.py) so other
+# distributions can add sibling packages such as raptor.audio.v1 beside raptor.v1.
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true

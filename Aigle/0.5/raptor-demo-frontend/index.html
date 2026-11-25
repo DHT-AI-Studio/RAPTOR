@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Raptor Demo</title>
+    <script>
+      // Nothing in this app uses SharedArrayBuffer, so there's no reason to
+      // pay for cross-origin isolation -- and the coi-serviceworker this
+      // used to register enforces COEP (require-corp) on every fetch it
+      // controls, which blocks any cross-origin response lacking a
+      // Cross-Origin-Resource-Policy header. That's every video/image this
+      // app loads from storage (SeaweedFS doesn't send that header), so a
+      // browser whose service worker was already installed from an older
+      // build silently breaks playback. Unregister proactively so an
+      // already-affected returning visitor self-heals on their next load.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (const reg of regs) reg.unregister()
+        })
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,70 @@
+# Chat Service Module
+# Aigle Platform v0.2
+# Text-to-text LLM processing service for chatbot, translation, summarization, and text generation
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  # ============================================
+  # Chat Service
+  # Provides unified API for text-to-text LLM processing
+  # Supports: Chatbot, Translation, Summarization, Text Generation
+  # ============================================
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/chat-service:${RAPTOR_VERSION}
+    container_name: raptor-chat-service-${RAPTOR_VERSION}
+    hostname: raptor-chat-service
+    environment:
+      TZ: ${TIMEZONE:-Asia/Taipei}
+      PYTHONWARNINGS: "ignore"
+      # LLM -- through module 23's guardrail proxy (GB-7/GB-12), which checks
+      # input/output and relays to its own upstream. CHAT_LLM_BASE_URL, not the
+      # shared LLM_BASE_URL, so other modules reading LLM_BASE_URL are unaffected.
+      # Roll back to the direct upstream with CHAT_LLM_BASE_URL=${LLM_BASE_URL}.
+      LLM_BASE_URL: ${CHAT_LLM_BASE_URL:-http://raptor-guardrail-service:8026/v1}
+      # Direct upstream (what LLM_BASE_URL used to be), used only when module 23
+      # is unreachable or reports guardrail_unavailable and the switch is on.
+      LLM_FALLBACK_BASE_URL: ${LLM_BASE_URL:-http://raptor-ai-lifecycle-api:8010/v1}
+      GUARDRAIL_FALLBACK_PASSTHROUGH: ${GUARDRAIL_FALLBACK_PASSTHROUGH:-true}
+      # GB-22: this service has no env_file:, so GUARDRAIL_URL must be listed
+      # explicitly or lifespan()'s registration always sees it unset.
+      GUARDRAIL_URL: ${GUARDRAIL_URL}
+      LLM_MODEL: ${CHAT_LLM_MODEL:-gemma4:12b}
+      TEMPERATURE: ${TEMPERATURE:-0.7}
+      LLM_NUM_CTX: ${LLM_NUM_CTX:-262144}
+      LLM_THINK: ${CHAT_LLM_THINK:-false}
+      # Personal DB Service (module 25) — per-user isolated search (was module 17, see search_service.py's commented-out old implementation)
+      PERSONAL_DB_SERVICE_URL: ${PERSONAL_DB_SERVICE_URL:-http://raptor-personal-db-service:8000}
+      # HYBRID_SEARCH_URL: ${HYBRID_SEARCH_URL:-http://raptor-hybridsearch-api:8000}
+      # Memory Service (module 26)
+      CHAT_MEMORY_SERVICE_URL: ${CHAT_MEMORY_SERVICE_URL:-http://raptor-memory-service:8026}
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-raptor-redis-standalone}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      # Chat memory
+      MEMORY_CONTEXT_WINDOW: ${MEMORY_CONTEXT_WINDOW:-5}
+      MEMORY_TTL: ${MEMORY_TTL:-3600}
+      # HTTP
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-60.0}
+    ports:
+      - "${PORT_CHAT_SERVICE:-8021}:8021"
+    networks:
+      raptor:
+        aliases:
+          - "raptor-chat-service"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8021/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

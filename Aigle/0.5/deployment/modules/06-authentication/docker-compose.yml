@@ -1,0 +1,316 @@
+# Authentication Module (Keycloak)
+# Aigle Platform v0.2
+# Deploy: docker-compose -f docker-compose.yml up -d
+
+services:
+  # Keycloak Database
+  keycloak-db:
+    image: postgres:15
+    container_name: raptor-keycloak-db-${RAPTOR_VERSION}
+    hostname: raptor-keycloak-db
+    environment:
+      POSTGRES_DB: ${KEYCLOAK_DB_DATABASE:-keycloak}
+      POSTGRES_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_KEYCLOAK_DB:-5434}:5432"
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+      - keycloak-db-backup-staging:/backup-staging
+    # VIE01-369 Phase 1: execs inside this container via the backup sidecar's archive-pre hook.
+    labels:
+      # exec-label: confirmed live, without this every sidecar's `backup`
+      # run triggers archive-pre on every labeled container reachable via
+      # the shared docker.sock, not just its own target.
+      - "docker-volume-backup.exec-label=06-keycloak-db"
+      - "docker-volume-backup.archive-pre=sh -c 'PGPASSWORD=$$POSTGRES_PASSWORD pg_dump -U $$POSTGRES_USER -d $$POSTGRES_DB --format=custom -f /backup-staging/keycloak-db.dump'"
+    networks:
+      raptor:
+        aliases:
+          - raptor-keycloak-db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KEYCLOAK_DB_USER:-keycloak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  # Keycloak Identity Server
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.2
+    container_name: raptor-keycloak-${RAPTOR_VERSION}
+    hostname: raptor-keycloak
+    command:
+      - start-dev
+      - --import-realm
+    # List form, not the usual KEY: value map, for one reason: KC_PROXY_HEADERS below must be left
+    # OFF of the container's environment entirely on the plain-HTTP default, not merely set to an
+    # empty string -- confirmed live (quay.io/keycloak/keycloak:26.6.2 start-dev), Keycloak treats an
+    # *empty* KC_PROXY_HEADERS as an invalid enum value and refuses to start ("Invalid value for
+    # option 'KC_PROXY_HEADERS': . Expected values are: forwarded, xforwarded"), unlike a truly
+    # *absent* one, which is the documented way to say "no trusted proxy". A bare `- KC_PROXY_HEADERS`
+    # entry (no `=value`) is Compose's one construct that actually omits the key when the variable
+    # resolves to nothing, rather than passing it through blank -- confirmed live, also the only
+    # reason this block mixes that bare form with ordinary `KEY=value` strings below.
+    environment:
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/${KEYCLOAK_DB_DATABASE:-keycloak}
+      - KC_DB_USERNAME=${KEYCLOAK_DB_USER:-keycloak}
+      - KC_DB_PASSWORD=${KEYCLOAK_DB_PASSWORD}
+      - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USERNAME:-admin}
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+      - KC_HTTP_PORT=8080
+      - KC_HTTP_ENABLED=true
+      - PERMANENT_MASTER_ADMIN_USER=${PERMANENT_MASTER_ADMIN_USER}
+      - PERMANENT_ADMIN_PASSWORD=${PERMANENT_ADMIN_PASSWORD}
+      # Separate from HOST_IP (Redis/Kafka need a raw IP) — falls back to it if unset.
+      - KC_HOSTNAME=${KEYCLOAK_PUBLIC_URL:-http://${HOST_IP:-localhost}:${PORT_KEYCLOAK:-8080}}
+      # TLS entry only (CF-3a, "tls" profile below): trust X-Forwarded-* only from raptor-tls-proxy,
+      # which sets them -- on this plain-HTTP default, Keycloak is reached directly and these headers
+      # would come from clients instead, so this must stay fully absent unless KC_PROXY_HEADERS is
+      # explicitly set (see the block comment above for why this one line looks different).
+      - KC_PROXY_HEADERS
+      # Services on the private network (keycloak-api, the gateway's JWKS fetch) still call Keycloak at
+      # http://raptor-keycloak:8080; give them that address back for token/JWKS endpoints instead of the
+      # public https one they may not reach or trust, once KC_HOSTNAME is that public address ("tls" profile).
+      - KC_HOSTNAME_BACKCHANNEL_DYNAMIC=${KC_HOSTNAME_BACKCHANNEL_DYNAMIC:-false}
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    # TLS entry only: KEYCLOAK_BIND_ADDR=127.0.0.1, so this port is reached only through
+    # raptor-tls-proxy's https front door, not directly -- from other machines it would bypass https
+    # and the proxy's /admin/ block, and its clients could send the X-Forwarded-* headers trusted above.
+    ports:
+      - "${KEYCLOAK_BIND_ADDR:+${KEYCLOAK_BIND_ADDR}:}${PORT_KEYCLOAK:-8080}:8080"
+    volumes:
+      - ./realm-import:/opt/keycloak/data/import:ro
+      - ./create-permanent-admin.sh:/opt/keycloak/bin/create-permanent-admin.sh:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      raptor:
+        aliases:
+          - raptor-keycloak
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health HTTP/1.0\r\n\r\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1'
+
+  keycloak-init:
+    image: quay.io/keycloak/keycloak:26.6.2
+    container_name: raptor-keycloak-init-${RAPTOR_VERSION}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/opt/keycloak/bin/create-permanent-admin.sh"]
+    environment:
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      PERMANENT_MASTER_ADMIN_USER: ${PERMANENT_MASTER_ADMIN_USER}
+      PERMANENT_ADMIN_PASSWORD: ${PERMANENT_ADMIN_PASSWORD}
+      RAPTOR_CLIENT_SECRET: ${RAPTOR_CLIENT_SECRET}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_DISPLAY_NAME: ${SMTP_FROM_DISPLAY_NAME:-DHT Solution}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+    volumes:
+      - ./create-permanent-admin.sh:/opt/keycloak/bin/create-permanent-admin.sh:ro
+    networks:
+      raptor:
+        aliases:
+          - raptor-keycloak-init
+    restart: "no"
+
+  keycloak-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/keycloak-api:${RAPTOR_VERSION}
+    container_name: raptor-keycloak-api-${RAPTOR_VERSION}
+    hostname: raptor-keycloak-api
+    environment:
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-dhtsolution}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-raptor}
+      KEYCLOAK_INFERENCE_URIS: ${KEYCLOAK_INFERENCE_URIS:-}
+      KEYCLOAK_FINETUNING_URIS: ${KEYCLOAK_FINETUNING_URIS:-}
+      PERMANENT_MASTER_ADMIN_USER: ${PERMANENT_MASTER_ADMIN_USER}
+      PERMANENT_ADMIN_PASSWORD: ${PERMANENT_ADMIN_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TO_EMAIL: ${SMTP_TO_EMAIL:-}
+      # GD-5 / VIE01-250: registration webhook to Module 33.
+      GD_INTERNAL_TOKEN: ${GD_INTERNAL_TOKEN:-}
+      PRIVACY_COMPLIANCE_URL: ${PRIVACY_COMPLIANCE_URL:-http://raptor-privacy-compliance-service:8033}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    ports:
+      - "${PORT_KEYCLOAK_API:-8800}:8800"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      keycloak-init:
+        condition: service_completed_successfully
+    networks:
+      raptor:
+        aliases:
+          - raptor-keycloak-api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  # Weekly password rotation (sidecar) — regenerates a strong random password
+  # for every account in the list, pushes it to Keycloak via the admin API,
+  # and emails the new password to the account's contact address. Reuses the
+  # keycloak-api image so it has app.keycloak/app.routers importable without
+  # a separate build. See app/scripts/rotate_passwords.py's own docstring for
+  # the fixed weekly schedule and manual one-off run instructions.
+  password-rotator:
+    image: raptor/keycloak-api:${RAPTOR_VERSION}
+    container_name: raptor-password-rotator-${RAPTOR_VERSION}
+    environment:
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      PERMANENT_MASTER_ADMIN_USER: ${PERMANENT_MASTER_ADMIN_USER}
+      PERMANENT_ADMIN_PASSWORD: ${PERMANENT_ADMIN_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      ROTATE_REALM: ${ROTATE_REALM:-dhtsolution}
+      ROTATE_ACCOUNTS_FILE: /app/rotate_accounts.txt
+      ROTATE_ACCOUNTS: ${ROTATE_ACCOUNTS:-}
+      ROTATE_BCC_EMAIL: ${ROTATE_BCC_EMAIL:-}
+      ROTATE_WEEKDAY: ${ROTATE_WEEKDAY:-0}
+      ROTATE_HOUR: ${ROTATE_HOUR:-9}
+      ROTATE_MINUTE: ${ROTATE_MINUTE:-0}
+      TZ: ${TIMEZONE:-Asia/Taipei}
+    volumes:
+      - ./rotate_accounts.txt:/app/rotate_accounts.txt:ro
+    entrypoint: ["python", "-m", "app.scripts.rotate_passwords"]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      keycloak-init:
+        condition: service_completed_successfully
+    networks:
+      raptor:
+        aliases:
+          - raptor-password-rotator
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.25'
+
+  # Backup sidecar (VIE01-369 Phase 1, see docs/backup-restore-v0.5.md).
+  keycloak-db-backup:
+    image: offen/docker-volume-backup:v2.50.0
+    container_name: raptor-keycloak-db-backup-${RAPTOR_VERSION}
+    environment:
+      EXEC_LABEL: "06-keycloak-db"
+      BACKUP_CRON_EXPRESSION: ${KEYCLOAK_BACKUP_CRON:-0 3 * * *}
+      BACKUP_FILENAME: "06-keycloak-db-%Y-%m-%dT%H-%M-%S.tar.gz"
+      BACKUP_PRUNING_PREFIX: "06-keycloak-db-"
+      BACKUP_RETENTION_DAYS: ${KEYCLOAK_BACKUP_RETENTION_DAYS:-30}
+      AGE_PUBLIC_KEYS: ${AGE_PUBLIC_KEYS}
+      NOTIFICATION_URLS: ${BACKUP_NOTIFICATION_URLS:-}
+      NOTIFICATION_LEVEL: error
+      TZ: ${TIMEZONE:-Asia/Taipei}
+      # Destination: any combination; blank ones are skipped.
+      SSH_HOST_NAME: ${BACKUP_SSH_HOST_NAME:-}
+      SSH_PORT: ${BACKUP_SSH_PORT:-22}
+      SSH_USER: ${BACKUP_SSH_USER:-}
+      SSH_PASSWORD: ${BACKUP_SSH_PASSWORD:-}
+      SSH_IDENTITY_FILE: ${BACKUP_SSH_IDENTITY_FILE:-}
+      SSH_REMOTE_PATH: ${BACKUP_SSH_REMOTE_PATH:-/backups/raptor}
+      SSH_HOST_PUBLIC_KEY: ${BACKUP_SSH_HOST_PUBLIC_KEY:-}
+      SSH_KNOWN_HOSTS_FILE: ${BACKUP_SSH_KNOWN_HOSTS_FILE:-}
+      SSH_IGNORE_HOST_KEY: ${BACKUP_SSH_IGNORE_HOST_KEY:-false}
+      WEBDAV_URL: ${BACKUP_WEBDAV_URL:-}
+      WEBDAV_PATH: ${BACKUP_WEBDAV_PATH:-}
+      WEBDAV_USERNAME: ${BACKUP_WEBDAV_USERNAME:-}
+      WEBDAV_PASSWORD: ${BACKUP_WEBDAV_PASSWORD:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - keycloak-db-backup-staging:/backup/keycloak-db
+      # Local/pre-mounted-NFS destination; a mount here at all enables it.
+      - ${BACKUP_LOCAL_ARCHIVE_PATH:-./backup-archive-default}:/archive
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      raptor:
+        aliases:
+          - raptor-keycloak-db-backup
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.25'
+
+  # TLS entry (CF-3a, GitHub #163): an nginx in front of Keycloak and the gateway, terminating https.
+  # Opt-in: COMPOSE_PROFILES=tls (or `docker compose --profile tls ...`) in the env file build.py reads,
+  # alongside KEYCLOAK_PUBLIC_URL/KEYCLOAK_BIND_ADDR/KC_PROXY_HEADERS/KC_HOSTNAME_BACKCHANNEL_DYNAMIC above
+  # and Module 13's GATEWAY_PUBLIC_URL -- see this module's README, "TLS for Keycloak and the gateway".
+  tls-proxy:
+    image: nginx:1.27-alpine
+    container_name: raptor-tls-proxy-${RAPTOR_VERSION}
+    profiles: ["tls"]
+    environment:
+      KEYCLOAK_UPSTREAM: raptor-keycloak:8080
+      GATEWAY_UPSTREAM: raptor-api-gateway:8012
+      KEYCLOAK_TLS_PORT: "8443"
+      GATEWAY_TLS_PORT: "8013"
+    ports:
+      - "${PORT_KEYCLOAK_TLS:-8443}:8443"
+      - "${PORT_GATEWAY_TLS:-8013}:8013"
+    volumes:
+      - ./tls/raptor-tls.conf.template:/etc/nginx/templates/raptor-tls.conf.template:ro
+      - ${TLS_CERT_DIR:-./tls/certs}:/certs:ro
+    depends_on:
+      - keycloak
+    networks:
+      raptor:
+    restart: unless-stopped
+
+volumes:
+  keycloak-db-data:
+  keycloak-db-backup-staging:
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

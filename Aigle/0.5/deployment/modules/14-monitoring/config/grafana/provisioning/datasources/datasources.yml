@@ -1,0 +1,22 @@
+# Grafana Datasources Configuration
+# /modules/08-monitoring/config/grafana/provisioning/datasources/datasources.yml
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://raptor-prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "15s"
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://raptor-loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000

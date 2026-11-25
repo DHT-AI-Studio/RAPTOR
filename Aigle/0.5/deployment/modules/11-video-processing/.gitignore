@@ -1,0 +1,2 @@
+# InsightFace ONNX models (~180MB) are mounted into video-face-detection, never committed
+models/

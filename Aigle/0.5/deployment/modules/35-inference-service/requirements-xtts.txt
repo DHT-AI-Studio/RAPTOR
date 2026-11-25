@@ -1,0 +1,8 @@
+# XTTS-v2 backend only. Delete this file (and app/services/voice/backends/xtts.py,
+# and its Dockerfile.voice/prefetch_voice.py steps) to drop XTTS-v2 entirely.
+#
+# Maintained Coqui package providing the same TTS/XTTS-v2 API on modern CUDA.
+# Re-pinned per-arch by Dockerfile.voice's arch-conditional block (0.27.2 vs
+# 0.27.3 -- see there for why) -- the version below is the amd64 default,
+# never installed as-is on arm64.
+coqui-tts[languages]==0.27.2

@@ -1,0 +1,45 @@
+services:
+  doc-processing-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raptor/doc-processing-agent:${RAPTOR_VERSION:-dev}
+    container_name: raptor-doc-processing-agent-${RAPTOR_VERSION:-dev}
+    restart: unless-stopped
+    ports:
+      - "${PORT_DOC_PROCESSING_AGENT:-8290}:8290"
+    environment:
+      # ── Module 12 ────────────────────────────────────────────────────
+      DA_MODULE12_SYNC_URL: "http://raptor-document-analysis:8020"
+      # ── Module 07 ────────────────────────────────────────────────────
+      DA_MODULE07_URL: "http://raptor-ai-lifecycle-api:8010"
+      DA_AI_LIFECYCLE_URL: "http://raptor-ai-lifecycle-api:8010"
+      # ── Qdrant ───────────────────────────────────────────────────────
+      DA_QDRANT_URL: "http://raptor-qdrant:6333"
+      DA_QDRANT_DOC_COLLECTION: "doc_agent_embeddings"
+      DA_QDRANT_VECTOR_SIZE: "1024"
+      # ── Models ───────────────────────────────────────────────────────
+      DA_EMBED_MODEL: "${DA_EMBED_MODEL:-bge-m3}"
+      DA_LLM_MODEL: "${DA_LLM_MODEL:-gemma4-12b-ollama}"
+      # ── Timeouts ─────────────────────────────────────────────────────
+      DA_DOC12_TIMEOUT: "300.0"
+      DA_LLM_TIMEOUT: "60.0"
+      DA_EMBED_TIMEOUT: "30.0"
+      # ── Service ──────────────────────────────────────────────────────
+      DA_LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      DA_MAX_CONCURRENT_REQUESTS: "10"
+    networks:
+      raptor:
+        aliases:
+          - raptor-doc-processing-agent
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8290/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}

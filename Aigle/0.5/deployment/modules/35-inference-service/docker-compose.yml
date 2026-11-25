@@ -1,0 +1,150 @@
+# LLM Inference Service — Raptor Platform module 35
+# Task-level text APIs (translate / summarize / complete / transform) plus model
+# discovery and per-task default models, on top of module 07 inference.
+#
+# Two mutually-exclusive deploy profiles, same container name/port either way
+# (never both at once): VIE01-376 requires the GPU device reservation to sit
+# only on the voice-inference service path, with the text path carrying none.
+#   --profile text   text-only, no GPU (default)
+#   --profile voice   text + voice (diarize/clone); needs a GPU. Build-time
+#                      model source is itself env-driven, not a third profile:
+#                      INF_VOICE_BUNDLE_DIR empty (default) downloads with
+#                      HUGGINGFACE_TOKEN at build time; set, it instead mounts
+#                      that pre-exported, offline NAS bundle read-only (build
+#                      downloads nothing -- one variable decides both).
+# Deploy: docker compose --env-file ../.env -f docker-compose.yml --profile text up -d
+#
+# All generation goes through module 07 POST /inference/infer (07 keeps runtimes,
+# GPU scheduling, guardrail hook, usage and model limits). Model listing reads
+# 07's MLflow registry plus the Ollama daemon directly, so GET /models still
+# answers from Ollama when 07 is down. Per-task defaults live in module 02's
+# shared Redis (raptor-redis-standalone, DB 0, keys "inf:model:default:{task}").
+# Unified .env names are INF_* prefixed; they map onto the service's own names here.
+
+x-inference-common: &inference-common
+  container_name: raptor-inference-service-${RAPTOR_VERSION}
+  hostname: raptor-inference-service
+  ports:
+    - "${PORT_INFERENCE:-8036}:8035"
+  networks:
+    raptor:
+      aliases:
+        - "raptor-inference-service"
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "curl", "-sf", "http://localhost:8035/health"]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+
+x-inference-env: &inference-env
+  MODULE07_API_URL:        ${INF_MODULE07_API_URL:-http://raptor-ai-lifecycle-api:8010}
+  MODULE07_OLLAMA_HOST:    ${INF_MODULE07_OLLAMA_HOST:-${OLLAMA_HOST:-http://raptor-ollama:11434}}
+  MODULE07_TIMEOUT_S:      ${INF_MODULE07_TIMEOUT_S:-120}
+  MODULE07_REGISTRY_TIMEOUT_S: ${INF_MODULE07_REGISTRY_TIMEOUT_S:-5}
+  MODEL_CACHE_TTL_S:       ${INF_MODEL_CACHE_TTL_S:-60}
+  # VIE01-316/317: Module 34's one-shot STT/TTS endpoints (its hostname/internal port, not
+  # the host-published PORT_REALTIME_AUDIO).
+  MODULE34_API_URL:        ${INF_MODULE34_API_URL:-http://raptor-realtime-audio:8034}
+  MODULE34_TIMEOUT_S:      ${INF_MODULE34_TIMEOUT_S:-60}
+  DEFAULT_TEXT_MODEL:      ${INF_DEFAULT_TEXT_MODEL:-}
+  DEFAULT_STT_MODEL:       ${INF_DEFAULT_STT_MODEL:-}
+  DEFAULT_TTS_MODEL:       ${INF_DEFAULT_TTS_MODEL:-}
+  DEFAULT_CLONE_MODEL:     ${INF_DEFAULT_CLONE_MODEL:-}
+  DEFAULT_DIARIZE_MODEL:   ${INF_DEFAULT_DIARIZE_MODEL:-}
+  TRANSLATE_SYSTEM_PROMPT: ${INF_TRANSLATE_SYSTEM_PROMPT:-}
+  SUMMARIZE_SYSTEM_PROMPT: ${INF_SUMMARIZE_SYSTEM_PROMPT:-}
+  SUMMARIZE_CHUNK_CHARS:   ${INF_SUMMARIZE_CHUNK_CHARS:-12000}
+  SUMMARIZE_MAX_CHUNKS:    ${INF_SUMMARIZE_MAX_CHUNKS:-8}
+  TRANSFORM_SYSTEM_PROMPT: ${INF_TRANSFORM_SYSTEM_PROMPT:-}
+  REDIS_HOST:              ${REDIS_HOST:-raptor-redis-standalone}
+  REDIS_PORT:              ${REDIS_PORT:-6379}
+  REDIS_PASSWORD:          ${REDIS_PASSWORD:-}
+  REDIS_DB:                0
+  LOG_LEVEL:               ${LOG_LEVEL:-INFO}
+  GUARDRAIL_ENABLED:        ${INF_GUARDRAIL_ENABLED:-false}
+  GUARDRAIL_CHECK_OUTPUT:   ${INF_GUARDRAIL_CHECK_OUTPUT:-false}
+  MODULE23_URL:             ${INF_MODULE23_URL:-http://raptor-guardrail-service:8026}
+  GUARDRAIL_TIMEOUT_S:      ${INF_GUARDRAIL_TIMEOUT_S:-20}
+  GUARDRAIL_INPUT_PATH:     ${INF_GUARDRAIL_INPUT_PATH:-/guardrail/policy/decide}
+  GUARDRAIL_OUTPUT_PATH:    ${INF_GUARDRAIL_OUTPUT_PATH:-/guardrail/policy/decide}
+  # VIE01-419 / INF-20: XTTS-v2 weights are Coqui Public Model License
+  # (non-commercial) -- off by default even on the voice profile.
+  CLONE_ENABLED:            ${INF_CLONE_ENABLED:-false}
+  # Comma list, subset of: xtts-v2, chatterbox-multilingual-v3. Must be a
+  # subset of whatever CLONE_BACKENDS_BUILD (build arg, below) baked in --
+  # defaults to that same value, so the common case (enable everything baked)
+  # needs only one var set; override here only to enable a subset at runtime.
+  CLONE_BACKENDS_RUNTIME:   ${INF_CLONE_BACKENDS_RUNTIME:-${INF_CLONE_BACKENDS_BUILD:-xtts-v2}}
+  # Comma list: eagerly load these at startup instead of on first request.
+  # Default empty -- every configured backend loads lazily.
+  CLONE_BACKENDS_WARM:      ${INF_CLONE_BACKENDS_WARM:-}
+  SPEAKER_CACHE_TTL_S:      ${INF_SPEAKER_CACHE_TTL_S:-86400}
+  SPEAKER_CACHE_MAX:        ${INF_SPEAKER_CACHE_MAX:-100}
+  # GD-1 / VIE01-246: X-Internal-Token Module 33 presents on /internal/gdpr/*.
+  GD_INTERNAL_TOKEN:        ${GD_INTERNAL_TOKEN:-}
+  # GD-11: /voice/clone asks Module 33's GET /consent for the caller's voice_clone consent.
+  MODULE33_URL:             ${INF_MODULE33_URL:-http://raptor-privacy-compliance-service:8033}
+  TZ:                      ${TIMEZONE:-Asia/Taipei}
+
+services:
+  inference-service:
+    <<: *inference-common
+    build: .
+    image: raptor/inference-service:${RAPTOR_VERSION:-0.5}
+    profiles: ["text"]
+    environment:
+      <<: *inference-env
+
+  inference-service-voice:
+    <<: *inference-common
+    build:
+      context: .
+      dockerfile: Dockerfile.voice
+      args:
+        BASE_IMAGE: ${INF_VOICE_BASE_IMAGE:-raptor/media-worker:${RAPTOR_VERSION:-0.5}}
+        VOICE_BUNDLE_DIR: ${INF_VOICE_BUNDLE_DIR:-}
+        # Build-time only: which backends' weights/deps get baked into the
+        # image. CLONE_BACKENDS_RUNTIME above (the runtime toggle) defaults to
+        # this same value unless explicitly overridden.
+        CLONE_BACKENDS_BUILD: ${INF_CLONE_BACKENDS_BUILD:-xtts-v2}
+      secrets:
+        - hf_token
+    image: raptor/inference-service:${RAPTOR_VERSION:-0.5}-voice
+    profiles: ["voice"]
+    environment:
+      <<: *inference-env
+      VOICE_ENABLED: "true"
+      VOICE_MODEL_DIR: /opt/voice-models
+    volumes:
+      # A bind mount here would NOT be a no-op when INF_VOICE_BUNDLE_DIR is
+      # unset: the host path is empty (freshly auto-created by Docker), so
+      # it would shadow the image's own baked-in models with nothing --
+      # confirmed live, this is exactly what happened before this fix.
+      # A bare name (no leading /) is instead a *named volume*: Docker seeds
+      # a new one from the image's existing directory content on first use
+      # (bind mounts never get this treatment), a real no-op. Set
+      # INF_VOICE_BUNDLE_DIR to an absolute path and this becomes a real
+      # bind mount again, overriding with that pre-exported, offline NAS
+      # bundle instead, same as before.
+      - ${INF_VOICE_BUNDLE_DIR:-voice-models-cache}:/opt/voice-models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${INFERENCE_VOICE_GPU:-0}"]
+              capabilities: [gpu]
+
+volumes:
+  voice-models-cache:
+
+secrets:
+  hf_token:
+    environment: HUGGINGFACE_TOKEN
+
+networks:
+  raptor:
+    external: true
+    name: ${DOCKER_NETWORK:-raptor}
