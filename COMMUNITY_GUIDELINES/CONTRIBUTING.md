@@ -447,7 +447,7 @@ We use labels to categorize issues:
 
 ### Getting Help
 
-- Check the [documentation](docs/)
+- Check the [documentation](../Aigle/0.5/docs/)
 - Search existing [issues](https://github.com/DHT-AI-Studio/RAPTOR/issues)
 - Ask questions in GitHub Discussions
 - Join our Telegram group
