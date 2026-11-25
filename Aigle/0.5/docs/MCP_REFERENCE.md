@@ -133,7 +133,7 @@ A `tools/call` typically streams one or more `notifications/message` progress ev
 | `raptor_memory_compact_evaluate` | — | `session_id`, `context_window`, `extra_tokens` | Estimate the token budget a compaction would need, without running it |
 | `raptor_memory_archive` | `user_message`, `assistant_response` | `session_id` | Archive one conversation turn into a session |
 
-**Known stale wording:** `raptor_search_bm25`/`raptor_search_vector`'s own descriptions still say "using OpenSearch"/"using Qdrant" — those backends were retired (see root [`README.md`](README.md#deprecated-modules)); the real backend for all `raptor_search*` tools is Module 25 (ArcadeDB). The descriptions themselves haven't been updated to match — trust this doc and `API_REFERENCE.md`'s [Search](API_REFERENCE.md#search) section over the tool's own text until that's fixed.
+**Known stale wording:** `raptor_search_bm25`/`raptor_search_vector`'s own descriptions still say "using OpenSearch"/"using Qdrant" — those backends were retired (see root [`README.md`](../README.md#deprecated-modules)); the real backend for all `raptor_search*` tools is Module 25 (ArcadeDB). The descriptions themselves haven't been updated to match — trust this doc and `API_REFERENCE.md`'s [Search](API_REFERENCE.md#search) section over the tool's own text until that's fixed.
 
 ---
 

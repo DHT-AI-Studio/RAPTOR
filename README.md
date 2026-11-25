@@ -168,7 +168,7 @@ Carried over from Aigle 0.2:
 - **Monitoring**: Built-in observability and logging
 - **Extensible**: Plugin architecture for custom processors
 
-For detailed release notes, see [CHANGELOG.md](CHANGELOG.md).
+For detailed release notes, see [CHANGELOG.md](Aigle/0.5/docs/CHANGELOG.md).
 
 ## 📦 Installation
 
@@ -424,7 +424,7 @@ We'll post updates, respond to questions, and collaborate with users across thes
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Please read our [CONTRIBUTING.md](/RAPTOR/COMMUNITY_GUIDELINES/CONTRIBUTING.md) guide to get started.
+We welcome contributions from the community! Please read our [CONTRIBUTING.md](COMMUNITY_GUIDELINES/CONTRIBUTING.md) guide to get started.
 
 ### How to Contribute
 
@@ -434,7 +434,7 @@ We welcome contributions from the community! Please read our [CONTRIBUTING.md](/
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-Please read our [Code of Conduct](/COMMUNITY_GUIDELINES/CODE_OF_CONDUCT.md) before contributing.
+Please read our [Code of Conduct](COMMUNITY_GUIDELINES/CODE_OF_CONDUCT.md) before contributing.
 
 ## 📄 License
 

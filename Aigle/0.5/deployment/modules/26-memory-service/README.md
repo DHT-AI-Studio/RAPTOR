@@ -584,7 +584,7 @@ conda run -n CIE python -m pytest test_search.py -v -m slow
 
 ### 手動測試 / Module 15 整合驗證
 
-完整 curl 範例（含手動測試所有端點、驗證 Module 15 是否已接上）見 [TESTING.md](TESTING.md)。
+可透過服務的互動式 API 文件（FastAPI `GET /docs`）手動測試所有端點，並驗證 Module 15 是否已接上。
 
 ---
 
