@@ -6,7 +6,13 @@ The following versions of RAPTOR are currently being supported with security upd
 
 | Version | Supported          | Status |
 | ------- | ------------------ | ------ |
-| Aigle 0.1.x | :white_check_mark: | Beta   |
+| Aigle 0.5.x | :white_check_mark: | Community Beta (current) |
+| Aigle 0.4.x | :x:                | No longer supported — please upgrade to 0.5 |
+| Aigle 0.3.x | :x:                | No longer supported |
+| Aigle 0.2.x | :x:                | No longer supported |
+| Aigle 0.1.x | :x:                | No longer supported |
+
+Only the latest release receives security fixes. If you find an issue in an older release, please check whether it still reproduces on Aigle 0.5 before reporting.
 
 ## Reporting a Vulnerability
 
@@ -51,7 +57,7 @@ Please include the following information:
 
 **Impact**: What can an attacker do?
 
-**Affected Versions**: Aigle 0.1.0
+**Affected Versions**: Aigle 0.5
 
 **Steps to Reproduce**:
 1. Step 1
@@ -147,13 +153,16 @@ pip install --upgrade raptor-ai
 
 ## Security Features
 
-### Current Release (Aigle 0.1)
+### Current Release (Aigle 0.5)
 
 - Input validation and sanitization
-- Secure default configurations
-- No hardcoded credentials
+- Secrets supplied through environment configuration (`deploy.sh --init-env`), not hardcoded
+- LLM input/output content moderation via the Guardrail Service (Module 23)
+- Cross-service GDPR/CCPA erasure, export, DSAR, consent, retention and legal hold via the Privacy Compliance Service (Module 33)
+- Ticket-based authentication for real-time audio sessions (Module 34)
 - Dependencies from trusted sources
-- Regular dependency audits
+
+Known gaps (for example, guardrail coverage that is not yet enforced at every entry point) are listed in [`Aigle/0.5/docs/CHANGELOG.md`](../Aigle/0.5/docs/CHANGELOG.md).
 
 ### Planned Features
 
@@ -166,7 +175,7 @@ pip install --upgrade raptor-ai
 
 ### Beta Release Notice
 
-RAPTOR Aigle 0.1 is a **beta release**. While we've taken security seriously:
+RAPTOR Aigle 0.5 is a **community beta release**. While we've taken security seriously:
 
 - Not all features have undergone production-grade security audits
 - Some APIs may change in future releases
@@ -207,7 +216,7 @@ Security researchers who responsibly disclose vulnerabilities will be:
 - Credited in security advisories
 - Mentioned in release notes
 
-*No vulnerabilities have been reported yet (as of first release).*
+*No vulnerabilities have been publicly disclosed yet.*
 
 ## Bug Bounty Program
 
@@ -233,8 +242,8 @@ We currently do not have a formal bug bounty program. However:
 
 This security policy may be updated periodically. Check back regularly for changes.
 
-**Last Updated**: October 2025  
-**Version**: 1.0
+**Last Updated**: November 2026  
+**Version**: 1.1
 
 ---
 
