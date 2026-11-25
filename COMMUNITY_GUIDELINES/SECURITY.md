@@ -24,7 +24,7 @@ The DHT Taiwan Team takes the security of RAPTOR seriously. We appreciate your e
 
 Instead, please report security vulnerabilities by:
 
-1. **Email**: Send an email to [security@dhtsolution.com] (to be configured)
+1. **Email**: Send an email to [security@dhtsolution.group](mailto:security@dhtsolution.group) (to be configured)
    - Subject: "RAPTOR Security Vulnerability Report"
    - Include detailed information about the vulnerability
 
@@ -229,7 +229,7 @@ We currently do not have a formal bug bounty program. However:
 ## Contact
 
 **Security Team**: DHT Taiwan Team
-**Email**: [To be configured - security@dhtsolution.com]
+**Email**: [security@dhtsolution.group](mailto:security@dhtsolution.group) (to be configured)
 **Company**: [DHT Solutions](https://dhtsolution.com/)
 
 ## Additional Resources
