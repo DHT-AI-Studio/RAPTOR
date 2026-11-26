@@ -307,7 +307,7 @@ class TKGExecutor(AgentExecutor):
 agent_card = AgentCard(
     name="tkg_agent",
     description="Temporal Knowledge Graph via Module 25 (ArcadeDB, per-user isolated). Entity relationships with time-range filtering.",
-    version="0.3.0",
+    version="0.5.0",
     url=f"http://raptor-tkg-agent:{PORT}",
     defaultInputModes=["text"],
     defaultOutputModes=["text"],

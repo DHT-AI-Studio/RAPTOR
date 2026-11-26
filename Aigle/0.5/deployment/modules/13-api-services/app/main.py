@@ -231,8 +231,9 @@ app.state.limiter = limiter
 #
 # Guardrail intercept (V04-10) — must end up innermost, after
 # LegacyApiAliasMiddleware's rewrite, so it sees the canonical path and covers
-# /api/0.3/{chat,a2a}/* for free. GR_ENABLED=false (default) short-circuits to
-# a single boolean check. Added first so later add_middleware() calls wrap
+# /api/0.3/{chat,a2a}/* for free. GR_ENABLED=true (default) actually runs the
+# check; =false short-circuits to a single boolean check instead. Added first
+# so later add_middleware() calls wrap
 # *outside* it. GB-19 / VIE01-379: it also screens the input of the
 # settings.guardrail_routes POSTs (search, docagent qa) in
 # GATEWAY_GUARDRAIL_MODE=audit|strict; auth is a router dependency, so this

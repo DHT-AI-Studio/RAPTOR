@@ -49,7 +49,7 @@ Modules 17 (OpenSearch/Qdrant-based hybrid search) and 20 (Neo4j-based graph rea
 | 24 | arcadedb-server    | ArcadeDB — multi-model engine (graph + vector + BM25) backing Module 25 (`:2480`) |
 | 27 | mcp-server         | MCP Server — exposes Raptor APIs as MCP tools/resources (`:8027`) |
 | 29 | doc-processing-agent | Document Processing Agent (`:8290`)                                     |
-| 33 | privacy-compliance-service | Privacy Compliance Service — GDPR consent, erasure, export (`:8033`, internal-only) |
+| 33 | privacy-compliance-service | Privacy Compliance Service — GDPR/CCPA rights (consent, erasure, export, DSAR, rectify/restrict/object), retention, legal hold, the access log, and the compliance audit report (`GET /compliance/report`, `compliance-auditor` role) — see [API_REFERENCE.md](docs/API_REFERENCE.md#compliance) (`:8033`, internal-only) |
 | 34 | realtime-audio     | Real-time Audio — WebSocket audio streaming (`/audio/stream`, one-time tickets, Redis sessions) with per-session silero-VAD utterance segmentation; image built on Module 08's, VAD on CPU (host `:8035`, container `:8034`) |
 | 36 | grpc-gateway       | gRPC Gateway (`:8825`, metrics `:9825`)                                    |
 

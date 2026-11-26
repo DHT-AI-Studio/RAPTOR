@@ -23,8 +23,10 @@ decide answers allow | warn | redact | block:
 
 Design:
 
-* `GR_ENABLED=false` (default) — every request takes a single boolean branch straight
-  to `call_next`; no Guardrail Service call, no body buffering, zero added latency.
+* `GR_ENABLED=true` (default) — the Guardrail Service is actually called for the
+  intercepted routes; `GR_ENABLED=false` short-circuits every request to a single
+  boolean branch straight to `call_next` instead, with no Guardrail Service call,
+  no body buffering, zero added latency.
 * A request whose (path, method) isn't one of the three intercepted routes also passes
   straight through untouched — the middleware only buffers request/response bodies for
   the routes it actually checks.

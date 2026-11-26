@@ -150,7 +150,7 @@ class VectorSearchExecutor(AgentExecutor):
 agent_card = AgentCard(
     name="vector_search_agent",
     description="Semantic vector search via Module 25 (BAAI/bge-m3, ArcadeDB, per-user isolated).",
-    version="0.3.0",
+    version="0.5.0",
     url=f"http://raptor-vector-agent:{PORT}",
     defaultInputModes=["text"],
     defaultOutputModes=["text"],

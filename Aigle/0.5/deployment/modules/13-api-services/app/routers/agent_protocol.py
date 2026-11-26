@@ -129,7 +129,7 @@ async def agent_card_json():
     return {
         "name":               s.agent_name,
         "description":        "Multimodal RAG + Knowledge Graph platform gateway",
-        "version":            "0.3.0",
+        "version":            "0.5.0",
         "url":                s.agent_endpoint,
         "defaultInputModes":  ["text"],
         "defaultOutputModes": ["text"],
@@ -146,7 +146,7 @@ async def agent_card_json():
 
 
 # ── Versioned A2A proxy endpoints ─────────────────────────────────────────────
-# All routes below are included with prefix /api/{v}/a2a (canonical: /api/0.4/a2a/*).
+# All routes below are included with prefix /api/{v}/a2a (canonical: /api/0.5/a2a/*).
 # Also reachable at /api/0.3/a2a/* via LegacyApiAliasMiddleware, which rewrites
 # to the canonical path and marks the response Deprecated.
 

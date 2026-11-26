@@ -16,7 +16,7 @@ class AgentCardService:
         return {
             "id":          self.settings.agent_id,
             "name":        self.settings.agent_name,
-            "version":     "0.3.0",
+            "version":     "0.5.0",
             "description": "Multimodal RAG + Knowledge Graph platform gateway",
             "endpoint":    self.settings.agent_endpoint,
             "capabilities": [
