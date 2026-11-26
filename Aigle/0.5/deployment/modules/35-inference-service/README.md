@@ -3,7 +3,7 @@
 模組 35 — 任務層級的文字推論 API（翻譯、摘要、補全、改寫），以及模型發現與各任務預設模型。
 35 負責提示、任務選項、模型解析、可選 Guardrail 檢查與對外回應／錯誤契約；文字模型管理、runtime、
 GPU 排程、token 計數與輸出上限留在 Module 07（契約見
-[07 INFERENCE_TEXT_CONTRACT.md](../07-ai-ml-services/docs/INFERENCE_TEXT_CONTRACT.md)）。
+[Module 07 README — 文字推論契約](../07-ai-ml-services/README.md)）。
 
 健康檢查：`GET /health` → `{"status":"ok","module":35}`。互動式 API 文件：`GET /docs`。
 

@@ -299,7 +299,7 @@ Keep every `.env.example` in sync when adding/removing keys (see §9).
 ## 4. Build & Deploy Commands
 
 ```bash
-cd Raptor_Dev                            # repo root, wherever you cloned it
+cd RAPTOR/Aigle/0.5                # release root, wherever you cloned the repo
 
 # 1. Build the shared GPU base image FIRST (used by modules 09–12)
 bash deploy.sh -m 08 --build
@@ -339,7 +339,7 @@ Notes:
 ## 5. Single-Host Deployment (evaluation)
 
 ```bash
-cd Raptor_Dev                        # repo root, wherever you cloned it
+cd RAPTOR/Aigle/0.5                # release root, wherever you cloned the repo
 # .env: HOST_IP=<this host IP>, OLLAMA_HOST=http://<ollama_ip>:11434, NFS vars
 bash deploy.sh -m 08 --build
 bash deploy.sh                       # or --cpu-only without GPUs
@@ -508,7 +508,7 @@ Ground rules:
 ### 6.2 NFS host
 
 ```bash
-cd Raptor_Dev                        # repo root, wherever you cloned it
+cd RAPTOR/Aigle/0.5                # release root, wherever you cloned the repo
 # .env: HOST_IP=10.0.0.10, NFS_BASE_PATH=/srv/raptor-nfs, NFS_EXPORT=/nfs-share, PORT_NFS=2049
 sudo mkdir -p /srv/raptor-nfs
 bash deploy.sh -m 01

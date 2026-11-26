@@ -44,7 +44,7 @@ DIARIZATION_MIN_SPEAKERS = 1
 DIARIZATION_MAX_SPEAKERS = 10
 
 # HuggingFace Token (用於 pyannote.audio)
-HF_TOKEN = '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'
+HF_TOKEN = os.getenv("HF_TOKEN", "")  # set HF_TOKEN in the environment / .env; never commit tokens
 
 # LangSmith 配置
 LANGSMITH_PROJECT = 'audioprocess'

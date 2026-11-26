@@ -1,0 +1,2 @@
+# Training output: regenerate with fine_tune_pipeline.py; publish weights via Hugging Face Hub or a release asset, not git
+granite_guardian_lora_finetuned/

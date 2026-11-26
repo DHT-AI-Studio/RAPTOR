@@ -38,8 +38,7 @@ RAPTOR 0.2 Version 在 0.1 版本的基礎上新增以下內容：
     ├── AI.API.v2.0 (1).docx
     ├── _E7_99_BC_E7_A5_A8.jpg
     ├── EF25Y01.csv
-    ├── jogging.mp4
-    └── 【魔法壞女巫 ： 第二部】幕後花絮 - 11月21日 全台戲院見 [63J7rmWlCwE].mp4
+    └── jogging.mp4
 ```
 
 ## 

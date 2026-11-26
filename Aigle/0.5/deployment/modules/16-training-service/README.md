@@ -118,14 +118,14 @@ raptor-training-service/
 
 | Component                                                                                                 | Description                                                                                 |
 | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [`src/main.py`](src/main.py:1)                                                                             | FastAPI application entry point with health checks and API documentation                    |
-| [`src/api/training_api.py`](src/api/training_api.py:1)                                                     | REST API endpoints for training job submission, status tracking, cancellation, and deletion |
-| [`src/core/gpu_manager.py`](src/core/gpu_manager.py:1)                                                     | GPU resource manager with NVML-based monitoring and intelligent allocation strategies       |
-| [`src/core/training_job_manager.py`](src/core/training_job_manager.py:1)                                   | Job lifecycle management using Redis for state persistence and async scheduling             |
-| [`src/core/training_worker.py`](src/core/training_worker.py:1)                                             | Subprocess execution with CUDA isolation for training workloads                             |
-| [`src/core/training_entrypoint.py`](src/core/training_entrypoint.py:1)                                     | Standalone training script entry point executed in subprocess                               |
-| [`src/core/training_orchestrator.py`](src/core/training_orchestrator.py:1)                                 | Training execution orchestration with PyTorch Lightning                                     |
-| [`src/training/datasets/text_instruction_dataset.py`](src/training/datasets/text_instruction_dataset.py:1) | Dataset loader for instruction tuning with flexible column mapping                          |
+| [`src/main.py`](src/main.py)                                                                             | FastAPI application entry point with health checks and API documentation                    |
+| [`src/api/training_api.py`](src/api/training_api.py)                                                     | REST API endpoints for training job submission, status tracking, cancellation, and deletion |
+| [`src/core/gpu_manager.py`](src/core/gpu_manager.py)                                                     | GPU resource manager with NVML-based monitoring and intelligent allocation strategies       |
+| [`src/core/training_job_manager.py`](src/core/training_job_manager.py)                                   | Job lifecycle management using Redis for state persistence and async scheduling             |
+| [`src/core/training_worker.py`](src/core/training_worker.py)                                             | Subprocess execution with CUDA isolation for training workloads                             |
+| [`src/core/training_entrypoint.py`](src/core/training_entrypoint.py)                                     | Standalone training script entry point executed in subprocess                               |
+| [`src/core/training_orchestrator.py`](src/core/training_orchestrator.py)                                 | Training execution orchestration with PyTorch Lightning                                     |
+| [`src/training/datasets/text_instruction_dataset.py`](src/training/datasets/text_instruction_dataset.py) | Dataset loader for instruction tuning with flexible column mapping                          |
 
 ## Quick Start
 

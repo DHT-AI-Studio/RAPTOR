@@ -4,7 +4,7 @@
 
 **RAPTOR** is an open-source **multimodal AI framework and agent harness** — an enterprise AI runtime for building agentic applications over video, audio, images, documents, and organizational knowledge, providing MCP tools, A2A orchestration, persistent memory, hybrid RAG, GraphRAG, evaluation, guardrails, and model lifecycle services.
 
-**Current release: Aigle 0.4 (Community Beta) — August 2026** — pushed to `main`; not yet cut as a GitHub Release/tag (the [latest tagged release](https://github.com/DHT-AI-Studio/RAPTOR/releases) is still `v0.3`).
+**Current release: Aigle 0.5 (Community Beta) — November 2026** — published as GitHub Release [`v0.5`](https://github.com/DHT-AI-Studio/RAPTOR/releases/tag/v0.5).
 
 ---
 
@@ -12,12 +12,12 @@
 
 **Project**: RAPTOR
 **Type**: Open-Source Multimodal AI Framework & Agent Harness
-**Current Version**: Aigle 0.4 (Community Beta, August 2026)
+**Current Version**: Aigle 0.5 (Community Beta, November 2026)
 **License**: Apache 2.0
 **Developer**: DHT Taiwan Team
 **Company**: [DHT Solutions](https://dhtsolution.com/)
 **Repository**: https://github.com/DHT-AI-Studio/RAPTOR
-**Evaluation API**: http://raptor_open_0_4_api.dhtsolution.com:8012/
+**Evaluation API**: http://raptor_open_0_5_api.dhtsolution.com:8012/
 
 **Key Value Propositions**:
 - Agent-native: every capability is callable via MCP tools, A2A orchestration, or plain REST
@@ -36,8 +36,9 @@
 | **Aigle 0.2** | February 2026 | Kafka-based media pipelines, MLflow model lifecycle, Qdrant vector search APIs, Redis cluster, evaluation API |
 | **Aigle 0.3** | June 2026 | 21-module Docker Compose platform (`build.py` build system), hybrid search (BM25 + vector, RRF + cross-encoder rerank), Neo4j knowledge graph & GraphRAG, temporal knowledge graph, A2A agent orchestration, branch-based multi-tenancy, Blackwell-ready GPU stack (CUDA 12.8), reworked Keycloak authentication, React demo frontend |
 | **Aigle 0.4** | August 2026 | Grows to 27 modules; MCP Server (tools/resources/prompts), Memory Service (Redis + MemVID, GDPR erasure), Personal DB Service (per-user ArcadeDB replacing the Qdrant/OpenSearch/Neo4j trio), Guardrail Service (LLM content moderation, disabled by default), Benchmark Service (schema-driven scoring); modules 17/19/20 deprecated in favor of module 25 |
+| **Aigle 0.5** | November 2026 | Real-time audio (module 34: WebSocket/gRPC voice chat), gRPC gateway (module 36), Privacy Compliance Service (module 33: GDPR/CCPA erasure, export, DSAR, consent, retention, legal hold), Inference Service (module 35), Doc Processing Agent now deployable (module 29), ARM64/GB10 support for every deployable module except training (16), extended guardrail coverage |
 
-Full release notes: [MAIN_DOCUMENTATION/CHANGELOG.md](MAIN_DOCUMENTATION/CHANGELOG.md)
+Full release notes: [MAIN_DOCUMENTATION/CHANGELOG.md](MAIN_DOCUMENTATION/CHANGELOG.md); Aigle 0.5 known limitations: [Aigle/0.5/docs/CHANGELOG.md](Aigle/0.5/docs/CHANGELOG.md)
 
 ---
 
@@ -58,28 +59,30 @@ RAPTOR/
     ├── 0.1/                      First beta (raptor package + design PDFs)
     ├── 0.2/                      Community Beta (Kafka pipelines, root docker-compose)
     ├── 0.3/                      Prior release (kept in-tree, superseded)
-    └── 0.4/                      Current release
-        ├── README.md             Module reference & deprecated/in-development modules
-        ├── BUILD.md              Build & source-maintenance guide
-        ├── API_REFERENCE.md      Complete REST API documentation
-        ├── MCP_REFERENCE.md      Model Context Protocol tool/resource/prompt reference
-        ├── A2A_REFERENCE.md      Agent-to-Agent protocol reference
-        ├── deploy.sh             Deployment entry point (wraps build.py)
+    ├── 0.4/                      Prior release (kept in-tree, superseded)
+    └── 0.5/                      Current release
+        ├── README.md             Module reference & deprecated modules
+        ├── docs/
+        │   ├── BUILD.md          Build, configuration & source-maintenance guide
+        │   ├── API_REFERENCE.md  Complete REST API documentation
+        │   ├── MCP_REFERENCE.md  Model Context Protocol tool/resource/prompt reference
+        │   └── CHANGELOG.md      Known limitations for this release
+        ├── deploy.sh             Deployment entry point (wraps build.py; `--init-env` for first run)
         ├── test_all_apis.py      End-to-end API test suite
         ├── raptor_client.py      Python client
-        ├── deployment/modules/   27 Docker Compose modules (01–27; 29 in development)
+        ├── deployment/modules/   32 Docker Compose modules, numbered 01–36
         └── raptor-demo-frontend/ React + Vite demo UI
 ```
 
 ---
 
-## 🏗️ Aigle 0.4 Architecture at a Glance
+## 🏗️ Aigle 0.5 Architecture at a Glance
 
-- **27 independent Docker Compose modules** sharing the `raptor` bridge network, deployed in dependency order by `deployment/modules/build.py` (`deploy.sh` wrapper); modules 17/19/20 deprecated, kept only for rollback
+- **32 independent Docker Compose modules** (numbered 01–36) sharing the `raptor` bridge network, deployed in dependency order by `deployment/modules/build.py` (`deploy.sh` wrapper); modules 17/19/20 deprecated, kept only for rollback
 - **Media flow**: upload (API Gateway `:8012`) → asset management (LakeFS + SeaweedFS) → Kafka → GPU workers (WhisperX / InternVL / OCR / summaries) → per-user ArcadeDB index (module 25: hybrid BM25 + vector + graph + temporal facts) → search / RAG / A2A / MCP APIs
 - **Infrastructure**: NFS, Redis, PostgreSQL, SeaweedFS + LakeFS, Kafka (KRaft), Keycloak, ArcadeDB
-- **Reasoning & interop**: LangGraph RAG chat, query orchestrator (intent routing), A2A agent protocol (orchestrator + 5 spec-compliant `a2a-sdk` sub-agents), MCP server (22 tools / 3 resources / 10 prompts), Guardrail content moderation, Memory Service, Benchmark Service
-- Configuration via per-module `.env` (templates: `.env.example`; see `Aigle/0.4/BUILD.md`)
+- **Reasoning & interop**: LangGraph RAG chat, query orchestrator (intent routing), A2A agent protocol (orchestrator + 5 spec-compliant `a2a-sdk` sub-agents), MCP server, gRPC gateway, real-time audio, Guardrail content moderation, Privacy Compliance, Memory Service, Benchmark Service
+- Configuration via per-module `.env` (templates: `.env.example`; see `Aigle/0.5/docs/BUILD.md`; `deploy.sh --init-env` generates them on first run)
 
 ---
 
@@ -99,6 +102,10 @@ RAPTOR/
 - ✅ Model lifecycle management (MLflow) and GPU training service
 - ✅ Keycloak authentication with group/account management
 - ✅ Demo web frontend (upload · video search · history)
+- ✅ Real-time voice chat over WebSocket/gRPC (streaming STT/TTS, barge-in)
+- ✅ gRPC API alongside REST
+- ✅ GDPR/CCPA compliance workflows (erasure, export, DSAR, consent, retention, legal hold)
+- ✅ amd64 and arm64 (GB10/GX10) builds
 
 ### Strategic Differentiators
 1. **AI-Native Architecture** — built around LLM orchestration and vector search
@@ -115,10 +122,10 @@ RAPTOR/
 | Version | Target | Focus |
 | --- | --- | --- |
 | **v0.4** | Aug 2026 ✅ | MCP integration across core services, Memory Services (Redis + MemVID), Personal Database Service (ArcadeDB) — **Delivered** |
-| **v0.5** | Sep 2026 | gRPC API interface, content moderation & GDPR/CCPA compliance, real-time audio processing, plus carry-over work from v0.4 (A2A delegation, MCP tool-catalog gaps, module 11 VRAM re-verification) |
+| **v0.5** | Nov 2026 ✅ | gRPC API interface, GDPR/CCPA compliance, real-time audio processing, inference service, ARM64 support — **Delivered** (known limitations in `Aigle/0.5/docs/CHANGELOG.md`) |
 | **v1.0** | Q4 2026 | Production ready: Kubernetes + Helm, ELK Stack observability, 99.9% SLA |
 
-Details: README.md § Future Development Roadmap; open work items tracked on [GitHub Issues](https://github.com/DHT-AI-Studio/RAPTOR/issues) under the v0.5/v1.0 milestones.
+Details: README.md § Future Development Roadmap; open work items tracked on [GitHub Issues](https://github.com/DHT-AI-Studio/RAPTOR/issues) under the v1.0 milestone.
 
 ---
 
@@ -126,15 +133,14 @@ Details: README.md § Future Development Roadmap; open work items tracked on [Gi
 
 ### For Users
 - **README.md** — overview, installation, quick start, roadmap
-- **Aigle/0.4/API_REFERENCE.md** — REST endpoint documentation with examples
-- **Aigle/0.4/MCP_REFERENCE.md** — Model Context Protocol interface guide
-- **Aigle/0.4/A2A_REFERENCE.md** — Agent-to-Agent protocol guide
-- **Aigle/0.4/raptor-demo-frontend/README.md** — demo UI usage
+- **Aigle/0.5/docs/API_REFERENCE.md** — REST endpoint documentation with examples
+- **Aigle/0.5/docs/MCP_REFERENCE.md** — Model Context Protocol interface guide
+- **Aigle/0.5/raptor-demo-frontend/README.md** — demo UI usage
 
 ### For Operators
-- **Aigle/0.4/BUILD.md** — prerequisites, .env configuration, single/multi-host setup, source-maintenance rules
-- **Aigle/0.4/README.md** — module reference, deprecated/in-development modules, service ports
-- **Aigle/0.4/deployment/README.md** — dependency graph and `build.py` reference
+- **Aigle/0.5/docs/BUILD.md** — prerequisites, .env configuration, single/multi-host setup, source-maintenance rules
+- **Aigle/0.5/README.md** — module reference, deprecated modules, service ports
+- **Aigle/0.5/deployment/README.md** — dependency graph and `build.py` reference
 
 ### For Contributors & Maintainers
 - **COMMUNITY_GUIDELINES/** — CONTRIBUTING, CODE_OF_CONDUCT, SECURITY
@@ -153,9 +159,9 @@ Details: README.md § Future Development Roadmap; open work items tracked on [Gi
 
 ---
 
-*Last updated: August 2026 (Aigle 0.4 release)*
+*Last updated: November 2026 (Aigle 0.5 release)*
 *For: DHT Taiwan Team*
-*Status: PUSHED TO MAIN — not yet cut as a GitHub Release; next milestone v0.5 (Sep 2026)*
+*Status: RELEASED (v0.5) — next milestone v1.0 (Q4 2026)*
 
 ---
 
