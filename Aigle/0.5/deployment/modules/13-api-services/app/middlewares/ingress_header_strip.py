@@ -4,8 +4,9 @@ Module 13 is the only HTTP entry point for clients, and several routers
 forward the incoming headers downstream as-is (agent_protocol `_proxy`, the
 guardrail / training / aiml_life_cycle / docagent / benchmark proxies). A
 client could therefore send its own `X-User-ID` (Module 25 trusts it),
-`X-A2A-Internal: true` (Module 21 then skips its guardrail) or
-`X-Internal-Token`, and have it reach an internal service.
+`X-A2A-Internal: true` or `X-A2A-Source-Agent: <a known sub-agent id>`
+(either one makes Module 21 skip its guardrail) or `X-Internal-Token`,
+and have it reach an internal service.
 
 This pure ASGI middleware runs outermost and removes those headers from every
 http and websocket request, so identity downstream only ever comes from the
@@ -30,6 +31,7 @@ STRIPPED_HEADERS = frozenset({
     b"x-branch-id",
     b"x-internal",
     b"x-a2a-internal",
+    b"x-a2a-source-agent",
     b"x-internal-token",
 })
 _MAINTENANCE_PATH = "/admin/maintenance"

@@ -268,7 +268,7 @@ class Settings(BaseSettings):
                     "for out-of-cluster access and must not be used here.",
     )
     gr_enabled: bool = Field(
-        False,
+        True,
         validation_alias=AliasChoices("GR_ENABLED", "GATEWAY_GR_ENABLED"),
         description="Master switch for GuardrailMiddleware. False = complete bypass, "
                     "no calls to the Guardrail Service.",

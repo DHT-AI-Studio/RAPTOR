@@ -77,8 +77,8 @@ class Settings:
     summarize_max_chunks: int = 8
 
     log_level: str = "INFO"
-    guardrail_enabled: bool = False
-    guardrail_check_output: bool = False
+    guardrail_enabled: bool = True
+    guardrail_check_output: bool = True
     module23_url: str = "http://raptor-guardrail-service:8026"
     guardrail_timeout_s: float = 20.0
     guardrail_input_path: str = "/guardrail/policy/decide"
@@ -141,8 +141,8 @@ class Settings:
             summarize_chunk_chars=max(1000, _env_int("SUMMARIZE_CHUNK_CHARS", cls.summarize_chunk_chars)),
             summarize_max_chunks=max(1, _env_int("SUMMARIZE_MAX_CHUNKS", cls.summarize_max_chunks)),
             log_level=_env("LOG_LEVEL", cls.log_level),
-            guardrail_enabled=_env("GUARDRAIL_ENABLED", "false").lower() == "true",
-            guardrail_check_output=_env("GUARDRAIL_CHECK_OUTPUT", "false").lower() == "true",
+            guardrail_enabled=_env("GUARDRAIL_ENABLED", "true").lower() == "true",
+            guardrail_check_output=_env("GUARDRAIL_CHECK_OUTPUT", "true").lower() == "true",
             module23_url=_env("MODULE23_URL", cls.module23_url).rstrip("/"),
             guardrail_timeout_s=max(0.1, _env_float("GUARDRAIL_TIMEOUT_S", 20.0)),
             guardrail_input_path=_env("GUARDRAIL_INPUT_PATH", cls.guardrail_input_path),

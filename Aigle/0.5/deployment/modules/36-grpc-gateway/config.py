@@ -168,7 +168,7 @@ class Settings(BaseSettings):
                     "reads this topic today -- see docs/_internal/OPEN_QUESTION_analyze_stream_results.md.",
     )
     guardrail_enabled: bool = Field(
-        False,
+        True,
         validation_alias=AliasChoices("GR_GRPC_GUARDRAIL_ENABLED", "GRPC_GATEWAY_GUARDRAIL_ENABLED"),
         description="Screen the user text of Search/SearchBm25/SearchVector/SearchByPerson/"
                     "StreamSearchByPerson/Chat with Module 23 before the handler runs "
@@ -182,7 +182,7 @@ class Settings(BaseSettings):
                     "GB-22 coverage matrix at startup.",
     )
     guardrail_timeout_ms: int = Field(
-        2000, gt=0,
+        20000, gt=0,
         validation_alias=AliasChoices("GR_GRPC_TIMEOUT_MS", "GRPC_GATEWAY_GUARDRAIL_TIMEOUT_MS"),
         description="How long GuardrailInterceptor waits for Module 23. On timeout (or any other "
                     "failure) the call proceeds unscreened, with a warning logged (fail-open).",

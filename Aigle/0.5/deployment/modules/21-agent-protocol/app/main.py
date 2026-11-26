@@ -163,7 +163,10 @@ async def a2a_jsonrpc(
     if method in ("agent.query", "agent.delegate", "message/send"):
         # Normalise: tasks/send uses params.message; agent.query uses params directly
         raw_task = body_dict.get("params", {})
-        request_id = str(body_dict.get("id") or "")
+        # Keep the original id and its type (int/str/None) -- a blocked response's
+        # "id" must match the request's exactly, per JSON-RPC 2.0, or a client
+        # matching by strict equality (e.g. a numeric id) can't correlate it.
+        request_id = body_dict.get("id")
         headers = dict(request.headers)
         source_agent_id = request.headers.get("x-a2a-source-agent")
 

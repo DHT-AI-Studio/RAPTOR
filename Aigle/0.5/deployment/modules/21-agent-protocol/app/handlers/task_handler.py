@@ -83,14 +83,17 @@ def extract_text_parts(task: dict[str, Any]) -> list[str]:
     if isinstance(query, str) and query:
         texts.append(query)
 
-    for key in ("task", "payload"):
-        value = task.get(key)
-        if isinstance(value, str) and value:
-            texts.append(value)
-        elif isinstance(value, dict):
-            inner = value.get("query")
-            if isinstance(inner, str) and inner:
-                texts.append(inner)
+    # agent.delegate: DiscoveryService.delegate() routes on payload when it's truthy,
+    # else falls back to task -- the exact same precedence, so only the one field that
+    # actually gets routed is screened (screening both independently and writing one
+    # shared redacted result into both would mix unrelated content across fields).
+    value = task.get("payload") or task.get("task")
+    if isinstance(value, str) and value:
+        texts.append(value)
+    elif isinstance(value, dict):
+        inner = value.get("query")
+        if isinstance(inner, str) and inner:
+            texts.append(inner)
 
     return texts
 
@@ -112,19 +115,20 @@ def _replace_text_parts(task: dict[str, Any], redacted: str) -> dict[str, Any]:
 
     if isinstance(task.get("query"), str):
         task["query"] = redacted
-    for key in ("task", "payload"):
-        value = task.get(key)
-        if isinstance(value, str):
-            task[key] = redacted
-        elif isinstance(value, dict) and isinstance(value.get("query"), str):
-            value["query"] = redacted
+
+    key = "payload" if task.get("payload") else "task"
+    value = task.get(key)
+    if isinstance(value, str):
+        task[key] = redacted
+    elif isinstance(value, dict) and isinstance(value.get("query"), str):
+        value["query"] = redacted
 
     return task
 
 
 # ── Guardrail HTTP call ───────────────────────────────────────────────────────
 
-async def _call_guardrail(content: str, request_id: str | None) -> dict[str, Any] | None:
+async def _call_guardrail(content: str, request_id: Any) -> dict[str, Any] | None:
     """POST /guardrail/policy/decide → DecideResponse dict, or None on failure (fail-open)."""
     settings = get_settings()
     url = f"{settings.guardrail_url.rstrip('/')}/guardrail/policy/decide"
@@ -160,7 +164,7 @@ async def _call_guardrail(content: str, request_id: str | None) -> dict[str, Any
 
 async def guardrail_precheck(
     task: dict[str, Any],
-    request_id: str | None = None,
+    request_id: Any = None,
     headers: dict[str, str] | None = None,
     source_agent_id: str | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:

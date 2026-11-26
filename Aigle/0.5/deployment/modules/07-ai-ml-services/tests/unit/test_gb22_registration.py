@@ -59,9 +59,11 @@ def _reset_calls(monkeypatch):
 def test_no_registration_when_url_set_but_not_enabled(monkeypatch):
     """The exact bug this guards against: GUARDRAIL_URL populated (as module
     13 needs it to be, regardless of this hook) but AIML_GUARDRAIL_ENABLED
-    left at its false default must NOT register -- the hook never calls
-    out, so the matrix must say screened=false."""
+    explicitly turned off must NOT register -- the hook never calls out, so
+    the matrix must say screened=false. (AIML_GUARDRAIL_ENABLED now defaults
+    to true, so this needs an explicit override to exercise the off case.)"""
     monkeypatch.setenv("GUARDRAIL_URL", "http://raptor-guardrail-service:8026")
+    monkeypatch.setenv("AIML_GUARDRAIL_ENABLED", "false")
     with TestClient(app):
         pass
     assert _FakeAsyncClient.calls == []

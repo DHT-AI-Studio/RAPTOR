@@ -78,11 +78,12 @@ from collections.abc import Callable
 from typing import Any
 
 import httpx
-from fastapi import Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -200,6 +201,58 @@ def _blocked(decision: dict[str, Any] | None) -> JSONResponse | None:
     )
 
 
+async def _parse_json_body(request: Request) -> dict[str, Any]:
+    raw_body = await request.body()
+    try:
+        body = json.loads(raw_body) if raw_body else {}
+        return body if isinstance(body, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+async def _run_input_guardrail(
+    request: Request, body: dict[str, Any], extract: FieldExtractor, write: FieldWriter,
+) -> dict[str, Any]:
+    """Shared body for every *_guardrail_dependency below: block/redact *body*'s screenable
+    field via Module 23 (or pass it through unchanged), the input half of what
+    GuardrailMiddleware used to do for this route by itself -- moved to a FastAPI dependency
+    chained after get_current_user, so an unauthenticated or UMA-denied caller's content never
+    reaches the Guardrail Service at all, which the middleware alone cannot guarantee (it runs
+    before FastAPI's own dependency injection). The caller must return *body* (or the typed
+    model it was validated into) as the route's own body parameter via Depends(...), not
+    declare a separate Body(...)/typed parameter of its own: FastAPI resolves a route's own
+    body parameter independently of what a dependency does to request._body, so a redaction
+    made there would never reach the route (confirmed empirically before this was written).
+    GR_ENABLED=false short-circuits exactly like the middleware does.
+    """
+    settings = get_settings()
+    if not settings.gr_enabled:
+        return body
+    request_id = getattr(request.state, "guardrail_request_id", None) or str(uuid.uuid4())
+    async with httpx.AsyncClient(timeout=settings.guardrail_timeout) as client:
+        decision = await GuardrailMiddleware._decide(client, settings, extract(body), "input", request_id)
+    if decision and decision.get("decision") == "block":
+        categories = decision.get("categories") or []
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "content_policy_violation", "policy_id": categories[0] if categories else None},
+        )
+    redacted = _redacted(decision)
+    if redacted is not None:
+        write(body, redacted)
+    return body
+
+
+async def guardrail_input_dependency(
+    request: Request,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """chat/completions' input guardrail -- see _run_input_guardrail. The route's own `body`
+    parameter must come from this dependency, not a separate Body(...) declaration."""
+    body = await _parse_json_body(request)
+    return await _run_input_guardrail(request, body, _last_user_message, _set_last_user_message)
+
+
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
@@ -291,11 +344,18 @@ class GuardrailMiddleware(BaseHTTPMiddleware):
 
         v = settings.api_version
         routes: dict[tuple, tuple] = {
-            (f"/api/{v}/chat/completions", "POST"): (_last_user_message, _set_last_user_message,
+            # PoC: chat/completions' input half moved to guardrail_input_dependency, chained
+            # after get_current_user, so an unauthenticated caller's content never reaches
+            # the Guardrail Service (this middleware runs before FastAPI's own dependency
+            # injection and cannot guarantee that on its own -- live-confirmed: a request with
+            # no Authorization header at all still got a real 422 policy_id back here instead
+            # of the 401 the route's own auth dependency would give it). None, None marks the
+            # input side as "handled elsewhere" -- output screening is unchanged for all three.
+            (f"/api/{v}/chat/completions", "POST"): (None, None,
                                                      _first_choice_message, _set_first_choice_message),
-            (f"/api/{v}/a2a/query", "POST"): (_field("question"), _set_field("question"),
+            (f"/api/{v}/a2a/query", "POST"): (None, None,
                                               _field("answer"), _set_field("answer")),
-            (f"/api/{v}/chat/chat", "POST"): (_field("message"), _set_field("message"),
+            (f"/api/{v}/chat/chat", "POST"): (None, None,
                                               _field("response"), _set_field("response")),
         }
         fields = routes.get((request.url.path, request.method))
@@ -305,8 +365,38 @@ class GuardrailMiddleware(BaseHTTPMiddleware):
                 if route is not None:
                     return await self._screen_input(request, call_next, settings, *route)
             return await call_next(request)
+
         input_field, set_input_field, output_field, set_output_field = fields
         request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        # guardrail_input_dependency reads this so its own decide call and this middleware's
+        # output decide call share one request_id in module 23's audit trail, same as when
+        # both were done here together.
+        request.state.guardrail_request_id = request_id
+
+        if input_field is None:
+            response = await call_next(request)
+            if response.status_code >= 400:
+                return response
+            return await self._screen_output(response, settings, request_id, output_field, set_output_field)
+
+        # This middleware runs before FastAPI's own dependency injection (auth is a route
+        # Depends(), which only runs once call_next() reaches the handler) -- without this,
+        # a caller with no Authorization header at all still gets its content screened,
+        # effectively a free, unauthenticated probe of the Guardrail Service's classifier
+        # (live-confirmed: such a request got a real 422 policy_id back here, not the 401
+        # the route's own auth dependency would give it). This is a cheap presence/shape
+        # check only, not real verification -- it must not call get_current_user or any
+        # real JWT/module 06 logic directly: those are resolved through FastAPI's DI, which
+        # a long-standing test convention overrides (app.dependency_overrides) to isolate
+        # each router's own tests from real Keycloak/module 06, and middleware calling that
+        # logic directly would bypass every one of those overrides. A token with no scheme
+        # or no bearer-looking value can only ever fail auth anyway, so skipping straight to
+        # call_next() for it costs nothing -- it still gets a real 401, just from the route's
+        # own dependency a moment later, same as always.
+        auth_header = request.headers.get("authorization", "")
+        scheme, _, token = auth_header.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            return await call_next(request)
 
         # Just calling request.body() is enough — BaseHTTPMiddleware.__call__ hands
         # dispatch() a `starlette.middleware.base._CachedRequest`, whose own
@@ -356,19 +446,29 @@ class GuardrailMiddleware(BaseHTTPMiddleware):
             if response.status_code >= 400:
                 return response
 
-            body = b"".join([chunk async for chunk in response.body_iterator])
+        return await self._screen_output(response, settings, request_id, output_field, set_output_field)
 
-            try:
-                resp_payload = json.loads(body) if body else {}
-                if not isinstance(resp_payload, dict):
-                    resp_payload = {}
-            except json.JSONDecodeError:
+    @staticmethod
+    async def _screen_output(
+        response: Response, settings, request_id: str, output_field: FieldExtractor, set_output_field: FieldWriter,
+    ) -> Response:
+        """Read *response*'s body, check it against Module 23, block/redact, and return the
+        (possibly rebuilt) Response -- the half of the check every wrapped route still gets
+        from this middleware regardless of where its input check runs."""
+        body = b"".join([chunk async for chunk in response.body_iterator])
+
+        try:
+            resp_payload = json.loads(body) if body else {}
+            if not isinstance(resp_payload, dict):
                 resp_payload = {}
+        except json.JSONDecodeError:
+            resp_payload = {}
 
-            decision = await self._decide(client, settings, output_field(resp_payload), "output", request_id)
-            blocked = _blocked(decision)
-            if blocked is not None:
-                return blocked
+        async with httpx.AsyncClient(timeout=settings.guardrail_timeout) as client:
+            decision = await GuardrailMiddleware._decide(client, settings, output_field(resp_payload), "output", request_id)
+        blocked = _blocked(decision)
+        if blocked is not None:
+            return blocked
 
         headers = dict(response.headers)
         redacted = _redacted(decision)

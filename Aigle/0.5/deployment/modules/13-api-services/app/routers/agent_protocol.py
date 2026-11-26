@@ -7,10 +7,16 @@ from typing import Any, Literal
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
+from app.middlewares.guardrail import (
+    _field,
+    _parse_json_body,
+    _run_input_guardrail,
+    _set_field,
+)
 from app.services.agent_card_service import AgentCardService
 
 _logger   = logging.getLogger(__name__)
@@ -190,23 +196,45 @@ async def forward_agent_message(agent_name: str, body: A2AMessageRequest, reques
     return await _proxy(request, f"/agents/{agent_name}/message")
 
 
+async def a2a_query_guardrail_dependency(
+    request: Request,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """/query's input guardrail (see guardrail.py's _run_input_guardrail), chained after
+    get_current_user so an unauthenticated caller's content never reaches the Guardrail
+    Service. Lives here, not in guardrail.py, so it can still validate against QueryRequest --
+    guardrail.py can't import that without a circular import (this module already imports
+    from guardrail.py). Returns a plain dict, not QueryRequest: rag_query() only ever forwards
+    the body downstream, never reads it as a typed model, so there is no attribute access to
+    preserve once it's validated."""
+    body = await _parse_json_body(request)
+    try:
+        QueryRequest.model_validate(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    return await _run_input_guardrail(request, body, _field("question"), _set_field("question"))
+
+
 @router.post("/query", summary="RAG query — direct / agent / tool mode", tags=["A2A Protocol"])
 async def rag_query(
-    body: QueryRequest,
     request: Request,
+    body: dict[str, Any] = Depends(a2a_query_guardrail_dependency),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> Response:
     # Inject X-User-ID / X-Branch-ID so Module 21 can forward them to Module 04
     base = _settings.agent_protocol_url.rstrip("/")
     url  = f"{base}/query"
-    headers = {k: v for k, v in request.headers.items() if k.lower() != "host"}
+    # content-length is dropped: forwarding json=body re-serializes it (possibly redacted,
+    # possibly different length from what the client originally sent), and content-type is
+    # set by json= itself -- the original request's version would conflict with both.
+    headers = {k: v for k, v in request.headers.items()
+               if k.lower() not in ("host", "content-length", "content-type")}
     user_sub = current_user.get("sub", "")
     headers["X-User-ID"]   = user_sub
     headers["X-Branch-ID"] = user_sub
-    body_bytes = await request.body()
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.request("POST", url, headers=headers, content=body_bytes)
+            resp = await client.request("POST", url, headers=headers, json=body)
     except httpx.RequestError as exc:
         _logger.error("A2A proxy error → %s: %s", url, exc)
         raise HTTPException(status_code=502, detail=str(exc))

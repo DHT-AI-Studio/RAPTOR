@@ -155,10 +155,10 @@ def _routing_async_client(
             _Client.downstream_calls.append({"url": url, "json": json})
             return httpx.Response(200, json=downstream_json, request=httpx.Request("POST", url))
 
-        async def request(self, method, url, headers=None, content=None, **kw):
+        async def request(self, method, url, headers=None, content=None, json=None, **kw):
             if downstream_forbidden:
                 raise AssertionError(f"downstream service must not be called: {url}")
-            _Client.downstream_calls.append({"url": url, "method": method, "content": content})
+            _Client.downstream_calls.append({"url": url, "method": method, "content": content, "json": json})
             return httpx.Response(200, json=downstream_json, request=httpx.Request(method, url))
 
     _Client.guardrail_calls = []
@@ -204,7 +204,10 @@ def test_enabled_input_blocked_returns_422(monkeypatch):
 
     r = client.post(CHAT_COMPLETIONS_PATH, json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "M1"}
+    # chat/completions' input check now runs in guardrail_input_dependency, which raises
+    # HTTPException -- FastAPI wraps that under "detail", unlike GuardrailMiddleware's own
+    # flat {"error": ...} (still used by a2a/query, chat/chat, and this route's own output check).
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "M1"}}
 
 
 def test_enabled_input_blocked_returns_422_with_capitalized_role(monkeypatch):
@@ -228,7 +231,7 @@ def test_enabled_input_blocked_returns_422_with_capitalized_role(monkeypatch):
         headers=AUTH_HEADERS,
     )
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
 
 
 def test_enabled_output_blocked_returns_422(monkeypatch):
@@ -264,7 +267,7 @@ def test_enabled_input_blocked_returns_422_with_content_parts(monkeypatch):
         headers=AUTH_HEADERS,
     )
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "M1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "M1"}}
 
 
 # ── 2. enabled + clean ───────────────────────────────────────────────────────────
@@ -329,7 +332,7 @@ def test_integration_policy_violating_chat_completions_returns_422(monkeypatch):
         headers=AUTH_HEADERS,
     )
     assert r.status_code == 422
-    body = r.json()
+    body = r.json()["detail"]
     assert body["error"] == "content_policy_violation"
     assert body["policy_id"] == "H1"
 
@@ -345,7 +348,10 @@ def test_a2a_query_enabled_input_blocked_returns_422(monkeypatch):
     r = client.post(A2A_QUERY_PATH, json={"question": "bad question", "top_k": 5},
                     headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    # a2a/query's input check now runs in a2a_query_guardrail_dependency, which raises
+    # HTTPException -- FastAPI wraps that under "detail", unlike GuardrailMiddleware's own
+    # flat {"error": ...} (still used for output blocking).
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
 
 
 def test_a2a_query_enabled_clean_passes_through_unchanged(monkeypatch):
@@ -385,7 +391,9 @@ def test_chat_enabled_input_blocked_returns_422(monkeypatch):
 
     r = client.post(CHAT_CHAT_PATH, json=CHAT_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S9"}
+    # chat/chat's input check now runs in chat_chat_guardrail_dependency, which raises
+    # HTTPException -- FastAPI wraps that under "detail".
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S9"}}
 
 
 def test_chat_enabled_output_blocked_returns_422(monkeypatch):
@@ -454,7 +462,7 @@ def test_legacy_chat_completions_input_blocked_returns_422(monkeypatch):
 
     r = client.post("/api/0.3/chat/completions", json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "M1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "M1"}}
 
 
 def test_legacy_a2a_query_input_blocked_returns_422(monkeypatch):
@@ -468,7 +476,7 @@ def test_legacy_a2a_query_input_blocked_returns_422(monkeypatch):
     r = client.post("/api/0.3/a2a/query", json={"question": "bad question", "top_k": 5},
                     headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
 
 
 def test_legacy_chat_chat_input_blocked_returns_422(monkeypatch):
@@ -481,7 +489,7 @@ def test_legacy_chat_chat_input_blocked_returns_422(monkeypatch):
 
     r = client.post("/api/0.3/chat/chat", json=CHAT_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S9"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S9"}}
 
 
 # ── decide request body, warn, redact (GRD-X1 AC3) ───────────────────────────────
@@ -523,7 +531,7 @@ def test_block_without_categories_has_null_policy_id(monkeypatch):
 
     r = client.post(CHAT_COMPLETIONS_PATH, json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": None}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": None}}
 
 
 def test_warn_passes_through_and_is_logged(monkeypatch, caplog):
@@ -569,8 +577,10 @@ def test_input_redact_reaches_a2a_query(monkeypatch):
 
     r = client.post(A2A_QUERY_PATH, json={"question": "secret question?", "top_k": 5}, headers=AUTH_HEADERS)
     assert r.status_code == 200
-    forwarded = client_cls.downstream_calls[0]["content"]
-    assert b"[REDACTED]?" in forwarded and b"secret question" not in forwarded
+    # a2a_query_guardrail_dependency forwards via json=body now, not the raw request bytes
+    # (it has to re-serialize to apply the redaction at all -- see its own docstring).
+    forwarded = client_cls.downstream_calls[0]["json"]
+    assert forwarded["question"] == "[REDACTED]?"
 
 
 def test_output_redact_replaces_the_returned_field(monkeypatch):
@@ -985,7 +995,7 @@ def test_gb19_audit_mode_does_not_weaken_chat_completions_blocking(monkeypatch):
     finally:
         settings.guardrail_mode = original_mode
     assert r.status_code == 422
-    assert r.json()["error"] == "content_policy_violation"
+    assert r.json()["detail"]["error"] == "content_policy_violation"
 
 
 # through the real gateway app

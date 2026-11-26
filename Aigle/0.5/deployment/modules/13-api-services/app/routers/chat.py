@@ -5,11 +5,18 @@ import logging
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Body, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field, ValidationError
 
 from app.api.dependencies import get_current_user, get_http_client, get_storage_service
 from app.core.config import Settings, get_settings
+from app.middlewares.guardrail import (
+    _field,
+    _parse_json_body,
+    _run_input_guardrail,
+    _set_field,
+    guardrail_input_dependency,
+)
 from app.services.search_service import HybridSearchService
 from app.services.storage_service import StorageService
 
@@ -77,6 +84,27 @@ class ChatResponse(BaseModel):
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
+async def chat_chat_guardrail_dependency(
+    request: Request,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> ChatRequest:
+    """/chat/chat's input guardrail (see guardrail.py's _run_input_guardrail), chained after
+    get_current_user so an unauthenticated caller's content never reaches the Guardrail
+    Service. Lives here, not in guardrail.py, so it can return a real ChatRequest -- the
+    route reads payload.message/.history/.session_id as attributes, so a plain dict (fine for
+    chat/completions and a2a/query, which only ever forward their body downstream) would not
+    do; guardrail.py can't import ChatRequest itself without a circular import (this module
+    already imports from guardrail.py)."""
+    body = await _parse_json_body(request)
+    try:
+        validated = ChatRequest.model_validate(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    body["message"] = validated.message
+    cleaned = await _run_input_guardrail(request, body, _field("message"), _set_field("message"))
+    return validated.model_copy(update={"message": cleaned["message"]})
+
+
 @router.post(
     "/chat",
     response_model=ChatResponse,
@@ -102,7 +130,7 @@ A hybrid search is automatically called when the message contains any of the fol
 """,
 )
 async def chat(
-    payload: ChatRequest,
+    payload: ChatRequest = Depends(chat_chat_guardrail_dependency),
     current_user: dict[str, Any] = Depends(get_current_user),
     http_client: httpx.AsyncClient = Depends(get_http_client),
     settings: Settings = Depends(get_settings),
@@ -266,20 +294,13 @@ constrains generation with it and validates the output: a model that cannot hono
 (`structured_output_error`, with `violations`). Module 07's error object is returned unchanged
 under `detail`.
 
-Guardrail checks (when enabled) happen in `GuardrailMiddleware`, not here — this
-endpoint is a plain proxy.
+Guardrail checks (when enabled) happen in `guardrail_input_dependency` (input,
+chained after auth so an unauthenticated caller's content never reaches it) and
+`GuardrailMiddleware` (output) — this endpoint itself is still a plain proxy.
 """,
 )
 async def chat_completions(
-    body: dict[str, Any] = Body(
-        ...,
-        example={
-            "model": "gemma4:12b",
-            "engine": "ollama",
-            "messages": [{"role": "user", "content": "你好，用一句話自我介紹"}],
-        },
-    ),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    body: dict[str, Any] = Depends(guardrail_input_dependency),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
     body["stream"] = False
