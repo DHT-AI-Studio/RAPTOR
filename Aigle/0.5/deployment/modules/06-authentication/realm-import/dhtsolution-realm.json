@@ -68,7 +68,7 @@
       {
         "id": "3c0d86ba-01d9-4f70-adae-6d92456d5b9f",
         "name": "compliance-auditor",
-        "description": "CM-7 / VIE01-410: read the compliance audit report, GET /compliance/report (Module 13 compliance.py's _is_compliance_auditor)",
+        "description": "Read the compliance audit report, GET /compliance/report (Module 13 compliance.py's _is_compliance_auditor)",
         "composite": false,
         "clientRole": false,
         "containerId": "5146525b-5146-437a-a1bf-2dce3f7dc0dc",

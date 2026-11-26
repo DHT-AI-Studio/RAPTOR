@@ -30,7 +30,7 @@ class AgentCardService:
         return {
             "id":          os.getenv("AGENT_ID",       "raptor-agent"),
             "name":        os.getenv("AGENT_NAME",     "Raptor Intelligence Agent"),
-            "version":     "0.3.0",
+            "version":     "0.5.0",
             "description": "Multimodal RAG + Knowledge Graph agent",
             "endpoint":    os.getenv("AGENT_ENDPOINT", "http://raptor-agent-protocol:8030"),
             "capabilities": [
@@ -76,7 +76,7 @@ _TAGS = [
     {"name": "Health",          "description": "服務與下游健康狀態"},
 ]
 
-app = FastAPI(title="Agent Protocol Service", version="0.3.0", lifespan=lifespan, openapi_tags=_TAGS)
+app = FastAPI(title="Agent Protocol Service", version="0.5.0", lifespan=lifespan, openapi_tags=_TAGS)
 Instrumentator(
     should_instrument_requests_inprogress=True,
     inprogress_labels=True,
@@ -96,7 +96,7 @@ async def agent_card_json():
     return {
         "name":               "raptor_agent_protocol",
         "description":        "Multimodal RAG + Knowledge Graph orchestrator. Coordinates vector search, keyword search, Graph RAG, TKG, People Search, and reranking via A2A agents.",
-        "version":            "0.3.0",
+        "version":            "0.5.0",
         "url":                os.getenv("AGENT_ENDPOINT", "http://raptor-agent-protocol:8030"),
         "defaultInputModes":  ["text"],
         "defaultOutputModes": ["text"],

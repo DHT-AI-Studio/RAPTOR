@@ -43,7 +43,7 @@ def _is_compliance_auditor(payload: dict[str, Any]) -> bool:
         "(`truncated: true` when there were more).\n"
         "- `format=csv`: one row per event (columns `section, occurred_at, record_id, actor_hash, "
         "subject_hash, kind, category, outcome, status, module, details`), as a file download.\n\n"
-        "Every person id is a SHA-256 hash (the same as CF-4's `actor_id_hash`); no content, file names or "
+        "Every person id is a SHA-256 hash (the same as the audit log's `actor_id_hash`); no content, file names or "
         "free text. Headers `X-Report-Truncated-Sections` / `X-Report-Unavailable-Sections` list the sections "
         "cut short or whose table doesn't exist yet. Requires the `compliance-auditor` role."
     ),
