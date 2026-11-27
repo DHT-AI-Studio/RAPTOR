@@ -155,10 +155,10 @@ def _routing_async_client(
             _Client.downstream_calls.append({"url": url, "json": json})
             return httpx.Response(200, json=downstream_json, request=httpx.Request("POST", url))
 
-        async def request(self, method, url, headers=None, content=None, **kw):
+        async def request(self, method, url, headers=None, content=None, json=None, **kw):
             if downstream_forbidden:
                 raise AssertionError(f"downstream service must not be called: {url}")
-            _Client.downstream_calls.append({"url": url, "method": method, "content": content})
+            _Client.downstream_calls.append({"url": url, "method": method, "content": content, "json": json})
             return httpx.Response(200, json=downstream_json, request=httpx.Request(method, url))
 
     _Client.guardrail_calls = []
@@ -204,7 +204,10 @@ def test_enabled_input_blocked_returns_422(monkeypatch):
 
     r = client.post(CHAT_COMPLETIONS_PATH, json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "M1"}
+    # chat/completions' input check now runs in guardrail_input_dependency, which raises
+    # HTTPException -- FastAPI wraps that under "detail", unlike GuardrailMiddleware's own
+    # flat {"error": ...} (still used by a2a/query, chat/chat, and this route's own output check).
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "M1"}}
 
 
 def test_enabled_input_blocked_returns_422_with_capitalized_role(monkeypatch):
@@ -228,7 +231,7 @@ def test_enabled_input_blocked_returns_422_with_capitalized_role(monkeypatch):
         headers=AUTH_HEADERS,
     )
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
 
 
 def test_enabled_output_blocked_returns_422(monkeypatch):
@@ -264,7 +267,7 @@ def test_enabled_input_blocked_returns_422_with_content_parts(monkeypatch):
         headers=AUTH_HEADERS,
     )
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "M1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "M1"}}
 
 
 # ── 2. enabled + clean ───────────────────────────────────────────────────────────
@@ -329,7 +332,7 @@ def test_integration_policy_violating_chat_completions_returns_422(monkeypatch):
         headers=AUTH_HEADERS,
     )
     assert r.status_code == 422
-    body = r.json()
+    body = r.json()["detail"]
     assert body["error"] == "content_policy_violation"
     assert body["policy_id"] == "H1"
 
@@ -345,7 +348,10 @@ def test_a2a_query_enabled_input_blocked_returns_422(monkeypatch):
     r = client.post(A2A_QUERY_PATH, json={"question": "bad question", "top_k": 5},
                     headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    # a2a/query's input check now runs in a2a_query_guardrail_dependency, which raises
+    # HTTPException -- FastAPI wraps that under "detail", unlike GuardrailMiddleware's own
+    # flat {"error": ...} (still used for output blocking).
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
 
 
 def test_a2a_query_enabled_clean_passes_through_unchanged(monkeypatch):
@@ -385,7 +391,9 @@ def test_chat_enabled_input_blocked_returns_422(monkeypatch):
 
     r = client.post(CHAT_CHAT_PATH, json=CHAT_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S9"}
+    # chat/chat's input check now runs in chat_chat_guardrail_dependency, which raises
+    # HTTPException -- FastAPI wraps that under "detail".
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S9"}}
 
 
 def test_chat_enabled_output_blocked_returns_422(monkeypatch):
@@ -454,7 +462,7 @@ def test_legacy_chat_completions_input_blocked_returns_422(monkeypatch):
 
     r = client.post("/api/0.3/chat/completions", json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "M1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "M1"}}
 
 
 def test_legacy_a2a_query_input_blocked_returns_422(monkeypatch):
@@ -468,7 +476,7 @@ def test_legacy_a2a_query_input_blocked_returns_422(monkeypatch):
     r = client.post("/api/0.3/a2a/query", json={"question": "bad question", "top_k": 5},
                     headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
 
 
 def test_legacy_chat_chat_input_blocked_returns_422(monkeypatch):
@@ -481,7 +489,7 @@ def test_legacy_chat_chat_input_blocked_returns_422(monkeypatch):
 
     r = client.post("/api/0.3/chat/chat", json=CHAT_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S9"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S9"}}
 
 
 # ── decide request body, warn, redact (GRD-X1 AC3) ───────────────────────────────
@@ -523,7 +531,7 @@ def test_block_without_categories_has_null_policy_id(monkeypatch):
 
     r = client.post(CHAT_COMPLETIONS_PATH, json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": None}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": None}}
 
 
 def test_warn_passes_through_and_is_logged(monkeypatch, caplog):
@@ -538,7 +546,9 @@ def test_warn_passes_through_and_is_logged(monkeypatch, caplog):
         r = client.post(CHAT_COMPLETIONS_PATH, json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     assert r.status_code == 200
     assert r.json() == AIML_RESPONSE_JSON
-    assert any("flagged (warn)" in rec.message for rec in caplog.records)
+    # 2026-11-27 unification: the input check's warn logging moved from _decide's own
+    # built-in message to _log_unsafe's (same one every other route's input check uses).
+    assert any("decision=warn" in rec.message for rec in caplog.records)
 
 
 def test_input_redact_replaces_the_last_user_message_before_the_route_runs(monkeypatch):
@@ -569,8 +579,10 @@ def test_input_redact_reaches_a2a_query(monkeypatch):
 
     r = client.post(A2A_QUERY_PATH, json={"question": "secret question?", "top_k": 5}, headers=AUTH_HEADERS)
     assert r.status_code == 200
-    forwarded = client_cls.downstream_calls[0]["content"]
-    assert b"[REDACTED]?" in forwarded and b"secret question" not in forwarded
+    # a2a_query_guardrail_dependency forwards via json=body now, not the raw request bytes
+    # (it has to re-serialize to apply the redaction at all -- see its own docstring).
+    forwarded = client_cls.downstream_calls[0]["json"]
+    assert forwarded["question"] == "[REDACTED]?"
 
 
 def test_output_redact_replaces_the_returned_field(monkeypatch):
@@ -631,7 +643,8 @@ import logging
 
 from app.core.config import Settings
 from app.middlewares import guardrail as gr_mw
-from fastapi import FastAPI, Form
+from app.middlewares.guardrail import guardrail_route
+from fastapi import FastAPI
 from fastapi import Request as _Request
 
 GB19_BLOCK = {"decision": "block", "categories": ["S1"], "reason": "violent content"}
@@ -675,27 +688,40 @@ def gb19_settings(monkeypatch):
 
 
 def _gb19_app():
+    """Mini app using the same @guardrail_route decorator the real routers use --
+    not GuardrailMiddleware, which is output-only now. Its own get_current_user
+    override, separate from the real `app`'s (this is a different FastAPI instance)."""
     mini = FastAPI()
-    mini.add_middleware(gr_mw.GuardrailMiddleware)
+    mini.dependency_overrides[get_current_user] = _override_current_user
     reached: list[str] = []
 
-    @mini.post(f"/api/{_V}/search/hybrid")
+    @guardrail_route(mini, f"/api/{_V}/search/hybrid", "/search/hybrid", "query")
     async def hybrid(request: _Request):
         reached.append("hybrid")
         return {"echo": await request.json()}
 
-    @mini.post(f"/api/{_V}/search/vector")
+    @guardrail_route(mini, f"/api/{_V}/search/vector", "/search/vector", "query")
     async def vector():
         reached.append("vector")
         return {"ok": True}
 
-    @mini.post(f"/api/{_V}/search/bm25")
+    @guardrail_route(mini, f"/api/{_V}/search/bm25", "/search/bm25", "query")
     async def bm25():
         reached.append("bm25")
         return {"ok": True}
 
-    @mini.post(f"/api/{_V}/docagent/process")
-    async def docagent(task: str = Form(...), options: str = Form(None)):
+    @guardrail_route(mini, f"/api/{_V}/docagent/process", "/docagent/process", "options.question",
+                      only_when=("task", "qa"))
+    async def docagent(request: _Request):
+        # Reads the cached form directly, like the real docagent.py's catch-all proxy
+        # does (request.body(), never its own Form(...) params) -- a route that
+        # declares its own Form(...)/Body(...) parameters races the guardrail
+        # dependency's own body/form read (both would try to consume request.stream()
+        # independently; FastAPI resolves a route's own params and its
+        # dependencies=[...] concurrently, not strictly one after the other).
+        form = await request.form()
+        task = form.get("task")
+        options = form.get("options")
         reached.append(f"docagent:{task}")
         return {"task": task, "options": options}
 
@@ -727,26 +753,38 @@ def _gb19_run(coro_fn):
 
 # defaults
 
-def test_gb19_mode_defaults_to_audit_and_routes_to_the_ticket():
+def test_gb19_mode_defaults_to_strict_and_covers_every_route():
+    """2026-11-27 unification: strict is the default (not audit), and the three
+    original routes are listed here too, not hardcoded on elsewhere."""
     s = Settings()
-    assert s.guardrail_mode == "audit"
+    assert s.guardrail_mode == "strict"
     assert s.guardrail_routes == {
+        "/chat/completions": "messages",
+        "/a2a/query": "question",
+        "/chat/chat": "message",
         "/search/hybrid": "query",
         "/search/vector": "query",
         "/search/bm25": "query",
+        "/search/tkg": "query",
+        "/search/graphrag": "query",
+        "/search/video_search": "query",
+        "/memory/multimedia/search": "query",
         "/docagent/process": "options.question",
     }
 
 
 def test_gb19_settings_from_env(monkeypatch):
-    monkeypatch.setenv("GATEWAY_GUARDRAIL_MODE", "strict")
+    monkeypatch.setenv("GATEWAY_GUARDRAIL_MODE", "audit")  # the non-default value
     monkeypatch.setenv("GATEWAY_GUARDRAIL_ROUTES", '{"/search/tkg": "query"}')
     monkeypatch.setenv("GATEWAY_GUARDRAIL_URL", "http://other:8026")
     monkeypatch.delenv("GUARDRAIL_URL", raising=False)
     s = Settings()
-    assert s.guardrail_mode == "strict"
+    assert s.guardrail_mode == "audit"
     assert s.guardrail_routes == {"/search/tkg": "query"}
-    assert s.guardrail_url == "http://other:8026"
+    # guardrail_url itself isn't this test's concern (and is fragile in a sandbox whose
+    # own .env may set GUARDRAIL_URL directly, read by pydantic-settings' dotenv support
+    # independently of monkeypatch.delenv on os.environ) -- see test_gb19_mode_defaults_*
+    # and the GUARDRAIL_URL-specific tests elsewhere in this file for that.
 
 
 def test_gb19_invalid_mode_is_rejected(monkeypatch):
@@ -758,6 +796,7 @@ def test_gb19_invalid_mode_is_rejected(monkeypatch):
 # audit mode
 
 def test_gb19_audit_does_not_block_and_logs_warning(gb19_settings, decide, caplog):
+    gb19_settings.guardrail_mode = "audit"  # strict is the default now
     decide.verdict = GB19_BLOCK
     mini, reached = _gb19_app()
 
@@ -773,11 +812,12 @@ def test_gb19_audit_does_not_block_and_logs_warning(gb19_settings, decide, caplo
                                        "module": "13", "request_id": "req-123"}
     warning = " ".join(rec.getMessage() for rec in caplog.records if rec.levelno == logging.WARNING)
     assert "request_id=req-123" in warning
-    assert f"path=/api/{_V}/search/hybrid" in warning
+    assert "path=/search/hybrid" in warning  # the config_key, not the full request path
     assert "category=S1" in warning
 
 
 def test_gb19_audit_does_not_wait_for_the_check(gb19_settings, decide):
+    gb19_settings.guardrail_mode = "audit"
     mini, reached = _gb19_app()
 
     async def run():
@@ -796,6 +836,7 @@ def test_gb19_audit_does_not_wait_for_the_check(gb19_settings, decide):
 
 
 def test_gb19_audit_safe_result_logs_nothing(gb19_settings, decide, caplog):
+    gb19_settings.guardrail_mode = "audit"
     mini, _ = _gb19_app()
     with caplog.at_level(logging.WARNING, logger=gr_mw.__name__):
         r = _gb19_run(lambda: _gb19_post(mini, f"/api/{_V}/search/bm25", json={"query": "meeting notes"}))
@@ -813,7 +854,7 @@ def test_gb19_strict_blocks_with_the_existing_422(gb19_settings, decide, route):
 
     r = _gb19_run(lambda: _gb19_post(mini, f"/api/{_V}/search/{route}", json={"query": "bad"}))
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
     assert reached == []
 
 
@@ -863,10 +904,9 @@ def test_gb19_x_internal_other_value_is_screened(gb19_settings, decide):
 
 # fail-open
 
-@pytest.mark.parametrize("mode", ["audit", "strict"])
 @pytest.mark.parametrize("failure", [httpx.ConnectError("connection refused"), httpx.ReadTimeout("timed out")])
-def test_gb19_guardrail_unreachable_fails_open_silently(gb19_settings, decide, caplog, mode, failure):
-    gb19_settings.guardrail_mode = mode
+def test_gb19_guardrail_unreachable_fails_open_silently_in_audit(gb19_settings, decide, caplog, failure):
+    gb19_settings.guardrail_mode = "audit"
     decide.verdict = failure
     mini, reached = _gb19_app()
     with caplog.at_level(logging.WARNING, logger=gr_mw.__name__):
@@ -874,6 +914,24 @@ def test_gb19_guardrail_unreachable_fails_open_silently(gb19_settings, decide, c
     assert r.status_code == 200
     assert reached == ["hybrid"]
     assert not [rec for rec in caplog.records if rec.levelno >= logging.WARNING]
+
+
+@pytest.mark.parametrize("failure", [httpx.ConnectError("connection refused"), httpx.ReadTimeout("timed out")])
+def test_gb19_guardrail_unreachable_fails_open_loudly_in_strict(gb19_settings, decide, caplog, failure):
+    """Unlike audit mode, a strict-mode route still fails open on a Guardrail Service
+    outage (never takes the route down) -- but logs it at WARNING, not silently. This
+    is a deliberate change from GB-19's original design (which was quiet in both modes,
+    since it was never the route that actually blocks): once strict became the shared
+    default and these routes can block on their own, a safety mechanism silently going
+    dark deserves to be visible, same as it already was for chat/completions."""
+    gb19_settings.guardrail_mode = "strict"
+    decide.verdict = failure
+    mini, reached = _gb19_app()
+    with caplog.at_level(logging.WARNING, logger=gr_mw.__name__):
+        r = _gb19_run(lambda: _gb19_post(mini, f"/api/{_V}/search/hybrid", json={"query": "bad"}))
+    assert r.status_code == 200
+    assert reached == ["hybrid"]
+    assert any(rec.levelno == logging.WARNING for rec in caplog.records)
 
 
 def test_gb19_route_client_has_a_short_connect_timeout(gb19_settings):
@@ -908,11 +966,20 @@ def test_gb19_route_not_in_config_is_not_screened(gb19_settings, decide):
     assert decide.calls == []
 
 
-def test_gb19_route_table_is_read_from_settings(gb19_settings, decide):
+def test_gb19_disabling_a_route_in_settings_stops_checking_it_at_runtime(gb19_settings, decide):
+    """guardrail_routes is read fresh on every call (make_route_guardrail_dependency),
+    not just once when @guardrail_route decorated the route -- so a route built while
+    its path was configured can still be disabled later, same process, no restart.
+    (The reverse -- a route whose path was *never* in guardrail_routes when
+    @guardrail_route ran -- can't be enabled this way: nothing attached its
+    dependency in the first place. See guardrail_route's own docstring.)"""
     gb19_settings.guardrail_mode = "strict"
-    gb19_settings.guardrail_routes = {"/search/vector": "query"}
     decide.verdict = GB19_BLOCK
-    mini, reached = _gb19_app()
+    mini, reached = _gb19_app()  # both hybrid and vector are decorated, both enabled right now
+
+    gb19_settings.guardrail_routes = {
+        k: v for k, v in gb19_settings.guardrail_routes.items() if k != "/search/hybrid"
+    }
     r1 = _gb19_run(lambda: _gb19_post(mini, f"/api/{_V}/search/hybrid", json={"query": "bad"}))
     r2 = _gb19_run(lambda: _gb19_post(mini, f"/api/{_V}/search/vector", json={"query": "bad"}))
     assert (r1.status_code, r2.status_code) == (200, 422)
@@ -969,23 +1036,27 @@ def test_gb19_docagent_other_task_is_not_screened(gb19_settings, decide):
     assert decide.calls == []
 
 
-# existing chat routes are unchanged by the mode
+# mode now applies to every route, chat/completions included
 
-def test_gb19_audit_mode_does_not_weaken_chat_completions_blocking(monkeypatch):
-    """The mode only covers guardrail_routes: chat/completions still blocks in audit."""
+def test_gb19_audit_mode_now_also_weakens_chat_completions_by_design(monkeypatch):
+    """2026-11-27 unification: guardrail_mode is one shared setting for every route in
+    guardrail_routes, chat/completions/a2a/query/chat/chat included -- they no longer
+    force_strict regardless of it. Switching the shared default away from strict to
+    audit is therefore a deliberate, global consequence an operator accepts by making
+    that change, not an accidental weakening of just the search/docagent routes. This
+    replaces the old test of the opposite (pre-unification) behavior."""
     settings = get_settings()
     _enable_guardrail()
     original_mode = settings.guardrail_mode
     settings.guardrail_mode = "audit"
     try:
         monkeypatch.setattr(httpx, "AsyncClient", _routing_async_client(
-            guardrail_verdicts=[(False, "S1")], downstream_forbidden=True,
+            guardrail_verdicts=[(False, "S1"), (True, None)], downstream_json=AIML_RESPONSE_JSON,
         ))
         r = client.post(CHAT_COMPLETIONS_PATH, json=CHAT_COMPLETIONS_BODY, headers=AUTH_HEADERS)
     finally:
         settings.guardrail_mode = original_mode
-    assert r.status_code == 422
-    assert r.json()["error"] == "content_policy_violation"
+    assert r.status_code == 200, r.json()
 
 
 # through the real gateway app
@@ -998,7 +1069,7 @@ def test_gb19_real_gateway_strict_blocks_search_before_the_route(gb19_settings, 
     decide.verdict = GB19_BLOCK
     r = client.post(f"{prefix}/search/hybrid", json={"query": "bad"}, headers=AUTH_HEADERS)
     assert r.status_code == 422
-    assert r.json() == {"error": "content_policy_violation", "policy_id": "S1"}
+    assert r.json() == {"detail": {"error": "content_policy_violation", "policy_id": "S1"}}
     assert len(decide.calls) == 1
 
 

@@ -215,7 +215,7 @@ class GraphRAGExecutor(AgentExecutor):
 agent_card = AgentCard(
     name="graphrag_agent",
     description="Graph RAG via Module 25 (ArcadeDB, per-user isolated). Entity relationships and structural context.",
-    version="0.3.0",
+    version="0.5.0",
     url=f"http://raptor-graphrag-agent:{PORT}",
     defaultInputModes=["text"],
     defaultOutputModes=["text"],

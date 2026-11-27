@@ -176,7 +176,7 @@ class RerankerExecutor(AgentExecutor):
 agent_card = AgentCard(
     name="reranker_agent",
     description="Re-scores merged candidates. Primary: Module 25 rerank. Fallback: local cross-encoder.",
-    version="0.3.0",
+    version="0.5.0",
     url="http://raptor-reranker-agent:52005",
     defaultInputModes=["text"],
     defaultOutputModes=["text"],

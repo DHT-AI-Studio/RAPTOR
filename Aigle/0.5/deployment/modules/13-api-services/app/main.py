@@ -27,7 +27,10 @@ from starlette.responses import RedirectResponse
 from app.api.dependencies import get_current_user
 from app.core.config import Settings, get_settings
 from app.middlewares.audit_middleware import AuditMiddleware
-from app.middlewares.guardrail import GuardrailMiddleware
+from app.middlewares.guardrail import (
+    GuardrailMiddleware,
+    warn_on_unknown_configured_routes,
+)
 from app.middlewares.ingress_header_strip import IngressHeaderStripMiddleware
 from app.middlewares.legacy_api_alias import LegacyApiAliasMiddleware
 from app.middlewares.logging import RequestLoggingMiddleware
@@ -229,14 +232,17 @@ app.state.limiter = limiter
 # was called for /api/0.4/chat/completions but never for the identical request
 # against /api/0.3/chat/completions.)
 #
-# Guardrail intercept (V04-10) — must end up innermost, after
-# LegacyApiAliasMiddleware's rewrite, so it sees the canonical path and covers
-# /api/0.3/{chat,a2a}/* for free. GR_ENABLED=false (default) short-circuits to
-# a single boolean check. Added first so later add_middleware() calls wrap
-# *outside* it. GB-19 / VIE01-379: it also screens the input of the
-# settings.guardrail_routes POSTs (search, docagent qa) in
-# GATEWAY_GUARDRAIL_MODE=audit|strict; auth is a router dependency, so this
-# already runs before auth.
+# Guardrail *output* intercept (V04-10) for chat/completions, a2a/query and
+# chat/chat — must end up innermost, after LegacyApiAliasMiddleware's rewrite,
+# so it sees the canonical path and covers /api/0.3/{chat,a2a}/* for free.
+# GR_ENABLED=true (default) actually runs the check; =false short-circuits to a
+# single boolean check instead. Added first so later add_middleware() calls
+# wrap *outside* it. Every route's *input* check (these three plus every GB-19
+# / VIE01-379 route in settings.guardrail_routes: search, video_search,
+# memory's multimedia search, docagent qa) is a FastAPI dependency instead,
+# chained after get_current_user — see app/middlewares/guardrail.py's module
+# docstring for why a BaseHTTPMiddleware like this one can't guarantee that
+# ordering on its own.
 app.add_middleware(GuardrailMiddleware)
 # PRIV-X3 / VIE01-357: 451 on writes while the caller's Keycloak attribute
 # gdpr_processing_restricted is true -- inside LegacyApiAliasMiddleware, so
@@ -328,6 +334,10 @@ app.include_router(docagent_router, prefix=f"/api/{_v}/docagent", dependencies=[
 # Module 33's own /admin/legal-hold router, X-Internal-Token gated, no
 # end-user auth involved.
 app.include_router(maintenance_router, dependencies=[Depends(require_internal_token)])
+
+# Every @guardrail_route(...) (and docagent.py's own dependency) has registered itself
+# by now -- flag any settings.guardrail_routes entry none of them actually claimed.
+warn_on_unknown_configured_routes()
 
 
 @app.get("/", tags=["root"])

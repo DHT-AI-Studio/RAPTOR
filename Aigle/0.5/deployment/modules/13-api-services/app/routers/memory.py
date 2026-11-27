@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
+from app.middlewares.guardrail import guardrail_route
 
 _logger   = logging.getLogger(__name__)
 _settings = get_settings()
@@ -504,8 +505,11 @@ async def get_session_summaries(
 # Kept live — 21-agent-protocol's memory_client.py calls this through the
 # gateway by design (same reasoning as evaluate_compact/get_session_summaries
 # above); everything else in this Multimedia Memory section stays disabled.
-@router.post(
+@guardrail_route(
+    router,
     "/multimedia/search",
+    "/memory/multimedia/search",
+    "query",
     summary="跨媒體語意搜尋",
     description="在目前使用者的所有 video/audio/image 索引中做混合搜尋，可用 `media_type` 限定單一媒體類型。",
     tags=["Memory"],

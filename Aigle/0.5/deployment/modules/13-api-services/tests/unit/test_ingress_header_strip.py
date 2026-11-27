@@ -35,6 +35,7 @@ SPOOFED = {
     "X-Branch-ID": "attacker-branch",
     "X-Internal": "true",
     "X-A2A-Internal": "true",
+    "X-A2A-Source-Agent": "raptor-vector-agent",
     "X-Internal-Token": "guessed-token",
 }
 
@@ -59,7 +60,7 @@ def echo_client():
     return TestClient(app)
 
 
-def test_strip_list_is_the_five_cf3_headers():
+def test_strip_list_is_the_six_cf3_headers():
     assert {h.decode() for h in STRIPPED_HEADERS} == {h.lower() for h in SPOOFED}
 
 
@@ -86,7 +87,7 @@ def test_unrelated_headers_pass_through(echo_client):
 def test_maintenance_path_keeps_only_the_internal_token(echo_client):
     seen = echo_client.get("/admin/maintenance/status", headers=SPOOFED).json()
     assert seen["x-internal-token"] == "guessed-token"
-    assert not {"x-user-id", "x-branch-id", "x-internal", "x-a2a-internal"} & seen.keys()
+    assert not {"x-user-id", "x-branch-id", "x-internal", "x-a2a-internal", "x-a2a-source-agent"} & seen.keys()
 
 
 def test_maintenance_exemption_is_an_exact_path_prefix(echo_client):
@@ -117,9 +118,17 @@ def upstream(monkeypatch):
 
     monkeypatch.setattr(agent_protocol.httpx, "AsyncClient",
                         lambda **kw: original(transport=httpx.MockTransport(handle), **kw))
+    # This file is about header stripping, not Guardrail -- a2a/query now runs its own
+    # input check (a2a_query_guardrail_dependency) before reaching here, and GR_ENABLED
+    # defaults to true, so leaving it on would make these tests depend on a real,
+    # unmocked network call to settings.guardrail_url on every run.
+    settings = get_settings()
+    previous_gr_enabled = settings.gr_enabled
+    settings.gr_enabled = False
     previous = gateway.dependency_overrides.get(get_current_user)
     gateway.dependency_overrides[get_current_user] = lambda: {"sub": "jwt-user"}
     yield seen
+    settings.gr_enabled = previous_gr_enabled
     if previous is None:
         gateway.dependency_overrides.pop(get_current_user, None)
     else:
@@ -144,4 +153,5 @@ def test_rag_query_sends_only_the_jwt_identity(upstream):
     assert sent.get_list("x-user-id") == ["jwt-user"]
     assert sent.get_list("x-branch-id") == ["jwt-user"]
     assert "x-a2a-internal" not in sent
+    assert "x-a2a-source-agent" not in sent
     assert "x-internal-token" not in sent

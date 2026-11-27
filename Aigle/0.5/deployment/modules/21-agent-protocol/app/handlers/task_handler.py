@@ -58,22 +58,51 @@ def is_internal_call(headers: dict[str, str], source_agent_id: str | None = None
 # ── TextPart extraction ───────────────────────────────────────────────────────
 
 def extract_text_parts(task: dict[str, Any]) -> list[str]:
-    """Walk task.message.parts[] and collect every TextPart.text value."""
+    """Collect screenable text from *task*.
+
+    Walks the standard A2A task.message.parts[] shape (used by message/send),
+    and also recognizes the two shapes this actually receives in practice:
+    agent.query's flat {"query": "..."} and agent.delegate's
+    {"task": ..., "payload": {...}} (either a bare string, or a dict with its
+    own "query" field, since every sub-agent request model's primary field is
+    named "query"). Neither of those carries a message.parts[] envelope, so
+    without this they were never screened at all.
+    """
+    texts: list[str] = []
     try:
         parts = task.get("message", {}).get("parts", [])
     except AttributeError:
-        return []
-    texts: list[str] = []
+        parts = []
     for part in parts:
         if isinstance(part, dict) and part.get("type") == "text":
             text = part.get("text", "")
             if text:
                 texts.append(text)
+
+    query = task.get("query")
+    if isinstance(query, str) and query:
+        texts.append(query)
+
+    # agent.delegate: DiscoveryService.delegate() routes on payload when it's truthy,
+    # else falls back to task -- the exact same precedence, so only the one field that
+    # actually gets routed is screened (screening both independently and writing one
+    # shared redacted result into both would mix unrelated content across fields).
+    value = task.get("payload") or task.get("task")
+    if isinstance(value, str) and value:
+        texts.append(value)
+    elif isinstance(value, dict):
+        inner = value.get("query")
+        if isinstance(inner, str) and inner:
+            texts.append(inner)
+
     return texts
 
 
 def _replace_text_parts(task: dict[str, Any], redacted: str) -> dict[str, Any]:
-    """Return a shallow-copied task with every TextPart.text replaced by *redacted*."""
+    """Return a deep-copied task with every screenable text field replaced by *redacted*.
+
+    Mirrors every shape extract_text_parts() reads from.
+    """
     import copy
     task = copy.deepcopy(task)
     try:
@@ -83,12 +112,23 @@ def _replace_text_parts(task: dict[str, Any], redacted: str) -> dict[str, Any]:
                 part["text"] = redacted
     except (KeyError, TypeError):
         pass
+
+    if isinstance(task.get("query"), str):
+        task["query"] = redacted
+
+    key = "payload" if task.get("payload") else "task"
+    value = task.get(key)
+    if isinstance(value, str):
+        task[key] = redacted
+    elif isinstance(value, dict) and isinstance(value.get("query"), str):
+        value["query"] = redacted
+
     return task
 
 
 # ── Guardrail HTTP call ───────────────────────────────────────────────────────
 
-async def _call_guardrail(content: str, request_id: str | None) -> dict[str, Any] | None:
+async def _call_guardrail(content: str, request_id: Any) -> dict[str, Any] | None:
     """POST /guardrail/policy/decide → DecideResponse dict, or None on failure (fail-open)."""
     settings = get_settings()
     url = f"{settings.guardrail_url.rstrip('/')}/guardrail/policy/decide"
@@ -101,7 +141,10 @@ async def _call_guardrail(content: str, request_id: str | None) -> dict[str, Any
         payload["request_id"] = request_id
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        # 5.0s was too tight: live-tested decide latency is ~6.5s steady-state, but a cold-start
+        # call measured 15.6s (model reload after idle) -- every call failed open regardless of
+        # content (same bug as module 36's GRPC_GATEWAY_GUARDRAIL_TIMEOUT_MS).
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             return resp.json()
@@ -121,7 +164,7 @@ async def _call_guardrail(content: str, request_id: str | None) -> dict[str, Any
 
 async def guardrail_precheck(
     task: dict[str, Any],
-    request_id: str | None = None,
+    request_id: Any = None,
     headers: dict[str, str] | None = None,
     source_agent_id: str | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:

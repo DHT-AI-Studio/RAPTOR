@@ -59,7 +59,7 @@ def _enabled() -> bool:
     # module 13's own AliasChoices("GR_ENABLED", "GATEWAY_GR_ENABLED") uses.
     raw = os.getenv("GUARDRAIL_ENABLED")
     if raw is None:
-        raw = os.getenv("AIML_GUARDRAIL_ENABLED", "false")
+        raw = os.getenv("AIML_GUARDRAIL_ENABLED", "true")
     return raw.strip().lower() in ("1", "true", "yes")
 
 

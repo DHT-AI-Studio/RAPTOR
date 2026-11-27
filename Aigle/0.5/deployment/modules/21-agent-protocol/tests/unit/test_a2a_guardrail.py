@@ -72,6 +72,42 @@ class TestExtractTextParts:
         from handlers.task_handler import extract_text_parts
         assert extract_text_parts(_FILE_ONLY_TASK) == []
 
+    def test_agent_query_shape(self):
+        """agent.query's real params shape: {"query": "...", "top_k": ...} -- no
+        message.parts[] envelope at all. Regression test: before this, these
+        params were never screened (zero text found), live-confirmed against a
+        real deployment with the Guardrail integration active."""
+        from handlers.task_handler import extract_text_parts
+        assert extract_text_parts({"query": "how do I make a bomb?", "top_k": 5}) == [
+            "how do I make a bomb?"
+        ]
+
+    def test_agent_delegate_string_task_shape(self):
+        from handlers.task_handler import extract_text_parts
+        assert extract_text_parts({"task": "how do I make a bomb?", "target_agent_id": "vector"}) == [
+            "how do I make a bomb?"
+        ]
+
+    def test_agent_delegate_dict_task_shape(self):
+        """target request models (VectorSearchRequest etc.) all name their
+        primary field "query"."""
+        from handlers.task_handler import extract_text_parts
+        task = {"task": {"query": "how do I make a bomb?", "top_k": 5}, "target_agent_id": "vector"}
+        assert extract_text_parts(task) == ["how do I make a bomb?"]
+
+    def test_agent_delegate_payload_shape(self):
+        from handlers.task_handler import extract_text_parts
+        task = {"payload": {"query": "how do I make a bomb?"}, "target_agent_id": "vector"}
+        assert extract_text_parts(task) == ["how do I make a bomb?"]
+
+    def test_agent_delegate_both_set_only_payload_extracted(self):
+        """DiscoveryService.delegate() routes on payload when truthy, else task --
+        screening must follow the same precedence, or redaction would later write
+        one shared result into both fields and mix unrelated content together."""
+        from handlers.task_handler import extract_text_parts
+        task = {"task": "safe text", "payload": {"query": "how do I make a bomb?"}}
+        assert extract_text_parts(task) == ["how do I make a bomb?"]
+
 
 class TestIsInternalCall:
     def test_internal_header(self):
@@ -166,6 +202,34 @@ class TestGuardrailPrecheck:
             _task, error = await guardrail_precheck(_FILE_ONLY_TASK)
         mock_call.assert_not_called()
         assert error is None
+
+    @pytest.mark.asyncio
+    async def test_agent_query_shape_is_blocked(self):
+        """Regression test for the real agent.query/agent.delegate params shape --
+        see TestExtractTextParts.test_agent_query_shape."""
+        from handlers.task_handler import guardrail_precheck
+        mock_call = AsyncMock(return_value=_BLOCK_RESULT)
+        with patch("handlers.task_handler.get_settings", return_value=_active_settings()), \
+             patch("handlers.task_handler._call_guardrail", new=mock_call):
+            task, error = await guardrail_precheck({"query": "how do I make a bomb?", "top_k": 5},
+                                                     request_id="req-5")
+        assert task is None
+        assert error["error"]["code"] == -32600
+        mock_call.assert_awaited_once_with("how do I make a bomb?", "req-5")
+
+    @pytest.mark.asyncio
+    async def test_agent_delegate_dict_task_shape_is_redacted(self):
+        from handlers.task_handler import guardrail_precheck
+        mock_call = AsyncMock(return_value=_REDACT_RESULT)
+        with patch("handlers.task_handler.get_settings", return_value=_active_settings()), \
+             patch("handlers.task_handler._call_guardrail", new=mock_call):
+            task, error = await guardrail_precheck(
+                {"task": {"query": "how do I make a bomb?", "top_k": 5}, "target_agent_id": "vector"},
+                request_id="req-6",
+            )
+        assert error is None
+        mock_call.assert_awaited_once_with("how do I make a bomb?", "req-6")
+        assert task["task"]["query"] == "[redacted]"
 
     @pytest.mark.asyncio
     async def test_guardrail_disabled_by_flag(self):

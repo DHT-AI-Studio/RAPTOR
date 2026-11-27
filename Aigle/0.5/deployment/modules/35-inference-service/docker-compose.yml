@@ -63,8 +63,8 @@ x-inference-env: &inference-env
   REDIS_PASSWORD:          ${REDIS_PASSWORD:-}
   REDIS_DB:                0
   LOG_LEVEL:               ${LOG_LEVEL:-INFO}
-  GUARDRAIL_ENABLED:        ${INF_GUARDRAIL_ENABLED:-false}
-  GUARDRAIL_CHECK_OUTPUT:   ${INF_GUARDRAIL_CHECK_OUTPUT:-false}
+  GUARDRAIL_ENABLED:        ${INF_GUARDRAIL_ENABLED:-true}
+  GUARDRAIL_CHECK_OUTPUT:   ${INF_GUARDRAIL_CHECK_OUTPUT:-true}
   MODULE23_URL:             ${INF_MODULE23_URL:-http://raptor-guardrail-service:8026}
   GUARDRAIL_TIMEOUT_S:      ${INF_GUARDRAIL_TIMEOUT_S:-20}
   GUARDRAIL_INPUT_PATH:     ${INF_GUARDRAIL_INPUT_PATH:-/guardrail/policy/decide}

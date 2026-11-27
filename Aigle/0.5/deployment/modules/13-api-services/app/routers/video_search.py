@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 from app.api.dependencies import get_current_user, get_http_client, get_storage_service
 from app.core.config import Settings, get_settings
+from app.middlewares.guardrail import guardrail_route
 from app.services.consent_check import ConsentCheck, get_consent_check
 from app.services.face_urls import add_image_urls
 from app.services.personal_db_service import PersonalDBService
@@ -279,8 +280,11 @@ async def _attach_scoped_people(
 
 # ── Main endpoint ─────────────────────────────────────────────────────────────
 
-@router.post(
+@guardrail_route(
+    router,
     "",
+    "/search/video_search",
+    "query",
     tags=["Video Search"],
     status_code=status.HTTP_200_OK,
     response_model=VideoSearchResponse,

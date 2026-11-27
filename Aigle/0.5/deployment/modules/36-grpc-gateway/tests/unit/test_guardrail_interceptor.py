@@ -378,13 +378,13 @@ def test_settings_read_the_ticket_env_names(monkeypatch):
     assert (s.guardrail_enabled, s.guardrail_url, s.guardrail_timeout_ms) == (True, "http://g:8026", 1500)
 
 
-def test_settings_default_off_and_url_falls_back_to_shared_names(monkeypatch):
+def test_settings_default_on_and_url_falls_back_to_shared_names(monkeypatch):
     for name in ("GR_GRPC_GUARDRAIL_ENABLED", "GRPC_GATEWAY_GUARDRAIL_ENABLED", "GR_GRPC_GUARDRAIL_URL",
                  "GRPC_GATEWAY_GUARDRAIL_URL", "GR_GRPC_TIMEOUT_MS", "GRPC_GATEWAY_GUARDRAIL_TIMEOUT_MS"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("GUARDRAIL_URL", "http://shared:8026")
     s = Settings(_env_file=None)
-    assert (s.guardrail_enabled, s.guardrail_url, s.guardrail_timeout_ms) == (False, "http://shared:8026", 2000)
+    assert (s.guardrail_enabled, s.guardrail_url, s.guardrail_timeout_ms) == (True, "http://shared:8026", 20000)
 
 
 def _settings(enabled: bool, url: str) -> Settings:
