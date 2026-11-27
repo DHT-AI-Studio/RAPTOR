@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.dependencies import get_current_user, get_http_client, get_storage_service
 from app.core.config import Settings, get_settings
+from app.middlewares.guardrail import guardrail_route
 from app.services.consent_check import ConsentCheck, get_consent_check
 from app.services.face_urls import add_image_urls
 from app.services.personal_db_service import PersonalDBService
@@ -110,8 +111,11 @@ class HybridSearchRequest(BaseModel):
 # Search endpoints
 # ============================================================================
 
-@router.post(
+@guardrail_route(
+    router,
     "/hybrid",
+    "/search/hybrid",
+    "query",
     tags=["Search"],
     status_code=status.HTTP_200_OK,
     summary="Hybrid Search (BM25 + Vector + Rerank)",
@@ -165,8 +169,11 @@ async def hybrid_search(
 #         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post(
+@guardrail_route(
+    router,
     "/bm25",
+    "/search/bm25",
+    "query",
     tags=["Search"],
     status_code=status.HTTP_200_OK,
     summary="BM25 Keyword Search",
@@ -212,8 +219,11 @@ async def bm25_search(
 #         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post(
+@guardrail_route(
+    router,
     "/vector",
+    "/search/vector",
+    "query",
     tags=["Search"],
     status_code=status.HTTP_200_OK,
     summary="Vector Semantic Search",
@@ -324,8 +334,11 @@ class TkgSearchRequest(BaseModel):
                           "(strict: an event meeting its end is `met-by`, not `after`)")
 
 
-@router.post(
+@guardrail_route(
+    router,
     "/tkg",
+    "/search/tkg",
+    "query",
     tags=["Search"],
     status_code=status.HTTP_200_OK,
     summary="Temporal Knowledge Graph Search (TKG)",
@@ -411,8 +424,11 @@ class GraphRagSearchRequest(BaseModel):
     )
 
 
-@router.post(
+@guardrail_route(
+    router,
     "/graphrag",
+    "/search/graphrag",
+    "query",
     tags=["Search"],
     status_code=status.HTTP_200_OK,
     summary="Knowledge Graph Entity Search (GraphRAG)",

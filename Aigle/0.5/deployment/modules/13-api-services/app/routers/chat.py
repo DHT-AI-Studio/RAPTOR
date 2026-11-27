@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.api.dependencies import get_current_user, get_http_client, get_storage_service
 from app.core.config import Settings, get_settings
 from app.middlewares.guardrail import (
+    _KNOWN_PATHS,
     _field,
     _parse_json_body,
     _run_input_guardrail,
@@ -23,6 +24,7 @@ from app.services.storage_service import StorageService
 _logger = logging.getLogger(__name__)
 
 router = APIRouter()
+_KNOWN_PATHS.add("/chat/chat")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -101,7 +103,7 @@ async def chat_chat_guardrail_dependency(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     body["message"] = validated.message
-    cleaned = await _run_input_guardrail(request, body, _field("message"), _set_field("message"))
+    cleaned = await _run_input_guardrail(request, body, "/chat/chat", _field("message"), _set_field("message"))
     return validated.model_copy(update={"message": cleaned["message"]})
 
 

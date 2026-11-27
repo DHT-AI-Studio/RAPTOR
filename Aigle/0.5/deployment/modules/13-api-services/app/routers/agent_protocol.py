@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.middlewares.guardrail import (
+    _KNOWN_PATHS,
     _field,
     _parse_json_body,
     _run_input_guardrail,
@@ -22,6 +23,7 @@ from app.services.agent_card_service import AgentCardService
 _logger   = logging.getLogger(__name__)
 _settings = get_settings()
 _card_svc = AgentCardService()
+_KNOWN_PATHS.add("/a2a/query")
 
 # Two routers: root-level for /.well-known, versioned for everything else
 well_known_router = APIRouter()
@@ -212,7 +214,7 @@ async def a2a_query_guardrail_dependency(
         QueryRequest.model_validate(body)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
-    return await _run_input_guardrail(request, body, _field("question"), _set_field("question"))
+    return await _run_input_guardrail(request, body, "/a2a/query", _field("question"), _set_field("question"))
 
 
 @router.post("/query", summary="RAG query — direct / agent / tool mode", tags=["A2A Protocol"])

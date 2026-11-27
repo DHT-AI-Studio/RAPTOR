@@ -6,15 +6,44 @@ Auth is enforced at the include_router() call in main.py.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 
+from app.api.dependencies import get_current_user
 from app.core.config import get_settings
+from app.middlewares.guardrail import _KNOWN_PATHS, _check_input, _lookup, _read_fields
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["DocAgent"])
+
+_PROCESS_CONFIG_KEY = "/docagent/process"
+_KNOWN_PATHS.add(_PROCESS_CONFIG_KEY)
+
+
+async def _docagent_process_guardrail_dependency(
+    path: str,
+    request: Request,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> None:
+    """Input guardrail for POST /docagent/process, only when task=qa -- this router is a
+    single catch-all proxy (see proxy_docagent below), so unlike every other guarded route
+    there's no dedicated route function to attach @guardrail_route to; this dependency does
+    its own path/method/task matching instead. Chained after get_current_user like every
+    other guardrail dependency (see app/middlewares/guardrail.py's module docstring)."""
+    if path != "process" or request.method != "POST":
+        return
+    if _PROCESS_CONFIG_KEY not in get_settings().guardrail_routes:
+        return
+    data = await _read_fields(request)
+    if data.get("task") != "qa":
+        return
+    content = _lookup(data, "options.question")
+    if not isinstance(content, str):
+        return
+    await _check_input(request, _PROCESS_CONFIG_KEY, content)
 
 _DOCAGENT_PATH_PREFIX = "/api/v1/docagent"
 
@@ -81,6 +110,10 @@ async def _proxy(request: Request, path: str) -> Response:
     )
 
 
-@router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@router.api_route(
+    "/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    dependencies=[Depends(_docagent_process_guardrail_dependency)],
+)
 async def proxy_docagent(request: Request, path: str = "") -> Response:
     return await _proxy(request, path)

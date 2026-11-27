@@ -280,29 +280,45 @@ class Settings(BaseSettings):
         description="Timeout (seconds) for calls to the Guardrail Service. On timeout the "
                     "check fails open (see app/middlewares/guardrail.py).",
     )
-    # GB-19 / VIE01-379: more routes screened by GuardrailMiddleware (input only),
-    # and how. Both only matter while GR_ENABLED is on.
+    # One shared on/off + strictness control for every input check below -- the three
+    # original routes (chat/completions, a2a/query, chat/chat) used to always block
+    # regardless of this setting; as of the 2026-11-27 unification they read it like
+    # every other route. Changing the default away from "strict" weakens those three
+    # too, not just search/docagent -- a deliberate, global decision, not a per-route one.
     guardrail_mode: Literal["audit", "strict"] = Field(
-        "audit",
+        "strict",
         validation_alias=AliasChoices("GATEWAY_GUARDRAIL_MODE"),
-        description="For the guardrail_routes below only. audit (default): check in a background "
-                    "task, never wait or block, log unsafe content as WARNING. strict: wait for the "
-                    "check and answer 422 content_policy_violation on a block. /chat/chat, "
-                    "/chat/completions and /a2a/query always block, whatever this is.",
+        description="audit: check in a background task, never wait or block, log unsafe content "
+                    "as WARNING. strict (default): wait for the check and answer 422 "
+                    "content_policy_violation on a block. Applies to every route in "
+                    "guardrail_routes below, including chat/completions, a2a/query and chat/chat.",
     )
     guardrail_routes: dict[str, str] = Field(
         {
+            "/chat/completions": "messages",
+            "/a2a/query": "question",
+            "/chat/chat": "message",
             "/search/hybrid": "query",
             "/search/vector": "query",
             "/search/bm25": "query",
+            "/search/tkg": "query",
+            "/search/graphrag": "query",
+            "/search/video_search": "query",
+            "/memory/multimedia/search": "query",
             "/docagent/process": "options.question",
         },
         validation_alias=AliasChoices("GATEWAY_GUARDRAIL_ROUTES"),
-        description="{path_prefix: body_field} for GuardrailMiddleware's input-only check. Prefixes "
-                    "are relative to /api/{api_version}; only POST requests are checked. The field is "
-                    "a JSON-body or form field; 'options.question' reads `question` from the JSON "
-                    "string in the `options` form field (DocAgent). /docagent/process is checked "
-                    "only when task=qa. Set as JSON in GATEWAY_GUARDRAIL_ROUTES.",
+        description="{path_prefix: body_field} of every route a @guardrail_route(...)-decorated "
+                    "endpoint checks (app/middlewares/guardrail.py). Prefixes are relative to "
+                    "/api/{api_version}. Removing a path here disables its check entirely -- the "
+                    "three original routes (chat/completions, a2a/query, chat/chat) are included, "
+                    "not hardcoded on. The body_field value is informational for those three and for "
+                    "video_search (each uses its own extractor in code, not a generic dict lookup); "
+                    "for the rest it is a real JSON-body or form field, dotted for a nested one -- "
+                    "'options.question' reads `question` from the JSON string in the `options` form "
+                    "field (DocAgent). /docagent/process is checked only when task=qa. A path with no "
+                    "matching @guardrail_route(...) anywhere in the code is inert and logs a WARNING "
+                    "at startup (see app/main.py). Set as JSON in GATEWAY_GUARDRAIL_ROUTES.",
     )
 
     # OpenSearch Bridge Service

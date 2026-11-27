@@ -77,6 +77,24 @@ def _auth_override():
         app.dependency_overrides[get_current_user] = previous
 
 
+@pytest.fixture(autouse=True)
+def _disable_guardrail():
+    """This file is about memory-proxy forwarding, not Guardrail -- /multimedia/search
+    now runs its own input check (make_route_guardrail_dependency) before reaching this
+    router, and GR_ENABLED defaults to true, so leaving it on would make
+    test_search_multimedia_forwards_path depend on a real, unmocked network call to
+    settings.guardrail_url. (Patching memory_module.httpx.AsyncClient to
+    _CapturingAsyncClient, as this file already does, isn't a fix on its own: guardrail.py
+    imports the same shared httpx module object, so that patch also replaces the client
+    the guardrail dependency itself tries to use, and _CapturingAsyncClient has no .post()
+    -- confirmed live: that was this fixture's actual failure mode before it existed.)"""
+    settings = get_settings()
+    previous = settings.gr_enabled
+    settings.gr_enabled = False
+    yield
+    settings.gr_enabled = previous
+
+
 class _CapturingAsyncClient:
     """Drop-in replacement for httpx.AsyncClient that records the outbound
     request and returns a canned response instead of hitting Module 26."""
